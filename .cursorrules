@@ -1,0 +1,142 @@
+# NFLDrafter - Fantasy Football Open Scorer
+# Cursor Rules for Development
+
+## Project Overview
+This is a local-first fantasy football scoring application with the ability to swap to Postgres later. The app provides custom scoring profiles, player analysis, and news integration for fantasy football drafting and analysis.
+
+## Tech Stack
+- **Frontend**: React + Vite + TypeScript, TanStack Query, Tailwind CSS, Recharts
+- **Backend**: FastAPI + Pydantic v2, SQLAlchemy 2.x (async with aiosqlite), httpx
+- **Database**: SQLite (WAL mode) with FTS5 for news search
+- **ETL**: Typer CLI + APScheduler, pandas, nfl_data_py
+- **Authentication**: Yahoo OAuth (3-legged) with Authlib
+
+## Project Structure
+```
+fantasy-open-scorer/
+├─ frontend/                      # Vite React app
+├─ api/                          # FastAPI service
+│  ├─ app/
+│  │  ├─ main.py                # FastAPI app entry point
+│  │  ├─ deps.py                # Dependencies and DI
+│  │  ├─ db.py                  # Database connection and session
+│  │  ├─ models.py              # SQLAlchemy models
+│  │  ├─ schemas.py             # Pydantic schemas
+│  │  ├─ scoring.py             # Scoring engine logic
+│  │  ├─ routers/               # API route handlers
+│  │  └─ services/              # Business logic services
+│  ├─ cli.py                    # Typer CLI commands
+│  └─ alembic/                  # Database migrations
+├─ .env.example                 # Environment template
+├─ pyproject.toml              # Python project config
+└─ README.md                   # Project documentation
+```
+
+## Coding Standards
+
+### Python (Backend)
+- Use Python 3.9+ features and type hints
+- Follow FastAPI best practices with async/await patterns
+- Use SQLAlchemy 2.x async syntax with proper session management
+- Implement proper error handling and validation with Pydantic
+- Use dependency injection for database sessions and external services
+- Follow PEP 8 with 88-character line limit (use black formatter)
+- Use ruff for linting and mypy for type checking
+
+### TypeScript/React (Frontend)
+- Use TypeScript strict mode
+- Implement proper error boundaries and loading states
+- Use TanStack Query for server state management
+- Follow React hooks best practices
+- Use Tailwind CSS utility classes consistently
+- Implement responsive design patterns
+- Use proper TypeScript interfaces for API responses
+
+### Database
+- Use SQLite with WAL mode enabled for performance
+- Implement proper indexing on frequently queried columns
+- Use FTS5 for full-text search on news content
+- Follow SQLAlchemy best practices for async operations
+- Implement proper foreign key constraints and relationships
+
+## Key Development Guidelines
+
+### API Design
+- Use RESTful endpoints with consistent naming
+- Implement proper HTTP status codes and error responses
+- Use Pydantic models for request/response validation
+- Implement rate limiting for external API calls
+- Use proper authentication middleware for protected routes
+
+### Data Models
+- Players: Core player information with cross-platform IDs
+- PlayerWeekStats: Normalized weekly statistics (long format)
+- ScoringProfiles: Custom scoring rule sets
+- ScoringRules: Individual scoring rules with multipliers and bonuses
+- NewsItems: RSS feed content with player associations
+
+### Scoring Engine
+- Implement flexible scoring rules with multipliers, bonuses, and caps
+- Support per-unit scoring (e.g., 0.1 points per yard)
+- Handle bonus thresholds and maximum point caps
+- Ensure scoring calculations are deterministic and testable
+
+### ETL Processes
+- Use nfl_data_py for player data and weekly statistics
+- Implement idempotent data ingestion with upsert patterns
+- Handle data validation and cleaning during ingestion
+- Support historical data loading for multiple seasons
+
+### Security Considerations
+- Store OAuth secrets in environment variables
+- Implement proper input validation and sanitization
+- Use parameterized queries to prevent SQL injection
+- Implement proper CORS policies for local development
+
+## Testing Strategy
+- Unit tests for scoring engine with known snapshots
+- Integration tests for API endpoints
+- Performance tests for scoring calculations (<50ms per profile)
+- Data validation tests for ETL processes
+
+## Performance Requirements
+- Scoring calculations should complete in under 50ms per profile
+- Database queries should use proper indexing
+- Frontend should implement virtualization for large data sets
+- News search should use FTS5 for fast text queries
+
+## Development Workflow
+1. Set up local environment with SQLite database
+2. Seed player data and historical statistics
+3. Implement scoring profiles and rules
+4. Build player explorer and news integration
+5. Add Yahoo OAuth for league integration
+6. Implement advanced features (tiering, watchlists, ADP)
+
+## Code Quality
+- Use ruff for Python linting and formatting
+- Use black for consistent Python code formatting
+- Use mypy for type checking
+- Implement proper error handling and logging
+- Write clear docstrings and comments
+- Follow consistent naming conventions
+
+## Future Considerations
+- Design for easy migration from SQLite to Postgres
+- Implement export/import functionality for scoring profiles
+- Add support for projections and what-if scenarios
+- Consider real-time game data integration
+- Plan for multi-user support if needed
+
+## Environment Setup
+- Use uv for Python dependency management
+- Use npm/yarn for frontend dependencies
+- Configure proper environment variables for OAuth
+- Set up database with WAL mode and FTS5
+- Configure development and production settings
+
+## Documentation
+- Maintain clear API documentation with FastAPI auto-docs
+- Document scoring rule formats and examples
+- Provide setup and deployment instructions
+- Include troubleshooting guides for common issues
