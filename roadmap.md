@@ -28,7 +28,7 @@
 
 ---
 
-## ✅ COMPLETED - Data Ingestion Phase
+## ✅ COMPLETED - Data Ingestion & Enhanced API Phase
 
 ### Data Ingestion & ETL ✅
 - [x] **Player Data Seeding**: Integrate nfl_data_py for player IDs and cross-platform mapping
@@ -38,19 +38,21 @@
 
 **Data Ingestion Summary**: Successfully loaded 1,095 unique players and 88,123 weekly stat records across 4 seasons (2020-2023). Implemented duplicate checking and foreign key constraint handling. API endpoints tested and working correctly.
 
+### Enhanced API Features ✅
+- [x] **Scoring Profile CRUD**: Full CRUD operations for creating, updating, deleting profiles
+- [x] **Player Search**: Advanced player search with filters (position, team, stats)
+- [x] **Bulk Operations**: Batch scoring calculations for multiple players
+- [x] **Historical Analysis**: Season-long and career statistics endpoints
+- [x] **Leaderboard Endpoint**: `/fantasy/points/leaderboard` with pagination, filters (season, position, team), and optional week aggregation
+- [x] **Batch Compute Endpoint**: `/fantasy/points/batch` to score multiple players in one request for a given profile/season/week set
+- [x] **Weekly Aggregates**: `/players/:id/summary` returning season totals, weekly sparkline data, and position rank
+- [x] **Profiles Import/Export**: endpoints to import/export scoring profiles as JSON for sharing/backups
+
+**Enhanced API Summary**: Successfully implemented comprehensive CRUD operations for scoring profiles, advanced player search and filtering, bulk scoring operations for multiple players, comprehensive leaderboard generation with filters, and detailed player summaries with weekly sparkline data and position rankings. All endpoints tested and working correctly.
+
 ---
 
 ## 🚧 IN PROGRESS - Next Implementation Phase
-
-### Enhanced API Features
-- [ ] **Scoring Profile CRUD**: Full CRUD operations for creating, updating, deleting profiles
-- [ ] **Player Search**: Advanced player search with filters (position, team, stats)
-- [ ] **Bulk Operations**: Batch scoring calculations for multiple players
-- [ ] **Historical Analysis**: Season-long and career statistics endpoints
-- [ ] **Leaderboard Endpoint**: `/fantasy/points/leaderboard` with pagination, filters (season, position, team), and optional week aggregation
-- [ ] **Batch Compute Endpoint**: `/fantasy/points/batch` to score multiple players in one request for a given profile/season/week set
-- [ ] **Weekly Aggregates**: `/players/:id/summary` returning season totals, weekly sparkline data, and position rank
-- [ ] **Profiles Import/Export**: endpoints to import/export scoring profiles as JSON for sharing/backups
 
 ### Frontend Draft Experience
 - [ ] **Draft Room MVP**: App shell with three panes (Pick Grid / Player Board / RosterBar & Watchlist)
