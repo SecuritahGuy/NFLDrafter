@@ -17,39 +17,84 @@ async def seed_players_and_ids() -> int:
         Number of players seeded
     """
     try:
-        from nfl_data_py import import_ids
+        from nfl_data_py import import_ids, import_weekly_data
         
+        # Get player IDs data
         ids = import_ids()
+        
+        # Get weekly data to extract all unique player IDs that actually have stats
+        # We'll get players from multiple seasons to ensure we have all needed players
+        seasons_to_check = [2023, 2022, 2021, 2020]  # Check these seasons for players
+        all_weekly_data = []
+        for season in seasons_to_check:
+            try:
+                season_data = import_weekly_data([season])
+                all_weekly_data.append(season_data)
+            except Exception as e:
+                print(f"Warning: Could not load {season} season data: {e}")
+                continue
+        
+        if not all_weekly_data:
+            raise ValueError("Could not load any season data")
+        
+        # Combine all seasons and get unique player IDs
+        combined_weekly = pd.concat(all_weekly_data, ignore_index=True)
+        unique_player_ids = combined_weekly['player_id'].unique()
+        
+        print(f"Found {len(unique_player_ids)} unique players with stats in weekly data")
         
         async with SessionLocal() as session:
             count = 0
-            for _, row in ids.iterrows():
-                # Generate player ID - handle nan values
-                gsis_id = row.get("gsis_id")
-                nfl_id = row.get("nfl_id")
-                
-                # Skip rows with no valid IDs
-                if pd.isna(gsis_id) and pd.isna(nfl_id):
+            processed_ids = set()
+            
+            # First, process players from weekly data (these are the ones we actually need)
+            for player_id in unique_player_ids:
+                if player_id in processed_ids:
                     continue
                 
-                # Use first valid ID or generate UUID
-                pid = None
-                if not pd.isna(gsis_id):
-                    pid = str(gsis_id)
-                elif not pd.isna(nfl_id):
-                    pid = str(nfl_id)
-                else:
-                    pid = str(uuid.uuid4())
-                
-                # Check if player already exists
+                # Check if player already exists in database
                 existing = await session.execute(
-                    select(Player).where(Player.player_id == pid)
+                    select(Player).where(Player.player_id == str(player_id))
                 )
                 if existing.scalar_one_or_none():
+                    processed_ids.add(player_id)
+                    continue
+                    
+                # Find this player in the IDs data
+                player_row = ids[ids['gsis_id'] == player_id]
+                if player_row.empty:
+                    # If not found in IDs, create from weekly data
+                    # Find this player in any of the weekly data
+                    weekly_row = None
+                    for season_data in all_weekly_data:
+                        player_data = season_data[season_data['player_id'] == player_id]
+                        if not player_data.empty:
+                            weekly_row = player_data.iloc[0]
+                            break
+                    
+                    if weekly_row is None:
+                        print(f"Warning: Could not find weekly data for player {player_id}")
+                        continue
+                    
+                    player = Player(
+                        player_id=str(player_id),
+                        full_name=str(weekly_row['player_name']),
+                        position=str(weekly_row['position']),
+                        team=str(weekly_row['recent_team']) if pd.notna(weekly_row['recent_team']) else None,
+                        nflverse_id=str(player_id),
+                        yahoo_id=None,
+                        sleeper_id=None,
+                    )
+                    session.add(player)
+                    count += 1
+                    processed_ids.add(player_id)
                     continue
                 
+                # Process from IDs data
+                row = player_row.iloc[0]
+                
                 # Get name - handle nan values
-                full_name = row.get("name")  # Use 'name' column directly
+                full_name = row.get("name")
                 if pd.isna(full_name):
                     continue  # Skip players without names
                 
@@ -60,23 +105,27 @@ async def seed_players_and_ids() -> int:
                 
                 # Get team - handle nan values
                 team = row.get("team")
-                if pd.isna(team):
+                if pd.notna(team):
+                    team = str(team)
+                else:
                     team = None
                 
                 # Create player with cleaned data
                 player = Player(
-                    player_id=pid,
+                    player_id=str(player_id),
                     full_name=str(full_name),
                     position=str(position),
                     team=team,
-                    nflverse_id=str(gsis_id) if not pd.isna(gsis_id) else None,
+                    nflverse_id=str(player_id),
                     yahoo_id=str(row.get("yahoo_id")) if not pd.isna(row.get("yahoo_id")) else None,
                     sleeper_id=str(row.get("sleeper_id")) if not pd.isna(row.get("sleeper_id")) else None,
                 )
                 session.add(player)
                 count += 1
+                processed_ids.add(player_id)
             
             await session.commit()
+            print(f"Successfully seeded {count} players")
             return count
             
     except ImportError:
@@ -98,21 +147,42 @@ async def ingest_weekly_stats(seasons: List[int]) -> dict:
         
         results = {}
         
+        # Define the stats we want to track (mapping from nfl_data_py columns to our stat keys)
+        stat_mappings = {
+            'passing_yards': 'passing_yards',
+            'passing_tds': 'passing_touchdowns',
+            'interceptions': 'interceptions',
+            'rushing_yards': 'rushing_yards',
+            'rushing_tds': 'rushing_touchdowns',
+            'receptions': 'receptions',
+            'receiving_yards': 'receiving_yards',
+            'receiving_tds': 'receiving_touchdowns',
+            'targets': 'targets',
+            'carries': 'carries',
+            'attempts': 'passing_attempts',
+            'completions': 'passing_completions',
+            'sacks': 'sacks',
+            'fumbles_lost': 'fumbles_lost',
+            'rushing_fumbles_lost': 'rushing_fumbles_lost',
+            'receiving_fumbles_lost': 'receiving_fumbles_lost',
+            'sack_fumbles_lost': 'sack_fumbles_lost',
+        }
+        
         for season in seasons:
             print(f"Loading {season} season...")
             df = import_weekly_data([season])
             
-            # Normalize to long format
-            key_cols = ["player_id", "season", "week"]
-            numeric_cols = df.select_dtypes(include=['number']).columns
-            numeric_cols = [col for col in numeric_cols if col not in key_cols]
+            print(f"Processing {len(df)} weekly records for {season}")
             
             async with SessionLocal() as session:
                 count = 0
                 for _, row in df.iterrows():
-                    for stat_col in numeric_cols:
-                        stat_value = row[stat_col]
-                        if stat_value is None or (hasattr(stat_value, 'isna') and stat_value.isna()):
+                    for nfl_col, stat_key in stat_mappings.items():
+                        if nfl_col not in df.columns:
+                            continue
+                            
+                        stat_value = row[nfl_col]
+                        if pd.isna(stat_value) or stat_value == 0:
                             continue
                         
                         # Check if stat already exists
@@ -121,7 +191,7 @@ async def ingest_weekly_stats(seasons: List[int]) -> dict:
                                 PlayerWeekStat.player_id == str(row["player_id"]),
                                 PlayerWeekStat.season == int(row["season"]),
                                 PlayerWeekStat.week == int(row["week"]),
-                                PlayerWeekStat.stat_key == stat_col
+                                PlayerWeekStat.stat_key == stat_key
                             )
                         )
                         if existing.scalar_one_or_none():
@@ -132,8 +202,8 @@ async def ingest_weekly_stats(seasons: List[int]) -> dict:
                             player_id=str(row["player_id"]),
                             season=int(row["season"]),
                             week=int(row["week"]),
-                            stat_key=stat_col,
-                            stat_value=float(stat_value or 0.0)
+                            stat_key=stat_key,
+                            stat_value=float(stat_value)
                         )
                         session.add(stat)
                         count += 1
