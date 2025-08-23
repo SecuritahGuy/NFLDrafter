@@ -92,42 +92,62 @@ def compute_points_from_dict(stats: Dict[str, float], rules: List[Dict[str, Any]
     return round(total, 2)
 
 
-def validate_scoring_rule(rule: Dict[str, Any]) -> bool:
+def validate_scoring_rule(rule: Dict[str, Any]) -> None:
     """
     Validate a scoring rule configuration.
     
     Args:
         rule: Dictionary containing rule configuration
         
-    Returns:
-        True if valid, False otherwise
+    Raises:
+        ValueError: If the rule is invalid
     """
     required_fields = ["stat_key", "multiplier"]
     
     # Check required fields
     for field in required_fields:
         if field not in rule:
-            return False
+            raise ValueError(f"Missing required field: {field}")
     
-    # Validate numeric fields
+    # Validate multiplier
     try:
         multiplier = float(rule["multiplier"])
-        if rule.get("per") is not None:
+        # Note: multiplier can be negative (e.g., interceptions)
+    except (ValueError, TypeError):
+        raise ValueError("multiplier must be a valid number")
+    
+    # Validate per field
+    if rule.get("per") is not None:
+        try:
             per = float(rule["per"])
             if per <= 0:
-                return False
-        if rule.get("bonus_min") is not None:
-            bonus_min = float(rule["bonus_min"])
-        if rule.get("bonus_max") is not None:
-            bonus_max = float(rule["bonus_max"])
-            if rule.get("bonus_min") is not None and bonus_max <= float(rule["bonus_min"]):
-                return False
-        if rule.get("cap") is not None:
-            cap = float(rule["cap"])
-    except (ValueError, TypeError):
-        return False
+                raise ValueError("per must be greater than 0")
+        except (ValueError, TypeError):
+            raise ValueError("per must be a valid number")
     
-    return True
+    # Validate bonus fields
+    if rule.get("bonus_min") is not None:
+        try:
+            bonus_min = float(rule["bonus_min"])
+        except (ValueError, TypeError):
+            raise ValueError("bonus_min must be a valid number")
+        
+        if rule.get("bonus_max") is not None:
+            try:
+                bonus_max = float(rule["bonus_max"])
+            except (ValueError, TypeError):
+                raise ValueError("bonus_max must be a valid number")
+            
+            # Now validate the logic (after successful conversion)
+            if bonus_max <= bonus_min:
+                raise ValueError("bonus_max must be greater than bonus_min")
+    
+    # Validate cap
+    if rule.get("cap") is not None:
+        try:
+            cap = float(rule["cap"])
+        except (ValueError, TypeError):
+            raise ValueError("cap must be a valid number")
 
 
 def get_default_scoring_profiles() -> Dict[str, List[Dict[str, Any]]]:
@@ -140,35 +160,35 @@ def get_default_scoring_profiles() -> Dict[str, List[Dict[str, Any]]]:
     return {
         "Standard": [
             {"stat_key": "passing_yards", "multiplier": 0.04, "per": 1},
-            {"stat_key": "passing_touchdowns", "multiplier": 4.0},
-            {"stat_key": "passing_interceptions", "multiplier": -2.0},
+            {"stat_key": "passing_touchdowns", "multiplier": 4.0, "per": 1},
+            {"stat_key": "passing_interceptions", "multiplier": -2.0, "per": 1},
             {"stat_key": "rushing_yards", "multiplier": 0.1, "per": 1},
-            {"stat_key": "rushing_touchdowns", "multiplier": 6.0},
+            {"stat_key": "rushing_touchdowns", "multiplier": 6.0, "per": 1},
             {"stat_key": "receiving_yards", "multiplier": 0.1, "per": 1},
-            {"stat_key": "receiving_touchdowns", "multiplier": 6.0},
-            {"stat_key": "receptions", "multiplier": 0.5},
-            {"stat_key": "fumbles_lost", "multiplier": -2.0},
+            {"stat_key": "receiving_touchdowns", "multiplier": 6.0, "per": 1},
+            {"stat_key": "receptions", "multiplier": 0.5, "per": 1},
+            {"stat_key": "fumbles_lost", "multiplier": -2.0, "per": 1},
         ],
         "PPR": [
             {"stat_key": "passing_yards", "multiplier": 0.04, "per": 1},
-            {"stat_key": "passing_touchdowns", "multiplier": 4.0},
-            {"stat_key": "passing_interceptions", "multiplier": -2.0},
+            {"stat_key": "passing_touchdowns", "multiplier": 4.0, "per": 1},
+            {"stat_key": "passing_interceptions", "multiplier": -2.0, "per": 1},
             {"stat_key": "rushing_yards", "multiplier": 0.1, "per": 1},
-            {"stat_key": "rushing_touchdowns", "multiplier": 6.0},
+            {"stat_key": "rushing_touchdowns", "multiplier": 6.0, "per": 1},
             {"stat_key": "receiving_yards", "multiplier": 0.1, "per": 1},
-            {"stat_key": "receiving_touchdowns", "multiplier": 6.0},
-            {"stat_key": "receptions", "multiplier": 1.0},
-            {"stat_key": "fumbles_lost", "multiplier": -2.0},
+            {"stat_key": "receiving_touchdowns", "multiplier": 6.0, "per": 1},
+            {"stat_key": "receptions", "multiplier": 1.0, "per": 1},
+            {"stat_key": "fumbles_lost", "multiplier": -2.0, "per": 1},
         ],
         "Half PPR": [
             {"stat_key": "passing_yards", "multiplier": 0.04, "per": 1},
-            {"stat_key": "passing_touchdowns", "multiplier": 4.0},
-            {"stat_key": "passing_interceptions", "multiplier": -2.0},
+            {"stat_key": "passing_touchdowns", "multiplier": 4.0, "per": 1},
+            {"stat_key": "passing_interceptions", "multiplier": -2.0, "per": 1},
             {"stat_key": "rushing_yards", "multiplier": 0.1, "per": 1},
-            {"stat_key": "rushing_touchdowns", "multiplier": 6.0},
+            {"stat_key": "rushing_touchdowns", "multiplier": 6.0, "per": 1},
             {"stat_key": "receiving_yards", "multiplier": 0.1, "per": 1},
-            {"stat_key": "receiving_touchdowns", "multiplier": 6.0},
-            {"stat_key": "receptions", "multiplier": 0.5},
-            {"stat_key": "fumbles_lost", "multiplier": -2.0},
+            {"stat_key": "receiving_touchdowns", "multiplier": 6.0, "per": 1},
+            {"stat_key": "receptions", "multiplier": 0.5, "per": 1},
+            {"stat_key": "fumbles_lost", "multiplier": -2.0, "per": 1},
         ]
     }

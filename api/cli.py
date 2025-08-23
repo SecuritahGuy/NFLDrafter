@@ -62,43 +62,15 @@ def seed():
 def seed_players():
     """Seed players from nfl_data_py (requires nfl_data_py to be installed)"""
     try:
-        from nfl_data_py import import_ids
+        from app.services.nflverse import seed_players_and_ids
         typer.echo("Seeding players from nfl_data_py...")
         
         async def _seed_players():
-            ids = import_ids()
-            ids = ids.rename(columns=str.lower)
-            
-            async with SessionLocal() as session:
-                count = 0
-                for _, row in ids.iterrows():
-                    # Generate player ID
-                    pid = row.get("gsis_id") or row.get("nfl_id") or str(uuid.uuid4())
-                    
-                    # Check if player already exists
-                    existing = await session.execute(
-                        select(Player).where(Player.player_id == pid)
-                    )
-                    if existing.scalar_one_or_none():
-                        continue
-                    
-                    # Create player
-                    player = Player(
-                        player_id=pid,
-                        full_name=row.get("full_name") or row.get("display_name", "Unknown"),
-                        position=row.get("position", "UNK"),
-                        team=row.get("team"),
-                        nflverse_id=row.get("gsis_id"),
-                        yahoo_id=row.get("yahoo_id"),
-                        sleeper_id=row.get("sleeper_id"),
-                    )
-                    session.add(player)
-                    count += 1
-                
-                await session.commit()
-                typer.echo(f"Seeded {count} players")
+            count = await seed_players_and_ids()
+            return count
         
-        asyncio.run(_seed_players())
+        count = asyncio.run(_seed_players())
+        typer.echo(f"Seeded {count} players")
         
     except ImportError:
         typer.echo("nfl_data_py not installed. Install with: pip install nfl-data-py")
@@ -111,56 +83,17 @@ def load_stats(
 ):
     """Load weekly stats for specified seasons"""
     try:
-        from nfl_data_py import import_weekly_data
+        from app.services.nflverse import ingest_weekly_stats
         typer.echo(f"Loading weekly stats for seasons: {seasons}")
         
         async def _load_stats():
             years = [int(y.strip()) for y in seasons.split(",")]
-            
-            for year in years:
-                typer.echo(f"Loading {year} season...")
-                df = import_weekly_data([year])
-                
-                # Normalize to long format
-                key_cols = ["player_id", "season", "week"]
-                numeric_cols = df.select_dtypes(include=['number']).columns
-                numeric_cols = [col for col in numeric_cols if col not in key_cols]
-                
-                async with SessionLocal() as session:
-                    count = 0
-                    for _, row in df.iterrows():
-                        for stat_col in numeric_cols:
-                            stat_value = row[stat_col]
-                            if stat_value is None or (hasattr(stat_value, 'isna') and stat_value.isna()):
-                                continue
-                            
-                            # Check if stat already exists
-                            existing = await session.execute(
-                                select(PlayerWeekStat).where(
-                                    PlayerWeekStat.player_id == str(row["player_id"]),
-                                    PlayerWeekStat.season == int(row["season"]),
-                                    PlayerWeekStat.week == int(row["week"]),
-                                    PlayerWeekStat.stat_key == stat_col
-                                )
-                            )
-                            if existing.scalar_one_or_none():
-                                continue
-                            
-                            # Create stat record
-                            stat = PlayerWeekStat(
-                                player_id=str(row["player_id"]),
-                                season=int(row["season"]),
-                                week=int(row["week"]),
-                                stat_key=stat_col,
-                                stat_value=float(stat_value or 0.0)
-                            )
-                            session.add(stat)
-                            count += 1
-                    
-                    await session.commit()
-                    typer.echo(f"Loaded {count} stat records for {year}")
+            results = await ingest_weekly_stats(years)
+            return results
         
-        asyncio.run(_load_stats())
+        results = asyncio.run(_load_stats())
+        for season, count in results.items():
+            typer.echo(f"Loaded {count} stat records for {season}")
         
     except ImportError:
         typer.echo("nfl_data_py not installed. Install with: pip install nfl-data-py")
