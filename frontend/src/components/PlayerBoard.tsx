@@ -4,17 +4,13 @@ import {
   FunnelIcon,
   ChevronUpIcon,
   ChevronDownIcon,
-  StarIcon,
   EyeIcon,
   PlusIcon,
   MinusIcon,
   ChartBarIcon,
   UserIcon,
-  CalendarIcon,
   FireIcon
 } from '@heroicons/react/24/outline'
-import { ADPImport } from './ADPImport'
-import { PlayerDrawer } from './PlayerDrawer'
 import type { ADPData } from './ADPImport'
 import type { PlayerNews, WeeklyStats, DepthChartPosition } from './PlayerDrawer'
 
@@ -32,32 +28,6 @@ export interface Player {
   adp: number
   newsCount: number
   byeWeek: number
-}
-
-export interface WeeklyStats {
-  week: number
-  points: number
-  opponent: string
-}
-
-export interface PlayerNews {
-  id: string
-  title: string
-  summary: string
-  publishedAt: string
-  source: string
-}
-
-export interface DepthChartPosition {
-  position: string
-  depth: number
-  status: string
-}
-
-export interface ADPData {
-  playerName: string
-  adp: number
-  source: string
 }
 
 export interface PlayerBoardProps {
