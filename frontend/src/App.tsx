@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import './App.css'
 import { ScoringBuilder } from './components/ScoringBuilder'
 import { PlayerExplorer } from './components/PlayerExplorer'
+import { DraftRoom } from './components/DraftRoom'
 import { Navigation } from './components/Navigation'
 
 // Create a client
@@ -25,6 +26,7 @@ function App() {
             <Routes>
               <Route path="/" element={<ScoringBuilder />} />
               <Route path="/explorer" element={<PlayerExplorer />} />
+              <Route path="/draft" element={<DraftRoom />} />
             </Routes>
           </main>
         </div>

@@ -6,6 +6,7 @@ export function Navigation() {
   const navItems = [
     { path: '/', label: 'Scoring Builder' },
     { path: '/explorer', label: 'Player Explorer' },
+    { path: '/draft', label: 'Draft Room' },
   ]
   
   return (
