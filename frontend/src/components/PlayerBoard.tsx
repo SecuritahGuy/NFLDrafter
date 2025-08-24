@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { ADPImport } from './ADPImport'
+import { PlayerDrawer } from './PlayerDrawer'
 import type { ADPData } from './ADPImport'
+import type { PlayerNews, WeeklyStats, DepthChartPosition } from './PlayerDrawer'
 
 // Types
 export interface Player {
@@ -30,6 +32,12 @@ export interface PlayerBoardProps {
   scoringProfile?: string
   importedADP?: Record<string, number> // Map of player names to imported ADP values
   onADPImport?: (adpData: ADPData[]) => void
+  // Player drawer data
+  weeklyStats?: Record<string, WeeklyStats[]>
+  news?: Record<string, PlayerNews[]>
+  depthChart?: Record<string, DepthChartPosition[]>
+  playerNotes?: Record<string, string>
+  onPlayerNotesChange?: (playerId: string, notes: string) => void
 }
 
 type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp' | 'valueVsADP'
@@ -51,6 +59,11 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   scoringProfile,
   importedADP = {},
   onADPImport,
+  weeklyStats = {},
+  news = {},
+  depthChart = {},
+  playerNotes = {},
+  onPlayerNotesChange,
 }) => {
   const [sortField, setSortField] = useState<SortField>('fantasyPoints')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
@@ -58,6 +71,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   const [selectedRowIndex, setSelectedRowIndex] = useState<number>(0)
   const [scrollTop, setScrollTop] = useState<number>(0)
   const [showADPImport, setShowADPImport] = useState<boolean>(false)
+  const [selectedPlayerForDrawer, setSelectedPlayerForDrawer] = useState<Player | null>(null)
   
   const tableRef = useRef<HTMLDivElement>(null)
   const selectedRowRef = useRef<HTMLTableRowElement>(null)
@@ -293,13 +307,28 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     </button>
   )
 
-  // Handle ADP import
-  const handleADPImport = useCallback((adpData: ADPData[]) => {
-    if (onADPImport) {
-      onADPImport(adpData)
-    }
-    setShowADPImport(false)
-  }, [onADPImport])
+           // Handle ADP import
+         const handleADPImport = useCallback((adpData: ADPData[]) => {
+           if (onADPImport) {
+             onADPImport(adpData)
+           }
+           setShowADPImport(false)
+         }, [onADPImport])
+
+         // Handle player drawer
+         const handlePlayerDrawerOpen = useCallback((player: Player) => {
+           setSelectedPlayerForDrawer(player)
+         }, [])
+
+         const handlePlayerDrawerClose = useCallback(() => {
+           setSelectedPlayerForDrawer(null)
+         }, [])
+
+         const handlePlayerNotesChange = useCallback((notes: string) => {
+           if (selectedPlayerForDrawer && onPlayerNotesChange) {
+             onPlayerNotesChange(selectedPlayerForDrawer.id, notes)
+           }
+         }, [selectedPlayerForDrawer, onPlayerNotesChange])
 
   return (
     <div className="flex-1 flex flex-col bg-white">
@@ -324,7 +353,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
               <kbd className="px-1 py-0.5 bg-gray-100 rounded">↑↓</kbd> Navigate • 
               <kbd className="px-1 py-0.5 bg-gray-100 rounded">Enter</kbd> Select • 
               <kbd className="px-1 py-0.5 bg-gray-100 rounded">A</kbd> Add • 
-              <kbd className="px-1 py-0.5 bg-gray-100 rounded">R</kbd> Remove
+              <kbd className="px-1 py-0.5 bg-gray-100 rounded">R</kbd> Remove •
+              <kbd className="px-1 py-0.5 bg-gray-100 rounded">Dbl-Click</kbd> Details
             </div>
           </div>
         </div>
@@ -424,8 +454,9 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         className={`hover:bg-gray-50 cursor-pointer transition-colors ${
                           isSelected ? 'bg-blue-100 ring-2 ring-blue-500' : ''
                         } ${isExpanded ? 'bg-blue-50' : ''}`}
-                        onClick={() => onPlayerSelect(player)}
-                        data-testid={`player-row-${player.id}`}
+                                                         onClick={() => onPlayerSelect(player)}
+                                 onDoubleClick={() => handlePlayerDrawerOpen(player)}
+                                 data-testid={`player-row-${player.id}`}
                         style={{
                           position: 'absolute',
                           top: globalIndex * ROW_HEIGHT,
@@ -612,11 +643,11 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      onPlayerSelect(player)
+                                      handlePlayerDrawerOpen(player)
                                     }}
                                     className="w-full px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                                   >
-                                    View Full Profile
+                                    View Details
                                   </button>
                                   {!watchlist.includes(player.id) && (
                                     <button
@@ -643,6 +674,18 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Player Drawer */}
+      <PlayerDrawer
+        player={selectedPlayerForDrawer}
+        isOpen={!!selectedPlayerForDrawer}
+        onClose={handlePlayerDrawerClose}
+        weeklyStats={selectedPlayerForDrawer ? weeklyStats[selectedPlayerForDrawer.id] || [] : []}
+        news={selectedPlayerForDrawer ? news[selectedPlayerForDrawer.id] || [] : []}
+        depthChart={selectedPlayerForDrawer ? depthChart[selectedPlayerForDrawer.id] || [] : []}
+        notes={selectedPlayerForDrawer ? playerNotes[selectedPlayerForDrawer.id] || '' : ''}
+        onNotesChange={onPlayerNotesChange ? handlePlayerNotesChange : undefined}
+      />
     </div>
   )
 }

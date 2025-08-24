@@ -93,7 +93,7 @@ Successfully implemented Draft Room MVP with three-pane layout (Pick Grid, Playe
 - [x] **Tiering**: Gap-based tiers computed client-side with adjustable gap control
 - [x] **VORP**: Client-side calculation with configurable replacement ranks per position
 - [x] **ADP Import (CSV)**: Settings panel to upload `player_name,adp`; fuzzy-match with team/position tie-break; show Value vs ADP
-- [ ] **Player Drawer**: Weekly sparkline, recent news (7 items), depth chart snippet, notes
+- [x] **Player Drawer**: Weekly sparkline, recent news (7 items), depth chart snippet, notes
 - [ ] **Offline Cache**: Persist TanStack Query cache to IndexedDB for fast reloads
 - [ ] **Cheat Sheet Export**: Export current filtered board (per position or overall) to CSV/PDF for print
 - [ ] **Additional Keyboard Shortcuts**: `/` focus search; `1..6` quick-filter positions; `n` toggle news; `p` pin MyPts
@@ -265,7 +265,7 @@ python cli.py load_stats 2023
 
 ## 📊 IMPLEMENTATION METRICS
 
-**Completed Features: 25/40 (62.5%)**
+**Completed Features: 26/40 (65%)**
 - ✅ **Draft Room MVP** - Three-pane layout with core components
 - ✅ **Player Board** - Virtualized table with comprehensive player data
 - ✅ **Watchlist** - Player management with sorting and persistence
@@ -273,12 +273,12 @@ python cli.py load_stats 2023
 - ✅ **Tiering** - Dynamic tier generation and manual adjustment
 - ✅ **VORP** - Value Over Replacement Player calculations
 - ✅ **ADP Import (CSV)** - CSV upload, data validation, Value vs ADP calculations
+- ✅ **Player Drawer** - Detailed player information with weekly sparklines, news, depth chart, and notes
 
-**Remaining: 15/40 (37.5%)**
+**Remaining: 14/40 (35%)**
 
-### In Progress: 2/40 (5%)
-- 🚧 ADP import functionality
-- 🚧 Player drawer with detailed information
+### In Progress: 1/40 (2.5%)
+- 🚧 Offline cache and performance optimization
 
 ### Remaining: 16/40 (40%)
 - 📋 Yahoo OAuth integration
@@ -290,7 +290,7 @@ python cli.py load_stats 2023
 - 📋 Error handling and loading UX
 - 📋 Production deployment and scaling
 
-**Status note:** The Frontend Draft Experience phase is now 85% complete with VORP component finished. The 2025 Season Testing Infrastructure is now complete with comprehensive coverage of upcoming season scenarios. The remaining components (ADP, Player Drawer) are the final pieces needed for a complete draft experience.
+**Status note:** The Frontend Draft Experience phase is now 90% complete with Player Drawer component finished. The 2025 Season Testing Infrastructure is now complete with comprehensive coverage of upcoming season scenarios. The remaining components (Offline Cache, Cheat Sheet Export) are the final pieces needed for a complete draft experience.
 
 ---
 
@@ -326,6 +326,7 @@ python cli.py load_stats 2023
 - ✅ **Tiering Complete** - Dynamic tier generation with gap-based analysis and manual adjustment
 - ✅ **VORP Complete** - Value Over Replacement Player calculations with configurable replacement ranks
 - ✅ **ADP Import Complete** - CSV upload functionality with data validation, Value vs ADP calculations, and professional UI integration
+- ✅ **Player Drawer Complete** - Detailed player information slide-out drawer with weekly sparklines, recent news, depth chart, and editable notes
 
 ### Current Architecture Strengths
 - Clean separation of concerns between frontend and backend
