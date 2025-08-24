@@ -69,11 +69,11 @@ export const Watchlist: React.FC<WatchlistProps> = ({
   const SortHeader: React.FC<{ field: 'name' | 'position' | 'fantasyPoints' | 'tier'; children: React.ReactNode }> = ({ field, children }) => (
     <button
       onClick={() => handleSort(field)}
-      className="flex items-center space-x-1 px-2 py-1 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="flex items-center space-x-1 text-left hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded px-2 py-1 transition-colors"
     >
       <span>{children}</span>
       {sortField === field && (
-        <span className="text-blue-600">
+        <span className="text-primary-600 font-semibold">
           {sortDirection === 'asc' ? '↑' : '↓'}
         </span>
       )}
@@ -82,73 +82,63 @@ export const Watchlist: React.FC<WatchlistProps> = ({
 
   if (watchlist.length === 0) {
     return (
-      <div className="flex-1 flex flex-col bg-white">
-        <div className="px-4 py-3 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Watchlist</h2>
-            <div className="text-sm text-gray-500">0 players</div>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <StarIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No players in watchlist</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Add players to your watchlist using the 'A' key or Add button
-            </p>
-            <div className="mt-4 text-xs text-gray-400 space-y-1">
-              <div><strong>Keyboard Shortcuts:</strong></div>
-              <div>A - Add player to watchlist</div>
-              <div>R - Remove player from watchlist</div>
-            </div>
-          </div>
+      <div className="text-center py-8">
+        <StarIcon className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">No players in watchlist</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          Add players to your watchlist using the 'A' key or Add button
+        </p>
+        <div className="mt-4 text-xs text-gray-400 space-y-1">
+          <div><strong>Keyboard Shortcuts:</strong></div>
+          <div>A - Add player to watchlist</div>
+          <div>R - Remove player from watchlist</div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Watchlist</h2>
-          <div className="text-sm text-gray-500">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Watchlist</h3>
+          <p className="text-sm text-gray-600">
             {watchlist.length} player{watchlist.length !== 1 ? 's' : ''}
             {scoringProfile && ` • ${scoringProfile}`}
-          </div>
+          </p>
         </div>
-        <div className="mt-2 text-xs text-gray-500">
+        <div className="text-xs text-gray-500">
           <span className="font-medium">Keyboard Shortcuts:</span> A - Add, R - Remove
         </div>
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50 sticky top-0">
+      <div className="overflow-auto">
+        <table className="table">
+          <thead>
             <tr>
-              <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col">
                 <SortHeader field="name">Player</SortHeader>
               </th>
-              <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col">
                 <SortHeader field="position">Pos</SortHeader>
               </th>
-              <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col">
                 Team
               </th>
-              <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col">
                 <SortHeader field="fantasyPoints">MyPts</SortHeader>
               </th>
-              <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col">
                 <SortHeader field="tier">Tier</SortHeader>
               </th>
-              <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody>
             {sortedWatchlist.map((player) => (
               <tr 
                 key={player.id}
@@ -194,7 +184,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
                       e.stopPropagation()
                       onRemoveFromWatchlist(player.id)
                     }}
-                    className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                    className="btn btn-error btn-sm p-1"
                     title="Remove from watchlist (R)"
                   >
                     <XMarkIcon className="h-4 w-4" />

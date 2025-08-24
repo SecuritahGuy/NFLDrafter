@@ -1,341 +1,366 @@
-import React, { useState, useCallback, useEffect } from 'react'
-import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+import React, { useState, useMemo } from 'react'
+import { PlayerBoard } from './PlayerBoard'
+import { Watchlist } from './Watchlist'
+import { RosterBar } from './RosterBar'
+import { Tiering } from './Tiering'
+import { VORP } from './VORP'
+import { ADPImport } from './ADPImport'
+import type { Player } from './PlayerBoard'
 
-// Types
-export interface DraftPick {
-  round: number
-  pick: number
-  team: string
-  player?: {
-    id: string
-    name: string
-    position: string
-    team: string
-  }
-}
-
-export interface RosterSlot {
-  position: string
-  required: number
-  filled: number
-}
-
-export interface WatchlistPlayer {
-  id: string
-  name: string
-  position: string
-  team: string
-  fantasyPoints?: number
-  tier?: number
-  addedAt: number
-}
-
-interface DraftRoomProps {
-  totalTeams?: number
-  totalRounds?: number
-  userTeam?: number
-}
-
-// Sample data for development
-const sampleRosterSlots: RosterSlot[] = [
-  { position: 'QB', required: 1, filled: 0 },
-  { position: 'RB', required: 2, filled: 0 },
-  { position: 'WR', required: 2, filled: 0 },
-  { position: 'TE', required: 1, filled: 0 },
-  { position: 'FLEX', required: 1, filled: 0 },
-  { position: 'K', required: 1, filled: 0 },
-  { position: 'DEF', required: 1, filled: 0 },
-  { position: 'BN', required: 6, filled: 0 },
-]
-
-export const DraftRoom: React.FC<DraftRoomProps> = ({
-  totalTeams = 12,
-  totalRounds = 16,
-  userTeam = 1,
-}) => {
-  const [picks, setPicks] = useState<DraftPick[]>([])
-  const [watchlist, setWatchlist] = useState<WatchlistPlayer[]>([])
-  const [rosterSlots, setRosterSlots] = useState<RosterSlot[]>(sampleRosterSlots)
+export const DraftRoom: React.FC = () => {
+  const [watchlist, setWatchlist] = useState<string[]>([])
   const [selectedPosition, setSelectedPosition] = useState<string>('ALL')
-  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false)
-  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false)
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [scoringProfile, setScoringProfile] = useState<string>('Standard PPR')
+  const [importedADP, setImportedADP] = useState<Record<string, number>>({})
+  const [playerNotes, setPlayerNotes] = useState<Record<string, string>>({})
+  
+  // Roster configuration
+  const rosterSlots = [
+    { position: 'QB', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
+    { position: 'RB', required: 2, filled: 0, byeWeeks: [], scarcity: 'high' as const },
+    { position: 'WR', required: 2, filled: 0, byeWeeks: [], scarcity: 'high' as const },
+    { position: 'TE', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
+    { position: 'FLEX', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
+    { position: 'K', required: 1, filled: 0, byeWeeks: [], scarcity: 'low' as const },
+    { position: 'DEF', required: 1, filled: 0, byeWeeks: [], scarcity: 'low' as const },
+    { position: 'BN', required: 6, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
+  ]
 
-  // Initialize draft picks grid
-  useEffect(() => {
-    const initialPicks: DraftPick[] = []
-    for (let round = 1; round <= totalRounds; round++) {
-      for (let pick = 1; pick <= totalTeams; pick++) {
-        const isSnake = round % 2 === 0
-        const actualPick = isSnake ? totalTeams - pick + 1 : pick
-        const team = `Team ${actualPick}`
-        
-        initialPicks.push({
-          round,
-          pick: (round - 1) * totalTeams + pick,
-          team,
-        })
-      }
-    }
-    setPicks(initialPicks)
-  }, [totalTeams, totalRounds])
+  // Mock data for demonstration
+  const mockPlayers: Player[] = useMemo(() => [
+    {
+      id: '1',
+      name: 'Patrick Mahomes',
+      position: 'QB',
+      team: 'KC',
+      fantasyPoints: 350.5,
+      yahooPoints: 345.2,
+      delta: 5.3,
+      vorp: 45.2,
+      tier: 1,
+      adp: 12,
+      newsCount: 3,
+      byeWeek: 10,
+    },
+    {
+      id: '2',
+      name: 'Christian McCaffrey',
+      position: 'RB',
+      team: 'SF',
+      fantasyPoints: 380.2,
+      yahooPoints: 375.8,
+      delta: 4.4,
+      vorp: 52.1,
+      tier: 1,
+      adp: 2,
+      newsCount: 2,
+      byeWeek: 9,
+    },
+    {
+      id: '3',
+      name: 'Tyreek Hill',
+      position: 'WR',
+      team: 'MIA',
+      fantasyPoints: 320.8,
+      yahooPoints: 318.5,
+      delta: 2.3,
+      vorp: 38.7,
+      tier: 1,
+      adp: 8,
+      newsCount: 4,
+      byeWeek: 11,
+    },
+    {
+      id: '4',
+      name: 'Travis Kelce',
+      position: 'TE',
+      team: 'KC',
+      fantasyPoints: 280.3,
+      yahooPoints: 275.1,
+      delta: 5.2,
+      vorp: 42.8,
+      tier: 1,
+      adp: 15,
+      newsCount: 1,
+      byeWeek: 10,
+    },
+    {
+      id: '5',
+      name: 'Josh Allen',
+      position: 'QB',
+      team: 'BUF',
+      fantasyPoints: 340.1,
+      yahooPoints: 335.7,
+      delta: 4.4,
+      vorp: 43.9,
+      tier: 2,
+      adp: 18,
+      newsCount: 2,
+      byeWeek: 13,
+    },
+    {
+      id: '6',
+      name: 'Justin Jefferson',
+      position: 'WR',
+      team: 'MIN',
+      fantasyPoints: 310.5,
+      yahooPoints: 308.2,
+      delta: 2.3,
+      vorp: 35.8,
+      tier: 1,
+      adp: 5,
+      newsCount: 2,
+      byeWeek: 13,
+    },
+    {
+      id: '7',
+      name: 'Saquon Barkley',
+      position: 'RB',
+      team: 'PHI',
+      fantasyPoints: 290.3,
+      yahooPoints: 285.1,
+      delta: 5.2,
+      vorp: 38.9,
+      tier: 2,
+      adp: 20,
+      newsCount: 1,
+      byeWeek: 10,
+    },
+    {
+      id: '8',
+      name: 'Mark Andrews',
+      position: 'TE',
+      team: 'BAL',
+      fantasyPoints: 220.8,
+      yahooPoints: 218.5,
+      delta: 2.3,
+      vorp: 28.7,
+      tier: 2,
+      adp: 45,
+      newsCount: 1,
+      byeWeek: 13,
+    },
+  ], [])
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      // Only handle keyboard shortcuts when not typing in an input
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        return
-      }
+  const handlePlayerSelect = (player: Player) => {
+    console.log('Player selected:', player)
+  }
 
-      switch (event.key.toLowerCase()) {
-        case 'a':
-          event.preventDefault()
-          // TODO: Add selected player to watchlist
-          console.log('Add to watchlist shortcut triggered')
-          break
-        case 'r':
-          event.preventDefault()
-          // TODO: Remove selected player from watchlist
-          console.log('Remove from watchlist shortcut triggered')
-          break
-        case '/':
-          event.preventDefault()
-          // TODO: Focus search input
-          console.log('Focus search shortcut triggered')
-          break
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-          event.preventDefault()
-          const positions = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF']
-          const positionIndex = parseInt(event.key) - 1
-          if (positions[positionIndex]) {
-            setSelectedPosition(positions[positionIndex])
-          }
-          break
-      }
-    }
+  const handleAddToWatchlist = (player: Player) => {
+    setWatchlist(prev => [...prev, player.id])
+  }
 
-    document.addEventListener('keydown', handleKeyPress)
-    return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [])
+  const handleRemoveFromWatchlist = (playerId: string) => {
+    setWatchlist(prev => prev.filter(id => id !== playerId))
+  }
 
-  const addToWatchlist = useCallback((player: WatchlistPlayer) => {
-    setWatchlist(prev => {
-      if (prev.some(p => p.id === player.id)) {
-        return prev // Already in watchlist
-      }
-      return [...prev, { ...player, addedAt: Date.now() }]
+  const handleADPImport = (adpData: any[]) => {
+    const adpMap: Record<string, number> = {}
+    adpData.forEach(item => {
+      adpMap[item.playerName] = item.adp
     })
-  }, [])
+    setImportedADP(adpMap)
+  }
 
-  const removeFromWatchlist = useCallback((playerId: string) => {
-    setWatchlist(prev => prev.filter(p => p.id !== playerId))
-  }, [])
+  const handlePlayerNotesChange = (playerId: string, notes: string) => {
+    setPlayerNotes(prev => ({
+      ...prev,
+      [playerId]: notes
+    }))
+  }
 
-  const isUserPick = useCallback((pick: DraftPick) => {
-    return pick.team === `Team ${userTeam}`
-  }, [userTeam])
+  const handleSlotClick = (position: string) => {
+    console.log(`Slot clicked: ${position}`)
+    // TODO: Implement slot selection logic
+  }
+
+  const handleVorpChange = (playerId: string, vorp: number) => {
+    console.log(`VORP changed for player ${playerId}: ${vorp}`)
+    // TODO: Implement VORP update logic
+  }
 
   return (
-    <div className="h-screen flex bg-gray-50">
-      {/* Left Panel - Pick Grid */}
-      <div className={`transition-all duration-300 ${isLeftPanelCollapsed ? 'w-8' : 'w-80'} bg-white border-r border-gray-200 flex flex-col`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          {!isLeftPanelCollapsed && (
-            <h2 className="text-lg font-semibold text-gray-900">Draft Board</h2>
-          )}
-          <button
-            onClick={() => setIsLeftPanelCollapsed(!isLeftPanelCollapsed)}
-            className="p-1 rounded hover:bg-gray-100"
-            aria-label={isLeftPanelCollapsed ? 'Expand draft board' : 'Collapse draft board'}
-          >
-            {isLeftPanelCollapsed ? (
-              <ChevronRightIcon className="h-5 w-5" />
-            ) : (
-              <ChevronLeftIcon className="h-5 w-5" />
-            )}
-          </button>
-        </div>
-        
-        {!isLeftPanelCollapsed && (
-          <div className="flex-1 overflow-auto p-4">
-            <div className="space-y-2">
-              {Array.from({ length: totalRounds }, (_, roundIndex) => (
-                <div key={roundIndex + 1} className="flex space-x-1">
-                  <div className="w-8 text-xs font-medium text-gray-500 flex items-center justify-center">
-                    {roundIndex + 1}
-                  </div>
-                  {Array.from({ length: totalTeams }, (_, teamIndex) => {
-                    const isSnake = (roundIndex + 1) % 2 === 0
-                    const actualTeam = isSnake ? totalTeams - teamIndex : teamIndex + 1
-                    const pickNumber = roundIndex * totalTeams + teamIndex + 1
-                    const pick = picks.find(p => p.pick === pickNumber)
-                    const isUser = actualTeam === userTeam
-                    
-                    return (
-                      <div
-                        key={teamIndex}
-                        className={`
-                          flex-1 min-w-0 h-8 text-xs border rounded px-1 flex items-center justify-center
-                          ${isUser ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}
-                          ${pick?.player ? 'bg-green-50 border-green-200' : ''}
-                        `}
-                        title={`Round ${roundIndex + 1}, Pick ${pickNumber} - Team ${actualTeam}`}
-                      >
-                        {pick?.player ? (
-                          <span className="truncate font-medium">
-                            {pick.player.name}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ))}
+    <div className="container">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Left Sidebar - Watchlist & Tools */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Watchlist */}
+                       <div className="card">
+               <div className="card-header">
+                 <h3 className="text-lg font-semibold">📋 Watchlist</h3>
+               </div>
+               <div className="card-body">
+                 <Watchlist
+                   watchlist={mockPlayers.filter(p => watchlist.includes(p.id))}
+                   onRemoveFromWatchlist={handleRemoveFromWatchlist}
+                   onPlayerSelect={handlePlayerSelect}
+                 />
+               </div>
+             </div>
+
+          {/* Tiering Tool */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold">🏗️ Tiering</h3>
+            </div>
+            <div className="card-body">
+              <Tiering
+                players={mockPlayers}
+                scoringProfile={scoringProfile}
+              />
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Center Panel - Player Board */}
-      <div className="flex-1 flex flex-col bg-white">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Player Board</h2>
-            <div className="flex items-center space-x-4">
-              {/* Position Filter */}
-              <div className="flex space-x-1">
-                {['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF'].map((position, index) => (
-                  <button
-                    key={position}
-                    onClick={() => setSelectedPosition(position)}
-                    className={`
-                      px-3 py-1 text-sm rounded
-                      ${selectedPosition === position
-                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }
-                    `}
-                    title={`Filter by ${position} (${index + 1})`}
+          {/* VORP Calculator */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold">📊 VORP</h3>
+            </div>
+            <div className="card-body">
+              <VORP
+                players={mockPlayers}
+                onVorpChange={handleVorpChange}
+                scoringProfile={scoringProfile}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content - Player Board */}
+        <div className="lg:col-span-2">
+          <div className="card">
+            <div className="card-header">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">👥 Player Board</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {mockPlayers.length} players available • {scoringProfile}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <select
+                    className="input"
+                    value={selectedPosition}
+                    onChange={(e) => setSelectedPosition(e.target.value)}
+                    style={{ width: 'auto', minWidth: '100px' }}
                   >
-                    {position}
-                  </button>
-                ))}
+                    <option value="ALL">All Positions</option>
+                    <option value="QB">QB</option>
+                    <option value="RB">RB</option>
+                    <option value="WR">WR</option>
+                    <option value="TE">TE</option>
+                    <option value="K">K</option>
+                    <option value="DEF">DEF</option>
+                  </select>
+                  
+                  <input
+                    type="text"
+                    placeholder="Search players..."
+                    className="input"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{ width: 'auto', minWidth: '200px' }}
+                  />
+                </div>
               </div>
-              
-              {/* Search */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search players... (/)"
-                  className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+            </div>
+            <div className="card-body p-0">
+              <PlayerBoard
+                players={mockPlayers}
+                selectedPosition={selectedPosition}
+                searchQuery={searchQuery}
+                onPlayerSelect={handlePlayerSelect}
+                onAddToWatchlist={handleAddToWatchlist}
+                onRemoveFromWatchlist={handleRemoveFromWatchlist}
+                watchlist={watchlist}
+                scoringProfile={scoringProfile}
+                importedADP={importedADP}
+                onADPImport={handleADPImport}
+                playerNotes={playerNotes}
+                onPlayerNotesChange={handlePlayerNotesChange}
+              />
             </div>
           </div>
         </div>
-        
-        <div className="flex-1 overflow-auto">
-          <div className="p-4">
-            <div className="text-center text-gray-500 py-8">
-              Player board will be implemented next with virtualized table
-              <br />
-              <span className="text-sm">
-                Filtered by: {selectedPosition}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Right Panel - Roster & Watchlist */}
-      <div className={`transition-all duration-300 ${isRightPanelCollapsed ? 'w-8' : 'w-80'} bg-white border-l border-gray-200 flex flex-col`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <button
-            onClick={() => setIsRightPanelCollapsed(!isRightPanelCollapsed)}
-            className="p-1 rounded hover:bg-gray-100"
-            aria-label={isRightPanelCollapsed ? 'Expand roster panel' : 'Collapse roster panel'}
-          >
-            {isRightPanelCollapsed ? (
-              <ChevronLeftIcon className="h-5 w-5" />
-            ) : (
-              <ChevronRightIcon className="h-5 w-5" />
-            )}
-          </button>
-          {!isRightPanelCollapsed && (
-            <h2 className="text-lg font-semibold text-gray-900">My Team</h2>
-          )}
-        </div>
-        
-        {!isRightPanelCollapsed && (
-          <div className="flex-1 overflow-auto">
-            {/* Roster Bar */}
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Roster</h3>
-              <div className="space-y-2">
-                {rosterSlots.map((slot) => (
-                  <div key={slot.position} className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{slot.position}</span>
-                    <span className={`
-                      px-2 py-1 rounded text-xs
-                      ${slot.filled >= slot.required
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-600'
-                      }
-                    `}>
-                      {slot.filled}/{slot.required}
-                    </span>
-                  </div>
-                ))}
-              </div>
+        {/* Right Sidebar - Roster & ADP */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Roster Bar */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold">🏃‍♂️ Roster</h3>
             </div>
-            
-            {/* Watchlist */}
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-gray-700">Watchlist</h3>
-                <span className="text-xs text-gray-500">A/R</span>
-              </div>
-              
-              {watchlist.length === 0 ? (
-                <div className="text-center text-gray-500 text-sm py-4">
-                  No players in watchlist
-                  <br />
-                  <span className="text-xs">Press 'A' to add players</span>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {watchlist.map((player) => (
-                    <div
-                      key={player.id}
-                      className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
-                    >
-                      <div>
-                        <div className="font-medium">{player.name}</div>
-                        <div className="text-gray-500 text-xs">
-                          {player.position} - {player.team}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeFromWatchlist(player.id)}
-                        className="text-red-500 hover:text-red-700 text-xs"
-                        title="Remove from watchlist (R)"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="card-body">
+              <RosterBar
+                rosterSlots={rosterSlots}
+                selectedPlayers={[]}
+                onSlotClick={handleSlotClick}
+                scoringProfile={scoringProfile}
+              />
             </div>
           </div>
-        )}
+
+          {/* ADP Import */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold">📈 ADP Import</h3>
+            </div>
+            <div className="card-body">
+              <ADPImport
+                onADPImport={handleADPImport}
+                currentADP={importedADP}
+              />
+            </div>
+          </div>
+
+          {/* Draft Stats */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold">📊 Draft Stats</h3>
+            </div>
+            <div className="card-body">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Players Drafted</span>
+                  <span className="font-semibold">0</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Rounds Completed</span>
+                  <span className="font-semibold">0</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Time Elapsed</span>
+                  <span className="font-semibold">00:00</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Next Pick</span>
+                  <span className="font-semibold text-primary-600">1.01</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold">⚡ Quick Actions</h3>
+            </div>
+            <div className="card-body">
+              <div className="space-y-3">
+                <button className="btn btn-primary w-full">
+                  📋 Export Cheat Sheet
+                </button>
+                <button className="btn btn-secondary w-full">
+                  🔄 Reset Draft
+                </button>
+                <button className="btn btn-secondary w-full">
+                  💾 Save Draft State
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

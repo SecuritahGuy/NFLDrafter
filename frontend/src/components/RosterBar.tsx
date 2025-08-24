@@ -1,7 +1,14 @@
 import React, { useState, useMemo } from 'react'
-import { ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import { 
+  ExclamationTriangleIcon, 
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  UserIcon,
+  ClockIcon,
+  ChartBarIcon
+} from '@heroicons/react/24/outline'
 
-// Types
 export interface RosterSlot {
   position: string
   required: number
@@ -10,15 +17,18 @@ export interface RosterSlot {
   scarcity: 'high' | 'medium' | 'low'
 }
 
+export interface Player {
+  id: string
+  name: string
+  position: string
+  team: string
+  byeWeek: number
+  fantasyPoints: number
+}
+
 export interface RosterBarProps {
   rosterSlots: RosterSlot[]
-  selectedPlayers: Array<{
-    id: string
-    name: string
-    position: string
-    team: string
-    byeWeek: number
-  }>
+  selectedPlayers: Player[]
   onSlotClick: (position: string) => void
   scoringProfile?: string
 }
@@ -33,6 +43,16 @@ export const RosterBar: React.FC<RosterBarProps> = ({
 
   // Calculate roster statistics
   const rosterStats = useMemo(() => {
+    if (!rosterSlots || rosterSlots.length === 0) {
+      return {
+        totalRequired: 0,
+        totalFilled: 0,
+        totalRemaining: 0,
+        byeWeekConflicts: [],
+        completionPercentage: 0
+      }
+    }
+    
     const totalRequired = rosterSlots.reduce((sum, slot) => sum + slot.required, 0)
     const totalFilled = rosterSlots.reduce((sum, slot) => sum + slot.filled, 0)
     const totalRemaining = totalRequired - totalFilled
@@ -64,32 +84,57 @@ export const RosterBar: React.FC<RosterBarProps> = ({
     }
   }, [rosterSlots, selectedPlayers])
 
-  // Get scarcity color
-  const getScarcityColor = (scarcity: 'high' | 'medium' | 'low') => {
+  // Get scarcity styling
+  const getScarcityStyles = (scarcity: 'high' | 'medium' | 'low') => {
     switch (scarcity) {
       case 'high':
-        return 'text-red-600 bg-red-50 border-red-200'
+        return {
+          bg: 'bg-gradient-to-r from-red-50 to-orange-50',
+          border: 'border-red-200',
+          text: 'text-red-700',
+          icon: 'text-red-500',
+          badge: 'bg-red-100 text-red-800 border-red-200'
+        }
       case 'medium':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+        return {
+          bg: 'bg-gradient-to-r from-yellow-50 to-amber-50',
+          border: 'border-yellow-200',
+          text: 'text-yellow-700',
+          icon: 'text-yellow-500',
+          badge: 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        }
       case 'low':
-        return 'text-green-600 bg-green-50 border-green-200'
+        return {
+          bg: 'bg-gradient-to-r from-green-50 to-emerald-50',
+          border: 'border-green-200',
+          text: 'text-green-700',
+          icon: 'text-green-500',
+          badge: 'bg-green-100 text-green-800 border-green-200'
+        }
       default:
-        return 'text-gray-600 bg-gray-50 border-gray-200'
+        return {
+          bg: 'bg-gradient-to-r from-gray-50 to-slate-50',
+          border: 'border-gray-200',
+          text: 'text-gray-700',
+          icon: 'text-gray-500',
+          badge: 'bg-gray-100 text-gray-800 border-gray-200'
+        }
     }
   }
 
-  // Get scarcity icon
-  const getScarcityIcon = (scarcity: 'high' | 'medium' | 'low') => {
-    switch (scarcity) {
-      case 'high':
-        return <ExclamationTriangleIcon className="h-4 w-4 text-red-600" />
-      case 'medium':
-        return <ExclamationTriangleIcon className="h-4 w-4 text-yellow-600" />
-      case 'low':
-        return <CheckCircleIcon className="h-4 w-4 text-green-600" />
-      default:
-        return null
+  // Get position icon
+  const getPositionIcon = (position: string) => {
+    const icons: Record<string, React.ReactNode> = {
+      QB: <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">QB</div>,
+      RB: <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">RB</div>,
+      WR: <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">WR</div>,
+      TE: <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white text-xs font-bold">TE</div>,
+      K: <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center text-white text-xs font-bold">K</div>,
+      DEF: <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">D</div>,
+      FLEX: <div className="w-6 h-6 bg-indigo-500 rounded-full flex items-center justify-center text-white text-xs font-bold">F</div>,
+      BN: <div className="w-6 h-6 bg-slate-500 rounded-full flex items-center justify-center text-white text-xs font-bold">BN</div>,
     }
+    return icons[position] || <UserIcon className="w-6 h-6 text-gray-400" />
   }
 
   // Toggle slot expansion
@@ -97,180 +142,189 @@ export const RosterBar: React.FC<RosterBarProps> = ({
     setExpandedSlot(expandedSlot === position ? null : position)
   }
 
+  // Early return if no roster slots
+  if (!rosterSlots || rosterSlots.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <div className="text-lg font-medium">No roster slots configured</div>
+        <div className="text-sm">Please configure roster requirements</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex-1 flex flex-col bg-white">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Roster</h2>
-          <div className="text-sm text-gray-500">
-            {rosterStats.totalFilled}/{rosterStats.totalRequired} filled
-            {scoringProfile && ` • ${scoringProfile}`}
+    <div className="space-y-6">
+      {/* Header with Progress */}
+      <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl p-6 border border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <ChartBarIcon className="w-6 h-6 text-primary-600" />
+              Roster Overview
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {scoringProfile && `${scoringProfile} • `}Draft Progress
+            </p>
+          </div>
+          
+          <div className="text-right">
+            <div className="text-2xl font-bold text-gray-900">
+              {rosterStats.totalFilled}/{rosterStats.totalRequired}
+            </div>
+            <div className="text-sm text-gray-600">spots filled</div>
           </div>
         </div>
         
         {/* Progress Bar */}
-        <div className="mt-3">
-          <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-            <span>Progress</span>
-            <span>{rosterStats.completionPercentage.toFixed(0)}%</span>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-gray-700">Completion</span>
+            <span className="font-bold text-primary-600">{rosterStats.completionPercentage.toFixed(0)}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
             <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              className="bg-gradient-to-r from-primary-500 to-primary-600 h-3 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${rosterStats.completionPercentage}%` }}
             />
           </div>
         </div>
 
-        {/* Bye Week Conflicts */}
-        {rosterStats.byeWeekConflicts.length > 0 && (
-          <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-md">
-            <div className="flex items-center text-sm text-orange-800">
-              <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
-              <span className="font-medium">Bye Week Conflicts</span>
-            </div>
-            <div className="mt-1 text-xs text-orange-700">
-              {rosterStats.byeWeekConflicts.map(conflict => (
-                <div key={conflict.position}>
-                  {conflict.position}: Week {conflict.conflicts.join(', ')}
-                </div>
-              ))}
-            </div>
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200">
+          <div className="text-center">
+            <div className="text-lg font-bold text-gray-900">{rosterStats.totalRemaining}</div>
+            <div className="text-xs text-gray-600">Remaining</div>
           </div>
-        )}
+          <div className="text-center">
+            <div className="text-lg font-bold text-gray-900">{rosterStats.byeWeekConflicts.length}</div>
+            <div className="text-xs text-gray-600">Bye Conflicts</div>
+          </div>
+        </div>
       </div>
 
       {/* Roster Slots */}
-      <div className="flex-1 overflow-auto p-4">
-        <div className="space-y-3">
-          {rosterSlots.map((slot) => {
-            const slotPlayers = selectedPlayers.filter(player => 
-              slot.position === 'FLEX' ? ['RB', 'WR', 'TE'].includes(player.position) : player.position === slot.position
-            )
-            
-            const isExpanded = expandedSlot === slot.position
-            const isComplete = slot.filled >= slot.required
-            const isOverfilled = slot.filled > slot.required
-
-            return (
-              <div key={slot.position} className="border border-gray-200 rounded-lg overflow-hidden">
-                {/* Slot Header */}
-                <button
-                  onClick={() => toggleSlotExpansion(slot.position)}
-                  className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-                    isComplete ? 'bg-green-50 border-green-200' : 'bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <span className={`font-medium ${
-                        isComplete ? 'text-green-800' : 'text-gray-900'
-                      }`}>
-                        {slot.position}
-                      </span>
-                      
-                      {/* Scarcity Indicator */}
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getScarcityColor(slot.scarcity)}`}>
-                        {getScarcityIcon(slot.scarcity)}
-                        <span className="ml-1 capitalize">{slot.scarcity}</span>
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-sm font-medium ${
-                        isComplete ? 'text-green-600' : 'text-gray-600'
-                      }`}>
-                        {slot.filled}/{slot.required}
-                      </span>
-                      
-                      {/* Status Icon */}
-                      {isComplete && (
-                        <CheckCircleIcon className="h-5 w-5 text-green-600" />
-                      )}
-                      
-                      {/* Expand/Collapse Icon */}
-                      <svg
-                        className={`h-4 w-4 text-gray-400 transition-transform ${
-                          isExpanded ? 'rotate-180' : ''
-                        }`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+      <div className="space-y-4">
+        {rosterSlots.map((slot) => {
+          const scarcityStyles = getScarcityStyles(slot.scarcity)
+          const isExpanded = expandedSlot === slot.position
+          const slotPlayers = selectedPlayers.filter(player => 
+            slot.position === 'FLEX' ? ['RB', 'WR', 'TE'].includes(player.position) : player.position === slot.position
+          )
+          
+          return (
+            <div
+              key={slot.position}
+              className={`${scarcityStyles.bg} ${scarcityStyles.border} rounded-xl border-2 transition-all duration-200 hover:shadow-md cursor-pointer`}
+              onClick={() => onSlotClick(slot.position)}
+            >
+              {/* Slot Header */}
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {getPositionIcon(slot.position)}
+                    <div>
+                      <h4 className="font-bold text-lg text-gray-900">{slot.position}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${scarcityStyles.badge}`}>
+                          {slot.scarcity} priority
+                        </span>
+                        {slot.filled > 0 && (
+                          <span className="text-xs text-gray-600">
+                            {slot.byeWeeks.length > 0 && (
+                              <span className="text-orange-600 font-medium">
+                                ⚠️ {slot.byeWeeks.length} bye conflict{slot.byeWeeks.length > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {slot.filled}/{slot.required}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {slot.filled === slot.required ? 'Complete' : `${slot.required - slot.filled} needed`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expandable Content */}
+              <div className="border-t border-gray-200">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleSlotExpansion(slot.position)
+                  }}
+                  className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-white/50 transition-colors"
+                >
+                  <span>View Details</span>
+                  {isExpanded ? (
+                    <ChevronDownIcon className="w-4 h-4" />
+                  ) : (
+                    <ChevronRightIcon className="w-4 h-4" />
+                  )}
                 </button>
-
-                {/* Slot Details */}
+                
                 {isExpanded && (
-                  <div className="px-4 py-3 bg-white border-t border-gray-200">
-                    {/* Players in this slot */}
+                  <div className="px-4 pb-4 space-y-3">
                     {slotPlayers.length > 0 ? (
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-900">Selected Players</h4>
-                        {slotPlayers.map((player) => (
-                          <div key={player.id} className="flex items-center justify-between text-sm">
-                            <div>
-                              <span className="font-medium text-gray-900">{player.name}</span>
-                              <span className="text-gray-500 ml-2">({player.team})</span>
+                      slotPlayers.map((player) => (
+                        <div key={player.id} className="flex items-center justify-between p-3 bg-white/70 rounded-lg border border-gray-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-bold text-primary-700">{player.position}</span>
                             </div>
-                            <span className="text-gray-500">W{player.byeWeek}</span>
+                            <div>
+                              <div className="font-medium text-gray-900">{player.name}</div>
+                              <div className="text-sm text-gray-600">{player.team} • Week {player.byeWeek}</div>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">
-                        No players selected for this position
-                      </div>
-                    )}
-
-                    {/* Bye Week Analysis */}
-                    {slotPlayers.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <h4 className="text-sm font-medium text-gray-900 mb-2">Bye Week Analysis</h4>
-                        <div className="text-xs text-gray-600">
-                          {slot.byeWeeks.length > 0 ? (
-                            <div>
-                              <span className="font-medium">Bye Weeks:</span> {slot.byeWeeks.map(bye => `W${bye}`).join(', ')}
-                            </div>
-                          ) : (
-                            <div className="text-green-600">No bye week conflicts</div>
-                          )}
+                          <div className="text-right">
+                            <div className="font-bold text-gray-900">{player.fantasyPoints.toFixed(1)}</div>
+                            <div className="text-xs text-gray-500">pts</div>
+                          </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-4 text-gray-500">
+                        <UserIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                        <div className="text-sm">No players drafted</div>
+                        <div className="text-xs">Click to add players</div>
                       </div>
                     )}
-
-                    {/* Action Button */}
-                    <button
-                      onClick={() => onSlotClick(slot.position)}
-                      className="mt-3 w-full px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                    >
-                      {isComplete ? 'View/Edit Players' : 'Add Players'}
-                    </button>
                   </div>
                 )}
               </div>
-            )
-          })}
-        </div>
+            </div>
+          )
+        })}
       </div>
 
-      {/* Footer Stats */}
-      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <div className="text-gray-600">Remaining</div>
-            <div className="font-medium text-gray-900">{rosterStats.totalRemaining}</div>
-          </div>
-          <div>
-            <div className="text-gray-600">Completion</div>
-            <div className="font-medium text-gray-900">{rosterStats.completionPercentage.toFixed(0)}%</div>
+      {/* Bye Week Conflicts Warning */}
+      {rosterStats.byeWeekConflicts.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <ExclamationTriangleIcon className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="font-medium text-orange-800">Bye Week Conflicts</h4>
+              <p className="text-sm text-orange-700 mt-1">
+                You have {rosterStats.byeWeekConflicts.length} position{rosterStats.byeWeekConflicts.length > 1 ? 's' : ''} with bye week conflicts.
+              </p>
+              <div className="mt-2 space-y-1">
+                {rosterStats.byeWeekConflicts.map((conflict) => (
+                  <div key={conflict.position} className="text-xs text-orange-600">
+                    {conflict.position}: Week{conflict.conflicts.length > 1 ? 's' : ''} {conflict.conflicts.join(', ')}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

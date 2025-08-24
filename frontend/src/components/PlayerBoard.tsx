@@ -1,5 +1,18 @@
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
+import { 
+  MagnifyingGlassIcon, 
+  FunnelIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  StarIcon,
+  EyeIcon,
+  PlusIcon,
+  MinusIcon,
+  ChartBarIcon,
+  UserIcon,
+  CalendarIcon,
+  FireIcon
+} from '@heroicons/react/24/outline'
 import { ADPImport } from './ADPImport'
 import { PlayerDrawer } from './PlayerDrawer'
 import type { ADPData } from './ADPImport'
@@ -11,14 +24,40 @@ export interface Player {
   name: string
   position: string
   team: string
-  fantasyPoints?: number
-  yahooPoints?: number
-  delta?: number
-  vorp?: number
-  tier?: number
-  adp?: number
-  newsCount?: number
-  byeWeek?: number
+  fantasyPoints: number
+  yahooPoints: number
+  delta: number
+  vorp: number
+  tier: number
+  adp: number
+  newsCount: number
+  byeWeek: number
+}
+
+export interface WeeklyStats {
+  week: number
+  points: number
+  opponent: string
+}
+
+export interface PlayerNews {
+  id: string
+  title: string
+  summary: string
+  publishedAt: string
+  source: string
+}
+
+export interface DepthChartPosition {
+  position: string
+  depth: number
+  status: string
+}
+
+export interface ADPData {
+  playerName: string
+  adp: number
+  source: string
 }
 
 export interface PlayerBoardProps {
@@ -28,11 +67,10 @@ export interface PlayerBoardProps {
   onPlayerSelect: (player: Player) => void
   onAddToWatchlist: (player: Player) => void
   onRemoveFromWatchlist: (playerId: string) => void
-  watchlist: string[] // Array of player IDs
+  watchlist: string[]
   scoringProfile?: string
-  importedADP?: Record<string, number> // Map of player names to imported ADP values
+  importedADP?: Record<string, number>
   onADPImport?: (adpData: ADPData[]) => void
-  // Player drawer data
   weeklyStats?: Record<string, WeeklyStats[]>
   news?: Record<string, PlayerNews[]>
   depthChart?: Record<string, DepthChartPosition[]>
@@ -131,21 +169,11 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
         bValue = b.valueVsADP?.value || 0
       }
       
-      // Handle undefined values
-      if (aValue === undefined) aValue = sortDirection === 'asc' ? Infinity : -Infinity
-      if (bValue === undefined) bValue = sortDirection === 'asc' ? Infinity : -Infinity
-      
-      // Handle string values
-      if (typeof aValue === 'string') {
-        aValue = aValue.toLowerCase()
-        bValue = bValue.toLowerCase()
-      }
-      
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
       return 0
     })
-    
+
     return filtered
   }, [playersWithValueVsADP, selectedPosition, searchQuery, sortField, sortDirection])
 
@@ -161,51 +189,49 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   const visiblePlayers = filteredAndSortedPlayers.slice(startIndex, endIndex)
 
   // Handle sorting
-  const handleSort = useCallback((field: SortField) => {
+  const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
       setSortField(field)
       setSortDirection('desc')
     }
-  }, [sortField, sortDirection])
+  }
 
   // Toggle player expansion
-  const togglePlayerExpansion = useCallback((playerId: string) => {
+  const handleRowExpand = (playerId: string) => {
     setExpandedPlayer(expandedPlayer === playerId ? null : playerId)
-  }, [expandedPlayer])
+  }
 
   // Handle scroll events
-  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(event.currentTarget.scrollTop)
-  }, [])
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop)
+  }
 
   // Keyboard navigation
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (!filteredAndSortedPlayers.length) return
 
-      switch (event.key) {
+      switch (e.key) {
         case 'ArrowDown':
-          event.preventDefault()
-          setSelectedRowIndex(prev => 
-            Math.min(prev + 1, filteredAndSortedPlayers.length - 1)
-          )
+          e.preventDefault()
+          setSelectedRowIndex(prev => Math.min(prev + 1, filteredAndSortedPlayers.length - 1))
           break
         case 'ArrowUp':
-          event.preventDefault()
+          e.preventDefault()
           setSelectedRowIndex(prev => Math.max(prev - 1, 0))
           break
         case 'Enter':
-          event.preventDefault()
-          if (filteredAndSortedPlayers[selectedRowIndex]) {
+          e.preventDefault()
+          if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
             onPlayerSelect(filteredAndSortedPlayers[selectedRowIndex])
           }
           break
         case 'a':
         case 'A':
-          event.preventDefault()
-          if (filteredAndSortedPlayers[selectedRowIndex]) {
+          e.preventDefault()
+          if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
             const player = filteredAndSortedPlayers[selectedRowIndex]
             if (!watchlist.includes(player.id)) {
               onAddToWatchlist(player)
@@ -214,8 +240,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
           break
         case 'r':
         case 'R':
-          event.preventDefault()
-          if (filteredAndSortedPlayers[selectedRowIndex]) {
+          e.preventDefault()
+          if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
             const player = filteredAndSortedPlayers[selectedRowIndex]
             if (watchlist.includes(player.id)) {
               onRemoveFromWatchlist(player.id)
@@ -223,25 +249,19 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
           }
           break
         case 'Escape':
-          setExpandedPlayer(null)
+          setSelectedRowIndex(-1)
           break
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [filteredAndSortedPlayers, selectedRowIndex, watchlist, onPlayerSelect, onAddToWatchlist, onRemoveFromWatchlist])
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [filteredAndSortedPlayers, selectedRowIndex, watchlist, onAddToWatchlist, onRemoveFromWatchlist, onPlayerSelect])
 
   // Scroll to selected row
   useEffect(() => {
-    if (selectedRowRef.current && tableRef.current) {
-      const rowTop = selectedRowIndex * ROW_HEIGHT
-      const containerHeight = tableRef.current.clientHeight
-      const scrollTop = tableRef.current.scrollTop
-      
-      if (rowTop < scrollTop || rowTop > scrollTop + containerHeight) {
-        tableRef.current.scrollTop = rowTop - containerHeight / 2
-      }
+    if (selectedRowRef.current && selectedRowIndex >= 0) {
+      selectedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [selectedRowIndex])
 
@@ -258,18 +278,34 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     return `${sign}${delta.toFixed(1)}`
   }
 
+  // Get position color
+  const getPositionColor = (position: string) => {
+    const colors: Record<string, string> = {
+      QB: 'bg-blue-100 text-blue-800 border-blue-200',
+      RB: 'bg-green-100 text-green-800 border-green-200',
+      WR: 'bg-purple-100 text-purple-800 border-purple-200',
+      TE: 'bg-orange-100 text-orange-800 border-orange-200',
+      K: 'bg-gray-100 text-gray-800 border-gray-200',
+      DEF: 'bg-red-100 text-red-800 border-red-200',
+    }
+    return colors[position] || 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+
   // Get tier color
-  const getTierColor = (tier?: number) => {
-    if (!tier) return 'text-gray-500'
-    if (tier <= 2) return 'text-red-600 font-bold'
-    if (tier <= 4) return 'text-orange-600 font-semibold'
-    if (tier <= 6) return 'text-yellow-600 font-medium'
-    return 'text-gray-600'
+  const getTierColor = (tier: number) => {
+    const colors = [
+      'bg-red-100 text-red-800 border-red-200',
+      'bg-orange-100 text-orange-800 border-orange-200',
+      'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'bg-green-100 text-green-800 border-green-200',
+      'bg-blue-100 text-blue-800 border-blue-200',
+      'bg-purple-100 text-purple-800 border-purple-200',
+    ]
+    return colors[Math.min(tier - 1, colors.length - 1)] || 'bg-gray-100 text-gray-800 border-gray-200'
   }
 
   // Get VORP color
-  const getVorpColor = (vorp?: number) => {
-    if (!vorp) return 'text-gray-500'
+  const getVorpColor = (vorp: number) => {
     if (vorp >= 50) return 'text-green-600 font-bold'
     if (vorp >= 25) return 'text-green-500 font-semibold'
     if (vorp >= 10) return 'text-blue-600 font-medium'
@@ -279,82 +315,111 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   }
 
   // Get delta color
-  const getDeltaColor = (delta?: number) => {
-    if (!delta) return 'text-gray-500'
-    if (delta >= 5) return 'text-green-600 font-semibold'
-    if (delta >= 2) return 'text-green-500 font-medium'
-    if (delta <= -5) return 'text-red-600 font-semibold'
-    if (delta <= -2) return 'text-red-500 font-medium'
+  const getDeltaColor = (delta: number) => {
+    if (delta > 0) return 'text-green-600'
+    if (delta < 0) return 'text-red-600'
     return 'text-gray-600'
   }
 
-  // Sort header component with improved indicators
+  // Get value vs ADP color
+  const getValueVsADPColor = (valueVsADP: any) => {
+    if (!valueVsADP) return 'text-gray-500'
+    if (valueVsADP.isValue) return 'text-green-600 font-semibold'
+    return 'text-red-600 font-semibold'
+  }
+
+  // Sort header component
   const SortHeader: React.FC<{ field: SortField; children: React.ReactNode }> = ({ field, children }) => (
     <button
       onClick={() => handleSort(field)}
-      className="flex items-center space-x-1 px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+      className="flex items-center justify-between w-full px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded transition-colors"
     >
-      <span>{children}</span>
-      {sortField === field && (
-        <div className="flex flex-col">
-          {sortDirection === 'asc' ? (
-            <ChevronUpIcon className="h-3 w-3 text-blue-600" />
-          ) : (
-            <ChevronDownIcon className="h-3 w-3 text-blue-600" />
-          )}
-        </div>
-      )}
+      {children}
+      <div className="flex flex-col">
+        <ChevronUpIcon 
+          className={`w-3 h-3 ${sortField === field && sortDirection === 'asc' ? 'text-primary-600' : 'text-gray-400'}`} 
+        />
+        <ChevronDownIcon 
+          className={`w-3 h-3 ${sortField === field && sortDirection === 'desc' ? 'text-primary-600' : 'text-gray-400'}`} 
+        />
+      </div>
     </button>
   )
 
            // Handle ADP import
-         const handleADPImport = useCallback((adpData: ADPData[]) => {
+         const handleADPImport = (adpData: ADPData[]) => {
            if (onADPImport) {
              onADPImport(adpData)
            }
            setShowADPImport(false)
-         }, [onADPImport])
+         }
 
          // Handle player drawer
-         const handlePlayerDrawerOpen = useCallback((player: Player) => {
+         const handlePlayerDrawerOpen = (player: Player) => {
            setSelectedPlayerForDrawer(player)
-         }, [])
+         }
 
-         const handlePlayerDrawerClose = useCallback(() => {
+         const handlePlayerDrawerClose = () => {
            setSelectedPlayerForDrawer(null)
-         }, [])
+         }
 
-         const handlePlayerNotesChange = useCallback((notes: string) => {
+         const handlePlayerNotesChange = (notes: string) => {
            if (selectedPlayerForDrawer && onPlayerNotesChange) {
              onPlayerNotesChange(selectedPlayerForDrawer.id, notes)
            }
-         }, [selectedPlayerForDrawer, onPlayerNotesChange])
+         }
 
-  return (
-    <div className="flex-1 flex flex-col bg-white">
+    return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200">
+      <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Player Board</h2>
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-500">
-              {filteredAndSortedPlayers.length} players
-              {scoringProfile && ` • ${scoringProfile}`}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <ChartBarIcon className="w-6 h-6 text-primary-600" />
+              <h3 className="text-xl font-bold text-gray-900">Player Board</h3>
             </div>
-            {onADPImport && (
-              <button
-                onClick={() => setShowADPImport(true)}
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span className="px-2 py-1 bg-primary-100 text-primary-800 rounded-full font-medium">
+                {filteredAndSortedPlayers.length} players
+              </span>
+              {scoringProfile && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+                  {scoringProfile}
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {/* Position Filter */}
+            <div className="relative">
+              <FunnelIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <select
+                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+                value={selectedPosition}
+                onChange={(e) => onPlayerSelect({} as Player)} // Reset selection
               >
-                Import ADP
-              </button>
-            )}
-            <div className="text-xs text-gray-400">
-              <kbd className="px-1 py-0.5 bg-gray-100 rounded">↑↓</kbd> Navigate • 
-              <kbd className="px-1 py-0.5 bg-gray-100 rounded">Enter</kbd> Select • 
-              <kbd className="px-1 py-0.5 bg-gray-100 rounded">A</kbd> Add • 
-              <kbd className="px-1 py-0.5 bg-gray-100 rounded">R</kbd> Remove •
-              <kbd className="px-1 py-0.5 bg-gray-100 rounded">Dbl-Click</kbd> Details
+                <option value="ALL">All Positions</option>
+                <option value="QB">QB</option>
+                <option value="RB">RB</option>
+                <option value="WR">WR</option>
+                <option value="TE">TE</option>
+                <option value="K">K</option>
+                <option value="DEF">DEF</option>
+              </select>
+            </div>
+            
+            {/* Search */}
+            <div className="relative">
+              <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search players..."
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
         </div>
@@ -382,58 +447,55 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
         </div>
       )}
 
-      {/* Virtualized Table */}
-      <div 
-        ref={tableRef}
-        className="flex-1 overflow-auto"
-        onScroll={handleScroll}
-      >
-        <div style={{ height: totalHeight, position: 'relative' }}>
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 sticky top-0 z-10">
-              <tr>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Player
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="position">Pos</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="team">Team</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="fantasyPoints">MyPts</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="yahooPoints">YahooPts</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="delta">Δ</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="vorp">VORP</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="tier">Tier</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="adp">ADP</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortHeader field="valueVsADP">Value vs ADP</SortHeader>
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  News
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Bye
-                </th>
-                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+                     {/* Virtualized Table */}
+               <div
+                 ref={tableRef}
+                 className="overflow-hidden"
+                 onScroll={handleScroll}
+               >
+                 <div style={{ height: totalHeight, position: 'relative' }}>
+                   <table className="w-full">
+                     <thead className="bg-gray-50 border-b border-gray-200">
+                       <tr>
+                         <th className="px-4 py-3 text-left">
+                           <SortHeader field="name">Player</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-left">
+                           <SortHeader field="position">Pos</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-left">
+                           <SortHeader field="team">Team</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <SortHeader field="fantasyPoints">My Pts</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <SortHeader field="yahooPoints">Yahoo Pts</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <SortHeader field="delta">Δ</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <SortHeader field="vorp">VORP</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <SortHeader field="tier">Tier</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <SortHeader field="adp">ADP</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <SortHeader field="valueVsADP">Value vs ADP</SortHeader>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <span className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">News</span>
+                         </th>
+                         <th className="px-4 py-3 text-center">
+                           <span className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</span>
+                         </th>
+                       </tr>
+                     </thead>
+            <tbody className="divide-y divide-gray-200">
               {filteredAndSortedPlayers.length === 0 ? (
                 <tr>
                   <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
@@ -449,217 +511,223 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                   
                   return (
                     <React.Fragment key={player.id}>
-                      <tr 
-                        ref={isSelected ? selectedRowRef : null}
-                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${
-                          isSelected ? 'bg-blue-100 ring-2 ring-blue-500' : ''
-                        } ${isExpanded ? 'bg-blue-50' : ''}`}
-                                                         onClick={() => onPlayerSelect(player)}
+                                                     <tr
+                                 ref={isSelected ? selectedRowRef : null}
+                                 className={`group hover:bg-gray-50 transition-colors cursor-pointer ${
+                                   isSelected ? 'bg-primary-50 ring-2 ring-primary-500' : ''
+                                 }`}
+                                 onClick={() => onPlayerSelect(player)}
                                  onDoubleClick={() => handlePlayerDrawerOpen(player)}
                                  data-testid={`player-row-${player.id}`}
-                        style={{
-                          position: 'absolute',
-                          top: globalIndex * ROW_HEIGHT,
-                          width: '100%',
-                          height: ROW_HEIGHT,
-                        }}
-                      >
+                                 style={{
+                                   position: 'absolute',
+                                   top: globalIndex * ROW_HEIGHT,
+                                   width: '100%',
+                                   height: ROW_HEIGHT,
+                                 }}
+                               >
                         {/* Player Name */}
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-8 w-8">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  togglePlayerExpansion(player.id)
-                                }}
-                                className="h-6 w-6 text-gray-400 hover:text-gray-600 transition-colors"
-                                data-testid={`expand-button-${player.id}`}
-                              >
-                                {isExpanded ? (
-                                  <ChevronDownIcon className="h-4 w-4" />
-                                ) : (
-                                  <ChevronUpIcon className="h-4 w-4" />
-                                )}
-                              </button>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${getPositionColor(player.position)}`}>
+                              {player.position}
                             </div>
-                            <div className="ml-2">
-                              <div className="text-sm font-medium text-gray-900">{player.name}</div>
+                            <div>
+                              <div className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors">
+                                {player.name}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                Week {player.byeWeek} • {player.newsCount} news
+                              </div>
                             </div>
                           </div>
                         </td>
 
                         {/* Position */}
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPositionColor(player.position)}`}>
                             {player.position}
                           </span>
                         </td>
 
                         {/* Team */}
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {player.team}
+                        <td className="px-4 py-3">
+                          <span className="font-medium text-gray-900">{player.team}</span>
                         </td>
 
                         {/* My Points */}
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
-                          {formatPoints(player.fantasyPoints)}
+                        <td className="px-4 py-3 text-center">
+                          <div className="font-bold text-gray-900">{player.fantasyPoints.toFixed(1)}</div>
+                          <div className="text-xs text-gray-500">pts</div>
                         </td>
 
                         {/* Yahoo Points */}
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {formatPoints(player.yahooPoints)}
+                        <td className="px-4 py-3 text-center">
+                          <div className="font-medium text-gray-700">{player.yahooPoints.toFixed(1)}</div>
+                          <div className="text-xs text-gray-500">pts</div>
                         </td>
 
                         {/* Delta */}
-                        <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${getDeltaColor(player.delta)}`}>
-                          {formatDelta(player.delta)}
+                        <td className="px-4 py-3 text-center">
+                          <div className={`font-semibold ${getDeltaColor(player.delta)}`}>
+                            {player.delta > 0 ? '+' : ''}{player.delta.toFixed(1)}
+                          </div>
+                          <div className="text-xs text-gray-500">diff</div>
                         </td>
 
                         {/* VORP */}
-                        <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${getVorpColor(player.vorp)}`}>
-                          {player.vorp ? player.vorp.toFixed(1) : '-'}
+                        <td className="px-4 py-3 text-center">
+                          <div className={`font-semibold ${getVorpColor(player.vorp)}`}>
+                            {player.vorp.toFixed(1)}
+                          </div>
+                          <div className="text-xs text-gray-500">vorp</div>
                         </td>
 
                         {/* Tier */}
-                        <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${getTierColor(player.tier)}`}>
-                          {player.tier || '-'}
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getTierColor(player.tier)}`}>
+                            T{player.tier}
+                          </span>
                         </td>
 
                         {/* ADP */}
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {player.effectiveADP ? (
-                            <div className="flex items-center space-x-1">
-                              <span>#{player.effectiveADP}</span>
-                              {importedADP[player.name] && (
-                                <span className="text-xs text-blue-600" title="Imported ADP">📊</span>
-                              )}
-                            </div>
-                          ) : '-'}
+                        <td className="px-4 py-3 text-center">
+                          <div className="font-medium text-gray-700">{player.effectiveADP}</div>
+                          <div className="text-xs text-gray-500">adp</div>
                         </td>
 
                         {/* Value vs ADP */}
-                        <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
+                        <td className="px-4 py-3 text-center">
                           {player.valueVsADP ? (
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              player.valueVsADP.isValue ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {player.valueVsADP.value > 0 ? '+' : ''}{player.valueVsADP.value} ({player.valueVsADP.percentage}%)
-                            </span>
+                            <div>
+                              <div className={`font-semibold ${getValueVsADPColor(player.valueVsADP)}`}>
+                                {player.valueVsADP.isValue ? '+' : ''}{player.valueVsADP.value}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {player.valueVsADP.percentage}%
+                              </div>
+                            </div>
                           ) : (
-                            <span className="text-gray-400">-</span>
+                            <div className="text-gray-400 text-xs">N/A</div>
                           )}
                         </td>
 
                         {/* News */}
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          {player.newsCount ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {player.newsCount}
-                            </span>
+                        <td className="px-4 py-3 text-center">
+                          {player.newsCount > 0 ? (
+                            <div className="flex items-center justify-center">
+                              <FireIcon className="w-4 h-4 text-orange-500" />
+                              <span className="ml-1 text-xs font-medium text-orange-600">{player.newsCount}</span>
+                            </div>
                           ) : (
-                            <span className="text-gray-400">-</span>
+                            <div className="text-gray-400 text-xs">-</div>
                           )}
                         </td>
 
-                        {/* Bye Week */}
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {player.byeWeek ? `W${player.byeWeek}` : '-'}
-                        </td>
-
                         {/* Actions */}
-                        <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            {watchlist.includes(player.id) ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (watchlist.includes(player.id)) {
                                   onRemoveFromWatchlist(player.id)
-                                }}
-                                className="text-red-600 hover:text-red-900 transition-colors"
-                                title="Remove from watchlist (R)"
-                              >
-                                Remove
-                              </button>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
+                                } else {
                                   onAddToWatchlist(player)
-                                }}
-                                className="text-blue-600 hover:text-blue-900 transition-colors"
-                                title="Add to watchlist (A)"
-                              >
-                                Add
-                              </button>
-                            )}
+                                }
+                              }}
+                              className={`p-2 rounded-lg transition-colors ${
+                                watchlist.includes(player.id)
+                                  ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                                  : 'bg-green-100 text-green-600 hover:bg-green-200'
+                              }`}
+                              title={watchlist.includes(player.id) ? 'Remove from watchlist' : 'Add to watchlist'}
+                            >
+                              {watchlist.includes(player.id) ? (
+                                <MinusIcon className="w-4 h-4" />
+                              ) : (
+                                <PlusIcon className="w-4 h-4" />
+                              )}
+                            </button>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRowExpand(player.id)
+                              }}
+                              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="View details"
+                            >
+                              <EyeIcon className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
 
-                      {/* Expanded Player Details */}
+                      {/* Expanded Row */}
                       {isExpanded && (
-                        <tr
-                          style={{
-                            position: 'absolute',
-                            top: globalIndex * ROW_HEIGHT + ROW_HEIGHT,
-                            width: '100%',
-                            height: EXPANDED_ROW_HEIGHT,
-                          }}
-                        >
-                          <td colSpan={13} className="px-6 py-4 bg-blue-50">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <tr>
+                          <td colSpan={12} className="px-4 py-4 bg-gray-50">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                               {/* Player Stats */}
-                              <div>
-                                <h4 className="text-sm font-medium text-gray-900 mb-2">Season Stats</h4>
-                                <div className="space-y-1 text-sm text-gray-600">
-                                  <div>Fantasy Points: {formatPoints(player.fantasyPoints)}</div>
-                                  <div>Yahoo Points: {formatPoints(player.yahooPoints)}</div>
-                                  <div>VORP: {player.vorp ? player.vorp.toFixed(1) : 'N/A'}</div>
-                                  <div>Tier: {player.tier || 'N/A'}</div>
-                                  <div>ADP: {player.effectiveADP ? `#${player.effectiveADP}` : 'N/A'}</div>
-                                  {player.valueVsADP && (
-                                    <div>Value vs ADP: {player.valueVsADP.value > 0 ? '+' : ''}{player.valueVsADP.value} ({player.valueVsADP.percentage}%)</div>
-                                  )}
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  <ChartBarIcon className="w-4 h-4 text-primary-600" />
+                                  Season Stats
+                                </h4>
+                                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <div className="text-gray-600">Fantasy Points</div>
+                                      <div className="font-bold text-lg text-gray-900">{player.fantasyPoints.toFixed(1)}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-gray-600">VORP</div>
+                                      <div className="font-bold text-lg text-gray-900">{player.vorp.toFixed(1)}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-gray-600">Tier</div>
+                                      <div className="font-bold text-lg text-gray-900">T{player.tier}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-gray-600">ADP</div>
+                                      <div className="font-bold text-lg text-gray-900">{player.effectiveADP}</div>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
 
-                              {/* Recent News */}
-                              <div>
-                                <h4 className="text-sm font-medium text-gray-900 mb-2">Recent News</h4>
-                                <div className="text-sm text-gray-600">
-                                  {player.newsCount ? (
-                                    <div>{player.newsCount} news items available</div>
+                              {/* News */}
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  <FireIcon className="w-4 h-4 text-orange-600" />
+                                  Recent News
+                                </h4>
+                                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                  {player.newsCount > 0 ? (
+                                    <div className="text-sm text-gray-600">
+                                      {player.newsCount} recent news items available
+                                    </div>
                                   ) : (
-                                    <div>No recent news</div>
+                                    <div className="text-sm text-gray-500">No recent news</div>
                                   )}
                                 </div>
                               </div>
 
-                              {/* Quick Actions */}
-                              <div>
-                                <h4 className="text-sm font-medium text-gray-900 mb-2">Quick Actions</h4>
-                                <div className="space-y-2">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handlePlayerDrawerOpen(player)
-                                    }}
-                                    className="w-full px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                                  >
-                                    View Details
-                                  </button>
-                                  {!watchlist.includes(player.id) && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        onAddToWatchlist(player)
-                                      }}
-                                      className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                                    >
-                                      Add to Watchlist
-                                    </button>
-                                  )}
+                              {/* Notes */}
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                  <UserIcon className="w-4 h-4 text-primary-600" />
+                                  Notes
+                                </h4>
+                                <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                  <textarea
+                                    placeholder="Add your notes about this player..."
+                                    className="w-full h-20 p-2 border border-gray-300 rounded text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                    value={playerNotes[player.id] || ''}
+                                    onChange={(e) => onPlayerNotesChange(player.id, e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
                                 </div>
                               </div>
                             </div>

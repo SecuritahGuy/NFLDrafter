@@ -108,48 +108,41 @@ export const VORP: React.FC<VORPProps> = ({
 
   if (!players.length) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-4 py-3 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">VORP Analysis</h3>
-        </div>
-        <div className="px-4 py-8 text-center text-gray-500">
-          <div className="text-lg font-medium">No players available</div>
-          <div className="text-sm">Add players to see VORP calculations</div>
-        </div>
+      <div className="text-center py-4 text-gray-500">
+        <div className="text-lg font-medium">No players available</div>
+        <div className="text-sm">Add players to see VORP calculations</div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">VORP Analysis</h3>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowReplacementRanks(!showReplacementRanks)}
-              className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-            >
-              {showReplacementRanks ? 'Hide' : 'Show'} Replacement Ranks
-            </button>
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              {expanded ? (
-                <ChevronUpIcon className="h-5 w-5" />
-              ) : (
-                <ChevronDownIcon className="h-5 w-5" />
-              )}
-            </button>
-          </div>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900">VORP Analysis</h3>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowReplacementRanks(!showReplacementRanks)}
+            className="btn btn-primary btn-sm"
+          >
+            {showReplacementRanks ? 'Hide' : 'Show'} Replacement Ranks
+          </button>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            {expanded ? (
+              <ChevronUpIcon className="h-5 w-5" />
+            ) : (
+              <ChevronDownIcon className="h-5 w-5" />
+            )}
+          </button>
         </div>
       </div>
 
       {/* Replacement Ranks Configuration */}
       {showReplacementRanks && (
-        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+        <div className="bg-gray-50 p-4 rounded-md">
           <h4 className="text-sm font-medium text-gray-900 mb-3">Replacement Ranks by Position</h4>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {Object.entries(replacementRanks).map(([position, rank]) => (
@@ -163,7 +156,7 @@ export const VORP: React.FC<VORPProps> = ({
                   max="50"
                   value={rank}
                   onChange={(e) => handleReplacementRankChange(position, parseInt(e.target.value) || 1)}
-                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="input w-16"
                 />
                 <span className="text-xs text-gray-500">rank</span>
               </div>
@@ -177,11 +170,11 @@ export const VORP: React.FC<VORPProps> = ({
 
       {/* VORP Results */}
       {expanded && (
-        <div className="divide-y divide-gray-200">
+        <div className="space-y-2">
           {playersWithVORP.slice(0, 20).map((player, index) => (
             <div
               key={player.id}
-              className="px-4 py-3 hover:bg-gray-50 transition-colors"
+              className="p-3 hover:bg-gray-50 transition-colors rounded-md border border-gray-100"
               data-testid={`vorp-player-${player.id}`}
             >
               <div className="flex items-center justify-between">
@@ -225,7 +218,7 @@ export const VORP: React.FC<VORPProps> = ({
 
       {/* Summary Stats */}
       {expanded && (
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+        <div className="bg-gray-50 p-4 rounded-md">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <div className="text-gray-500">Total Players</div>

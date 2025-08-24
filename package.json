@@ -1,0 +1,50 @@
+{
+  "name": "nfldrafter",
+  "version": "1.0.0",
+  "description": "Fantasy Football Open Scorer - Local-first application with custom scoring profiles",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd api && python -m uvicorn app.main:app --reload --port 8000",
+    "dev:setup": "npm run setup:backend && npm run setup:frontend",
+    "setup:backend": "cd api && python cli.py init",
+    "setup:frontend": "cd frontend && npm install",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd api && python -m pytest",
+    "test:frontend": "cd frontend && npm run test:run",
+    "test:coverage": "npm run test:coverage:backend && npm run test:coverage:frontend",
+    "test:coverage:backend": "cd api && python -m pytest --cov=app --cov-report=html",
+    "test:coverage:frontend": "cd frontend && npm run test:coverage",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd api && python -m uvicorn app.main:app --port 8000",
+    "build:frontend": "cd frontend && npm run build",
+    "clean": "npm run clean:backend && npm run clean:frontend",
+    "clean:backend": "cd api && rm -rf __pycache__ .pytest_cache .coverage htmlcov",
+    "clean:frontend": "cd frontend && rm -rf node_modules dist coverage",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "install:backend": "cd api && pip install -r requirements.txt",
+    "install:frontend": "cd frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "fantasy-football",
+    "scoring",
+    "draft",
+    "react",
+    "fastapi",
+    "sqlite",
+    "typescript"
+  ],
+  "author": "NFLDrafter Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/nfldrafter.git"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}

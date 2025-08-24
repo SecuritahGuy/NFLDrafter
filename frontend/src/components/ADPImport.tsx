@@ -194,13 +194,13 @@ export const ADPImport: React.FC<ADPImportProps> = ({
                 <button
                   onClick={handleImport}
                   disabled={isProcessing}
-                  className="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="btn btn-primary btn-sm"
                 >
                   Import ADP Data
                 </button>
                 <button
                   onClick={handleClear}
-                  className="px-3 py-1 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300"
+                  className="btn btn-secondary btn-sm"
                 >
                   Clear
                 </button>
@@ -209,27 +209,27 @@ export const ADPImport: React.FC<ADPImportProps> = ({
           </div>
           
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th>
                     Player
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th>
                     ADP
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th>
                     Team
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th>
                     Position
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th>
                     Value vs ADP
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody>
                 {uploadedData.slice(0, 10).map((player, index) => {
                   const valueVsADP = getValueVsADP(player.player_name, player.adp);
                   return (

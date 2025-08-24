@@ -108,24 +108,24 @@ export const Tiering: React.FC<TieringProps> = ({
 
   if (players.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500">
+      <div className="text-center py-4 text-gray-500">
         No players available for tiering
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Player Tiers</h2>
-          <div className="text-sm text-gray-500">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Player Tiers</h3>
+          <p className="text-sm text-gray-600">
             {Object.keys(playersByTier).length} tiers • {players.length} players
-          </div>
+          </p>
         </div>
 
         {showControls && (
-          <div className="mt-3 flex items-center space-x-3">
+          <div className="flex items-center space-x-3">
             <label htmlFor="gap-control" className="text-sm font-medium text-gray-700">
               Tier Gap:
             </label>
@@ -206,13 +206,13 @@ export const Tiering: React.FC<TieringProps> = ({
                                 <button
                                   onClick={() => handleTierChange(player.id, tier - 1)}
                                   disabled={tier <= 1}
-                                  className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="btn btn-primary btn-sm px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   ↑
                                 </button>
                                 <button
                                   onClick={() => handleTierChange(player.id, tier + 1)}
-                                  className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                  className="btn btn-primary btn-sm px-2 py-1"
                                 >
                                   ↓
                                 </button>
@@ -229,11 +229,9 @@ export const Tiering: React.FC<TieringProps> = ({
           })}
       </div>
 
-      <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-        <div className="text-xs text-gray-600">
-          <p>Tiers are automatically calculated based on {gap}-point gaps between players.</p>
-          <p>Lower tier numbers indicate higher value players.</p>
-        </div>
+      <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded-md">
+        <p>Tiers are automatically calculated based on {gap}-point gaps between players.</p>
+        <p>Lower tier numbers indicate higher value players.</p>
       </div>
     </div>
   )
