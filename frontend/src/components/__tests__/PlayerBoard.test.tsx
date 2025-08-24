@@ -310,13 +310,19 @@ describe('PlayerBoard', () => {
 
   describe('Player Selection', () => {
     it('calls onPlayerSelect when clicking on a player row', async () => {
+      const user = userEvent.setup()
       render(<PlayerBoard {...defaultProps} />)
       
-      const mahomesRow = screen.getByTestId('player-row-1')
-      await user.click(mahomesRow)
+      // Click on the first player row
+      const firstPlayerRow = screen.getByTestId('player-row-1')
+      await user.click(firstPlayerRow)
       
       // Should call the onPlayerSelect callback
-      expect(defaultProps.onPlayerSelect).toHaveBeenCalledWith(mockPlayers[0])
+      expect(defaultProps.onPlayerSelect).toHaveBeenCalledWith({
+        ...mockPlayers[0],
+        effectiveADP: 12,
+        valueVsADP: null
+      })
     })
   })
 

@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
+import { ADPImport } from './ADPImport'
+import type { ADPData } from './ADPImport'
 
 // Types
 export interface Player {
@@ -23,12 +25,14 @@ export interface PlayerBoardProps {
   searchQuery: string
   onPlayerSelect: (player: Player) => void
   onAddToWatchlist: (player: Player) => void
-  onRemoveFromWatchlist: (player: Player) => void
+  onRemoveFromWatchlist: (playerId: string) => void
   watchlist: string[] // Array of player IDs
   scoringProfile?: string
+  importedADP?: Record<string, number> // Map of player names to imported ADP values
+  onADPImport?: (adpData: ADPData[]) => void
 }
 
-type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp'
+type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp' | 'valueVsADP'
 type SortDirection = 'asc' | 'desc'
 
 // Virtualization constants
@@ -45,19 +49,45 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   onRemoveFromWatchlist,
   watchlist,
   scoringProfile,
+  importedADP = {},
+  onADPImport,
 }) => {
   const [sortField, setSortField] = useState<SortField>('fantasyPoints')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null)
   const [selectedRowIndex, setSelectedRowIndex] = useState<number>(0)
   const [scrollTop, setScrollTop] = useState<number>(0)
+  const [showADPImport, setShowADPImport] = useState<boolean>(false)
   
   const tableRef = useRef<HTMLDivElement>(null)
   const selectedRowRef = useRef<HTMLTableRowElement>(null)
 
+  // Calculate Value vs ADP for each player
+  const playersWithValueVsADP = useMemo(() => {
+    return players.map(player => {
+      const importedADPValue = importedADP[player.name]
+      let valueVsADP = null
+      
+      if (importedADPValue && player.adp) {
+        const difference = importedADPValue - player.adp
+        valueVsADP = {
+          value: difference,
+          isValue: difference > 0,
+          percentage: ((difference / player.adp) * 100).toFixed(1)
+        }
+      }
+      
+      return {
+        ...player,
+        valueVsADP,
+        effectiveADP: importedADPValue || player.adp
+      }
+    })
+  }, [players, importedADP])
+
   // Filter and sort players
   const filteredAndSortedPlayers = useMemo(() => {
-    let filtered = players.filter(player => {
+    let filtered = playersWithValueVsADP.filter(player => {
       // Position filter
       if (selectedPosition !== 'ALL' && player.position !== selectedPosition) {
         return false
@@ -81,6 +111,12 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
       let aValue: any = a[sortField]
       let bValue: any = b[sortField]
       
+      // Handle Value vs ADP sorting
+      if (sortField === 'valueVsADP') {
+        aValue = a.valueVsADP?.value || 0
+        bValue = b.valueVsADP?.value || 0
+      }
+      
       // Handle undefined values
       if (aValue === undefined) aValue = sortDirection === 'asc' ? Infinity : -Infinity
       if (bValue === undefined) bValue = sortDirection === 'asc' ? Infinity : -Infinity
@@ -97,7 +133,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     })
     
     return filtered
-  }, [players, selectedPosition, searchQuery, sortField, sortDirection])
+  }, [playersWithValueVsADP, selectedPosition, searchQuery, sortField, sortDirection])
 
   // Virtualization calculations
   const totalHeight = useMemo(() => {
@@ -257,6 +293,14 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     </button>
   )
 
+  // Handle ADP import
+  const handleADPImport = useCallback((adpData: ADPData[]) => {
+    if (onADPImport) {
+      onADPImport(adpData)
+    }
+    setShowADPImport(false)
+  }, [onADPImport])
+
   return (
     <div className="flex-1 flex flex-col bg-white">
       {/* Header */}
@@ -268,6 +312,14 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
               {filteredAndSortedPlayers.length} players
               {scoringProfile && ` • ${scoringProfile}`}
             </div>
+            {onADPImport && (
+              <button
+                onClick={() => setShowADPImport(true)}
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Import ADP
+              </button>
+            )}
             <div className="text-xs text-gray-400">
               <kbd className="px-1 py-0.5 bg-gray-100 rounded">↑↓</kbd> Navigate • 
               <kbd className="px-1 py-0.5 bg-gray-100 rounded">Enter</kbd> Select • 
@@ -277,6 +329,28 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ADP Import Modal */}
+      {showADPImport && onADPImport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Import ADP Data</h3>
+              <button
+                onClick={() => setShowADPImport(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="sr-only">Close</span>
+                <ChevronUpIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <ADPImport
+              onADPImport={handleADPImport}
+              currentADP={importedADP}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Virtualized Table */}
       <div 
@@ -316,6 +390,9 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                   <SortHeader field="adp">ADP</SortHeader>
                 </th>
                 <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <SortHeader field="valueVsADP">Value vs ADP</SortHeader>
+                </th>
+                <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   News
                 </th>
                 <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -329,7 +406,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAndSortedPlayers.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                     <div className="text-lg font-medium">No players found</div>
                     <div className="text-sm">Try adjusting your filters or search query</div>
                   </td>
@@ -420,7 +497,27 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
 
                         {/* ADP */}
                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {player.adp ? `#${player.adp}` : '-'}
+                          {player.effectiveADP ? (
+                            <div className="flex items-center space-x-1">
+                              <span>#{player.effectiveADP}</span>
+                              {importedADP[player.name] && (
+                                <span className="text-xs text-blue-600" title="Imported ADP">📊</span>
+                              )}
+                            </div>
+                          ) : '-'}
+                        </td>
+
+                        {/* Value vs ADP */}
+                        <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
+                          {player.valueVsADP ? (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              player.valueVsADP.isValue ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {player.valueVsADP.value > 0 ? '+' : ''}{player.valueVsADP.value} ({player.valueVsADP.percentage}%)
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
                         </td>
 
                         {/* News */}
@@ -479,7 +576,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                             height: EXPANDED_ROW_HEIGHT,
                           }}
                         >
-                          <td colSpan={12} className="px-6 py-4 bg-blue-50">
+                          <td colSpan={13} className="px-6 py-4 bg-blue-50">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               {/* Player Stats */}
                               <div>
@@ -489,7 +586,10 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                                   <div>Yahoo Points: {formatPoints(player.yahooPoints)}</div>
                                   <div>VORP: {player.vorp ? player.vorp.toFixed(1) : 'N/A'}</div>
                                   <div>Tier: {player.tier || 'N/A'}</div>
-                                  <div>ADP: {player.adp ? `#${player.adp}` : 'N/A'}</div>
+                                  <div>ADP: {player.effectiveADP ? `#${player.effectiveADP}` : 'N/A'}</div>
+                                  {player.valueVsADP && (
+                                    <div>Value vs ADP: {player.valueVsADP.value > 0 ? '+' : ''}{player.valueVsADP.value} ({player.valueVsADP.percentage}%)</div>
+                                  )}
                                 </div>
                               </div>
 
