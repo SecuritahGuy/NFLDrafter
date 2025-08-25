@@ -314,89 +314,48 @@ window.console = {
 }
 
 // Mock all Heroicons used in the application
-vi.mock('@heroicons/react/24/outline', () => ({
-  // Navigation and UI
-  ChevronDownIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="chevron-down-icon" />
-  ),
-  ChevronUpIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="chevron-up-icon" />
-  ),
-  ChevronRightIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="chevron-right-icon" />
-  ),
-  ChevronLeftIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="chevron-left-icon" />
-  ),
-  
-  // Icons
-  StarIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="star-icon" />
-  ),
-  ChartBarIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="chart-bar-icon" />
-  ),
-  UserIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="user-icon" />
-  ),
-  MagnifyingGlassIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="magnifying-glass-icon" />
-  ),
-  FunnelIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="funnel-icon" />
-  ),
-  EyeIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="eye-icon" />
-  ),
-  PlusIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="plus-icon" />
-  ),
-  MinusIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="minus-icon" />
-  ),
-  FireIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="fire-icon" />
-  ),
-  TrashIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="trash-icon" />
-  ),
-  AdjustmentsHorizontalIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="adjustments-horizontal-icon" />
-  ),
-  ArrowTrendingUpIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="arrow-trending-up-icon" />
-  ),
-           ArrowTrendingDownIcon: ({ className }: { className?: string }) => (
-           <svg className={className} data-testid="arrow-trending-down-icon" />
-         ),
-         ArrowDownTrayIcon: ({ className }: { className?: string }) => (
-           <svg className={className} data-testid="arrow-down-tray-icon" />
-         ),
-         XMarkIcon: ({ className }: { className?: string }) => (
-           <svg className={className} data-testid="x-mark-icon" />
-         ),
-  CloudArrowUpIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="cloud-arrow-up-icon" />
-  ),
-  NewspaperIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="newspaper-icon" />
-  ),
-  UserGroupIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="user-group-icon" />
-  ),
-  PencilIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="pencil-icon" />
-  ),
-  InformationCircleIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="information-circle-icon" />
-  ),
-  XCircleIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="x-circle-icon" />
-  ),
-  ExclamationTriangleIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="exclamation-triangle-icon" />
-  ),
-  CheckCircleIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="check-circle-icon" />
-  ),
-}))
+vi.mock('@heroicons/react/24/outline', () => {
+  const createMockIcon = (testId: string) => ({ className }: { className?: string }) => (
+    <svg className={className} data-testid={testId} />
+  )
+
+  return {
+    // Navigation and UI
+    ChevronDownIcon: createMockIcon('chevron-down-icon'),
+    ChevronUpIcon: createMockIcon('chevron-up-icon'),
+    ChevronRightIcon: createMockIcon('chevron-right-icon'),
+    ChevronLeftIcon: createMockIcon('chevron-left-icon'),
+    
+    // Icons
+    StarIcon: createMockIcon('star-icon'),
+    ChartBarIcon: createMockIcon('chart-bar-icon'),
+    UserIcon: createMockIcon('user-icon'),
+    MagnifyingGlassIcon: createMockIcon('magnifying-glass-icon'),
+    FunnelIcon: createMockIcon('funnel-icon'),
+    EyeIcon: createMockIcon('eye-icon'),
+    PlusIcon: createMockIcon('plus-icon'),
+    MinusIcon: createMockIcon('minus-icon'),
+    FireIcon: createMockIcon('fire-icon'),
+    TrashIcon: createMockIcon('trash-icon'),
+    AdjustmentsHorizontalIcon: createMockIcon('adjustments-horizontal-icon'),
+    ArrowTrendingUpIcon: createMockIcon('arrow-trending-up-icon'),
+    ArrowTrendingDownIcon: createMockIcon('arrow-trending-down-icon'),
+    ArrowDownTrayIcon: createMockIcon('arrow-down-tray-icon'),
+    XMarkIcon: createMockIcon('x-mark-icon'),
+    CloudArrowUpIcon: createMockIcon('cloud-arrow-up-icon'),
+    NewspaperIcon: createMockIcon('newspaper-icon'),
+    UserGroupIcon: createMockIcon('user-group-icon'),
+    PencilIcon: createMockIcon('pencil-icon'),
+    InformationCircleIcon: createMockIcon('information-circle-icon'),
+    XCircleIcon: createMockIcon('x-circle-icon'),
+    ExclamationTriangleIcon: createMockIcon('exclamation-triangle-icon'),
+    CheckCircleIcon: createMockIcon('check-circle-icon'),
+    TrophyIcon: createMockIcon('trophy-icon'),
+    CalendarIcon: createMockIcon('calendar-icon'),
+    ExclamationCircleIcon: createMockIcon('exclamation-circle-icon'),
+    HomeIcon: createMockIcon('home-icon'),
+    Cog6ToothIcon: createMockIcon('cog-6-tooth-icon'),
+    SignalIcon: createMockIcon('signal-icon'),
+    WifiIcon: createMockIcon('wifi-icon'),
+  }
+})

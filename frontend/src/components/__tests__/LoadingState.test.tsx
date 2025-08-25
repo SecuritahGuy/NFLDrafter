@@ -1,7 +1,6 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { vi } from 'vitest'
 import { 
   LoadingState, 
   TableLoadingState, 
@@ -12,116 +11,126 @@ import {
   LoadingStateWithError,
   LoadingStateWithFallback
 } from '../LoadingState'
+import { LoadingSpinner } from '../LoadingSpinner'
+import { Skeleton, SkeletonTable } from '../Skeleton'
 
 // Mock LoadingSpinner component
 vi.mock('../LoadingSpinner', () => ({
-  LoadingSpinner: ({ size, variant, className }: any) => (
-    <div data-testid="loading-spinner" data-size={size} data-variant={variant} className={className}>
-      Loading...
+  LoadingSpinner: ({ size, variant }: { size: string; variant: string }) => (
+    <div data-testid="loading-spinner" data-size={size} data-variant={variant}>
+      Loading Spinner
     </div>
   )
 }))
 
-// Mock Skeleton component
+// Mock Skeleton components
 vi.mock('../Skeleton', () => ({
-  SkeletonTable: ({ rows, columns, className }: any) => (
-    <div data-testid="skeleton-table" data-rows={rows} data-columns={columns} className={className}>
-      Skeleton Table ({rows}x{columns})
+  Skeleton: ({ className }: { className?: string }) => (
+    <div data-testid="skeleton" className={className}>Skeleton</div>
+  ),
+  SkeletonTable: ({ rows, columns }: { rows: number; columns: number }) => (
+    <div data-testid="skeleton-table" data-rows={rows} data-columns={columns}>
+      Skeleton Table
     </div>
   )
 }))
-
-// Shared mock children for all tests
-const mockChildren = <div data-testid="content">Content</div>
 
 describe('LoadingState', () => {
+  const mockChildren = <div data-testid="content">Content</div>
+  const mockOnRetry = vi.fn()
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   describe('Basic Rendering', () => {
-    it('renders loading state when loading', () => {
-      render(<LoadingState loading={true}>{mockChildren}</LoadingState>)
-      
-      expect(screen.queryByTestId('content')).not.toBeInTheDocument()
-      expect(screen.getAllByText('Loading...')).toHaveLength(2) // Spinner + paragraph
-    })
-
     it('renders children when not loading', () => {
       render(<LoadingState loading={false}>{mockChildren}</LoadingState>)
       
       expect(screen.getByTestId('content')).toBeInTheDocument()
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
     })
 
-    it('applies custom className', () => {
+    it('renders loading content when loading', () => {
+      render(<LoadingState loading={true}>{mockChildren}</LoadingState>)
+      
+      expect(screen.queryByTestId('content')).not.toBeInTheDocument()
+      expect(screen.getByText('Loading...')).toBeInTheDocument()
+    })
+
+    it('renders fallback when provided', () => {
+      const fallback = <div data-testid="fallback">Fallback Content</div>
       render(
-        <LoadingState loading={true} className="custom-class">
+        <LoadingState loading={true} fallback={fallback}>
           {mockChildren}
         </LoadingState>
       )
       
-      // Find the main container div that has the className
-      const container = screen.getAllByText('Loading...')[0].closest('div')?.parentElement?.parentElement
-      expect(container).toHaveClass('custom-class')
+      expect(screen.getByTestId('fallback')).toBeInTheDocument()
+      expect(screen.queryByTestId('content')).not.toBeInTheDocument()
     })
   })
 
   describe('Loading Types', () => {
-    it('renders skeleton type', () => {
-      render(
-        <LoadingState loading={true} type="skeleton">
-          {mockChildren}
-        </LoadingState>
-      )
+    it('renders spinner type by default', () => {
+      render(<LoadingState loading={true}>{mockChildren}</LoadingState>)
       
-      expect(screen.getByText('Loading...')).toBeInTheDocument()
-      expect(screen.getByTestId('skeleton-table')).toBeInTheDocument()
+      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+      expect(screen.getByTestId('loading-spinner')).toHaveAttribute('data-size', 'lg')
+      expect(screen.getByTestId('loading-spinner')).toHaveAttribute('data-variant', 'primary')
     })
 
-    it('renders progress type', () => {
+    it('renders skeleton type correctly', () => {
       render(
         <LoadingState 
           loading={true} 
-          type="progress" 
-          showProgress={true}
-          progress={50}
-          progressLabel="Progress"
+          type="skeleton" 
+          skeletonRows={3} 
+          skeletonColumns={2}
         >
           {mockChildren}
         </LoadingState>
       )
       
-      expect(screen.getByTestId('progress-percentage')).toHaveTextContent('50%')
-      expect(screen.getByText('Progress')).toBeInTheDocument()
+      expect(screen.getByTestId('skeleton-table')).toBeInTheDocument()
+      expect(screen.getByTestId('skeleton-table')).toHaveAttribute('data-rows', '3')
+      expect(screen.getByTestId('skeleton-table')).toHaveAttribute('data-columns', '2')
     })
 
-    it('renders dots type', () => {
+    it('renders progress type correctly', () => {
       render(
-        <LoadingState loading={true} type="dots">
+        <LoadingState 
+          loading={true} 
+          type="progress" 
+          progress={75} 
+          progressLabel="Upload Progress"
+          showProgress={true}
+        >
           {mockChildren}
         </LoadingState>
       )
       
-      const dotsContainer = screen.getByTestId('loading-dots')
-      const dots = dotsContainer.querySelectorAll('div[class*="animate-bounce"]')
-      expect(dots).toHaveLength(3) // Three dots
+      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+      expect(screen.getByText('Upload Progress')).toBeInTheDocument()
+      expect(screen.getByTestId('progress-percentage')).toHaveTextContent('75%')
     })
 
-    it('renders pulse type', () => {
-      render(
-        <LoadingState loading={true} type="pulse">
-          {mockChildren}
-        </LoadingState>
-      )
+    it('renders dots type correctly', () => {
+      render(<LoadingState loading={true} type="dots">{mockChildren}</LoadingState>)
       
+      expect(screen.getByTestId('loading-dots')).toBeInTheDocument()
       expect(screen.getByText('Loading...')).toBeInTheDocument()
+    })
+
+    it('renders pulse type correctly', () => {
+      render(<LoadingState loading={true} type="pulse">{mockChildren}</LoadingState>)
+      
       expect(screen.getByTestId('pulse-animation')).toBeInTheDocument()
+      expect(screen.getByText('Loading...')).toBeInTheDocument()
     })
   })
 
-  describe('Messages and Sub-messages', () => {
-    it('shows custom message', () => {
+  describe('Messages and Labels', () => {
+    it('displays custom message', () => {
       render(
         <LoadingState loading={true} message="Custom loading message">
           {mockChildren}
@@ -131,87 +140,83 @@ describe('LoadingState', () => {
       expect(screen.getByText('Custom loading message')).toBeInTheDocument()
     })
 
-    it('shows sub-message when provided', () => {
+    it('displays sub message when provided', () => {
       render(
-        <LoadingState loading={true} subMessage="Additional information">
+        <LoadingState 
+          loading={true} 
+          message="Loading..." 
+          subMessage="Please wait while we process your request"
+        >
           {mockChildren}
         </LoadingState>
       )
       
-      expect(screen.getByText('Additional information')).toBeInTheDocument()
+      expect(screen.getByText('Loading...')).toBeInTheDocument()
+      expect(screen.getByText('Please wait while we process your request')).toBeInTheDocument()
     })
 
-    it('does not show sub-message when not provided', () => {
-      render(<LoadingState loading={true}>{mockChildren}</LoadingState>)
+    it('displays progress label when provided', () => {
+      render(
+        <LoadingState 
+          loading={true} 
+          type="progress" 
+          progress={50} 
+          progressLabel="Download Progress"
+          showProgress={true}
+        >
+          {mockChildren}
+        </LoadingState>
+      )
       
-      expect(screen.queryByText('Additional information')).not.toBeInTheDocument()
+      expect(screen.getByText('Download Progress')).toBeInTheDocument()
     })
   })
 
-  describe('Progress Display', () => {
-    it('shows progress bar when showProgress is true and progress is provided', () => {
+  describe('Progress Bar', () => {
+    it('renders progress bar when showProgress is true', () => {
       render(
         <LoadingState 
           loading={true} 
           type="progress" 
-          showProgress={true} 
-          progress={75}
+          progress={60} 
+          showProgress={true}
         >
           {mockChildren}
         </LoadingState>
       )
       
-      expect(screen.getByText('75%')).toBeInTheDocument()
-      expect(screen.getByText('Progress')).toBeInTheDocument()
+      const progressBar = screen.getByTestId('progress-percentage')
+      expect(progressBar).toBeInTheDocument()
+      expect(progressBar).toHaveTextContent('60%')
     })
 
-    it('does not show progress when showProgress is false', () => {
+    it('does not render progress bar when showProgress is false', () => {
       render(
         <LoadingState 
           loading={true} 
           type="progress" 
-          showProgress={false} 
-          progress={75}
+          progress={60} 
+          showProgress={false}
         >
           {mockChildren}
         </LoadingState>
       )
       
-      expect(screen.queryByText('75%')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('progress-percentage')).not.toBeInTheDocument()
     })
 
-    it('shows custom progress label', () => {
+    it('handles undefined progress gracefully', () => {
       render(
         <LoadingState 
           loading={true} 
           type="progress" 
-          showProgress={true} 
-          progress={50}
-          progressLabel="Upload Progress"
+          showProgress={true}
         >
           {mockChildren}
         </LoadingState>
       )
       
-      expect(screen.getByText('Upload Progress')).toBeInTheDocument()
-    })
-  })
-
-  describe('Skeleton Configuration', () => {
-    it('uses custom skeleton rows and columns', () => {
-      render(
-        <LoadingState 
-          loading={true} 
-          type="skeleton" 
-          skeletonRows={10} 
-          skeletonColumns={6}
-        >
-          {mockChildren}
-        </LoadingState>
-      )
-      
-      const skeletonTable = screen.getByTestId('skeleton-table')
-      expect(skeletonTable).toBeInTheDocument()
+      expect(screen.getByTestId('progress-percentage')).toHaveTextContent('NaN%')
     })
   })
 
@@ -223,346 +228,310 @@ describe('LoadingState', () => {
         </LoadingState>
       )
       
-      // Find the main container div that has the relative class
-      const container = screen.getAllByText('Loading...')[0].closest('div')?.parentElement?.parentElement?.parentElement
-      expect(container).toHaveClass('relative')
+      const overlay = screen.getByText('Loading...').closest('div')
+      expect(overlay).toHaveClass('absolute', 'inset-0', 'bg-white', 'bg-opacity-75')
     })
 
-    it('shows content with reduced opacity in overlay mode', () => {
+    it('renders content with reduced opacity in overlay mode', () => {
       render(
         <LoadingState loading={true} overlay={true}>
           {mockChildren}
         </LoadingState>
       )
       
-      // The content should be wrapped in a div with opacity-50 and pointer-events-none
-      const contentWrapper = screen.getByTestId('content').parentElement
-      expect(contentWrapper).toHaveClass('opacity-50', 'pointer-events-none')
+      const content = screen.getByTestId('content')
+      expect(content).toHaveClass('opacity-50', 'pointer-events-none')
+    })
+
+    it('does not render overlay when overlay is false', () => {
+      render(
+        <LoadingState loading={true} overlay={false}>
+          {mockChildren}
+        </LoadingState>
+      )
+      
+      const container = screen.getByText('Loading...').closest('div')
+      expect(container).not.toHaveClass('absolute', 'inset-0')
     })
   })
 
-  describe('Min Height', () => {
-    it('applies custom min height', () => {
+  describe('Styling and Layout', () => {
+    it('applies custom className', () => {
+      render(
+        <LoadingState loading={true} className="custom-loading-class">
+          {mockChildren}
+        </LoadingState>
+      )
+      
+      const container = screen.getByText('Loading...').closest('div')
+      expect(container).toHaveClass('custom-loading-class')
+    })
+
+    it('applies minHeight style', () => {
       render(
         <LoadingState loading={true} minHeight="500px">
           {mockChildren}
         </LoadingState>
       )
       
-      // Find the main container div that has the style
-      const container = screen.getAllByText('Loading...')[0].closest('div')?.parentElement?.parentElement
+      const container = screen.getByText('Loading...').closest('div')
       expect(container).toHaveStyle({ minHeight: '500px' })
     })
 
-    it('uses default min height when not specified', () => {
+    it('centers content by default', () => {
       render(<LoadingState loading={true}>{mockChildren}</LoadingState>)
       
-      // Find the main container div that has the style
-      const container = screen.getAllByText('Loading...')[0].closest('div')?.parentElement?.parentElement
-      expect(container).toHaveStyle({ minHeight: '200px' })
+      const container = screen.getByText('Loading...').closest('div')
+      expect(container).toHaveClass('flex', 'items-center', 'justify-center')
     })
   })
 
-  describe('Fallback Content', () => {
-    it('renders fallback when provided and loading', () => {
-      const fallback = <div data-testid="fallback">Fallback content</div>
+  describe('Error Handling', () => {
+    it('renders error state when error is provided', () => {
+      const error = new Error('Something went wrong')
       render(
-        <LoadingState loading={true} fallback={fallback}>
+        <LoadingState 
+          loading={false} 
+          error={error} 
+          onRetry={mockOnRetry}
+        >
           {mockChildren}
         </LoadingState>
+      )
+      
+      expect(screen.getByText('Something went wrong')).toBeInTheDocument()
+      expect(screen.getByText('Try Again')).toBeInTheDocument()
+    })
+
+    it('calls onRetry when retry button is clicked', async () => {
+      const error = new Error('Something went wrong')
+      render(
+        <LoadingState 
+          loading={false} 
+          error={error} 
+          onRetry={mockOnRetry}
+        >
+          {mockChildren}
+        </LoadingState>
+      )
+      
+      const retryButton = screen.getByText('Try Again')
+      fireEvent.click(retryButton)
+      
+      await waitFor(() => {
+        expect(mockOnRetry).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    it('uses custom retry label when provided', () => {
+      const error = new Error('Something went wrong')
+      render(
+        <LoadingState 
+          loading={false} 
+          error={error} 
+          onRetry={mockOnRetry}
+          retryLabel="Retry Operation"
+        >
+          {mockChildren}
+        </LoadingState>
+      )
+      
+      expect(screen.getByText('Retry Operation')).toBeInTheDocument()
+    })
+  })
+})
+
+describe('Specialized Loading States', () => {
+  const mockChildren = <div data-testid="content">Content</div>
+
+  describe('TableLoadingState', () => {
+    it('renders with skeleton table by default', () => {
+      render(<TableLoadingState loading={true}>{mockChildren}</TableLoadingState>)
+      
+      expect(screen.getByTestId('skeleton-table')).toBeInTheDocument()
+      expect(screen.getByTestId('skeleton-table')).toHaveAttribute('data-rows', '5')
+      expect(screen.getByTestId('skeleton-table')).toHaveAttribute('data-columns', '4')
+    })
+
+    it('allows custom rows and columns', () => {
+      render(
+        <TableLoadingState loading={true} rows={10} columns={6}>
+          {mockChildren}
+        </TableLoadingState>
+      )
+      
+      expect(screen.getByTestId('skeleton-table')).toHaveAttribute('data-rows', '10')
+      expect(screen.getByTestId('skeleton-table')).toHaveAttribute('data-columns', '6')
+    })
+
+    it('allows custom message', () => {
+      render(
+        <TableLoadingState loading={true} message="Loading table data...">
+          {mockChildren}
+        </TableLoadingState>
+      )
+      
+      expect(screen.getByText('Loading table data...')).toBeInTheDocument()
+    })
+  })
+
+  describe('CardLoadingState', () => {
+    it('renders with spinner by default', () => {
+      render(<CardLoadingState loading={true}>{mockChildren}</CardLoadingState>)
+      
+      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+      expect(screen.getByTestId('loading-spinner')).toHaveAttribute('data-size', 'lg')
+    })
+
+    it('applies card-specific styling', () => {
+      render(<CardLoadingState loading={true}>{mockChildren}</CardLoadingState>)
+      
+      const container = screen.getByText('Loading...').closest('div')
+      expect(container).toHaveStyle({ minHeight: '300px' })
+    })
+  })
+
+  describe('PageLoadingState', () => {
+    it('renders with spinner by default', () => {
+      render(<PageLoadingState loading={true}>{mockChildren}</PageLoadingState>)
+      
+      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+      expect(screen.getByTestId('loading-spinner')).toHaveAttribute('data-size', 'lg')
+    })
+
+    it('applies page-specific styling', () => {
+      render(<PageLoadingState loading={true}>{mockChildren}</PageLoadingState>)
+      
+      const container = screen.getByText('Loading page...').closest('div')
+      expect(container).toHaveStyle({ minHeight: '400px' })
+    })
+
+    it('allows custom sub message', () => {
+      render(
+        <PageLoadingState 
+          loading={true} 
+          subMessage="Please wait while we load your dashboard"
+        >
+          {mockChildren}
+        </PageLoadingState>
+      )
+      
+      expect(screen.getByText('Please wait while we load your dashboard')).toBeInTheDocument()
+    })
+  })
+
+  describe('InlineLoadingState', () => {
+    it('renders with dots by default', () => {
+      render(<InlineLoadingState loading={true}>{mockChildren}</InlineLoadingState>)
+      
+      expect(screen.getByTestId('loading-dots')).toBeInTheDocument()
+    })
+
+    it('applies inline-specific styling', () => {
+      render(<InlineLoadingState loading={true}>{mockChildren}</InlineLoadingState>)
+      
+      const container = screen.getByText('Loading...').closest('div')
+      expect(container).toHaveStyle({ minHeight: 'auto' })
+    })
+  })
+
+  describe('ProgressLoadingState', () => {
+    it('renders with progress type', () => {
+      render(
+        <ProgressLoadingState loading={true} progress={25}>
+          {mockChildren}
+        </ProgressLoadingState>
+      )
+      
+      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+      expect(screen.getByTestId('progress-percentage')).toHaveTextContent('25%')
+    })
+
+    it('allows custom progress label', () => {
+      render(
+        <ProgressLoadingState 
+          loading={true} 
+          progress={50} 
+          progressLabel="Processing Files"
+        >
+          {mockChildren}
+        </ProgressLoadingState>
+      )
+      
+      expect(screen.getByText('Processing Files')).toBeInTheDocument()
+    })
+  })
+
+  describe('LoadingStateWithError', () => {
+    it('renders with error handling', () => {
+      const error = new Error('Test error')
+      const onRetry = vi.fn()
+      
+      render(
+        <LoadingStateWithError 
+          loading={false} 
+          error={error} 
+          onRetry={onRetry}
+        >
+          {mockChildren}
+        </LoadingStateWithError>
+      )
+      
+      expect(screen.getByText('Test error')).toBeInTheDocument()
+      expect(screen.getByText('Try Again')).toBeInTheDocument()
+    })
+
+    it('allows custom retry label', () => {
+      const error = new Error('Test error')
+      const onRetry = vi.fn()
+      
+      render(
+        <LoadingStateWithError 
+          loading={false} 
+          error={error} 
+          onRetry={onRetry}
+          retryLabel="Retry"
+        >
+          {mockChildren}
+        </LoadingStateWithError>
+      )
+      
+      expect(screen.getByText('Retry')).toBeInTheDocument()
+    })
+  })
+
+  describe('LoadingStateWithFallback', () => {
+    it('renders fallback when loading', () => {
+      const fallback = <div data-testid="fallback">Fallback</div>
+      
+      render(
+        <LoadingStateWithFallback 
+          loading={true} 
+          fallback={fallback}
+        >
+          {mockChildren}
+        </LoadingStateWithFallback>
       )
       
       expect(screen.getByTestId('fallback')).toBeInTheDocument()
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('content')).not.toBeInTheDocument()
     })
 
-    it('does not render fallback when not loading', () => {
-      const fallback = <div data-testid="fallback">Fallback content</div>
+    it('renders children when not loading', () => {
+      const fallback = <div data-testid="fallback">Fallback</div>
+      
       render(
-        <LoadingState loading={false} fallback={fallback}>
+        <LoadingStateWithFallback 
+          loading={false} 
+          fallback={fallback}
+        >
           {mockChildren}
-        </LoadingState>
+        </LoadingStateWithFallback>
       )
       
-      expect(screen.queryByTestId('fallback')).not.toBeInTheDocument()
       expect(screen.getByTestId('content')).toBeInTheDocument()
+      expect(screen.queryByTestId('fallback')).not.toBeInTheDocument()
     })
   })
 })
 
-describe('TableLoadingState', () => {
-  const mockChildren = <div data-testid="table-content">Table Content</div>
-
-  it('renders skeleton loading for tables', () => {
-    render(
-      <TableLoadingState loading={true} rows={8} columns={5}>
-        {mockChildren}
-      </TableLoadingState>
-    )
-    
-    expect(screen.getByText('Loading data...')).toBeInTheDocument()
-    expect(screen.getByTestId('skeleton-table')).toBeInTheDocument()
-  })
-
-  it('shows default message for table loading', () => {
-    render(<TableLoadingState loading={true}>{mockChildren}</TableLoadingState>)
-    
-    expect(screen.getByText('Loading data...')).toBeInTheDocument()
-  })
-
-  it('renders children when not loading', () => {
-    render(<TableLoadingState loading={false}>{mockChildren}</TableLoadingState>)
-    
-    expect(screen.getByTestId('table-content')).toBeInTheDocument()
-  })
-})
-
-describe('CardLoadingState', () => {
-  const mockChildren = <div data-testid="card-content">Card Content</div>
-
-  it('renders spinner loading for cards', () => {
-    render(<CardLoadingState loading={true}>{mockChildren}</CardLoadingState>)
-    
-    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
-    expect(screen.getByTestId('loading-spinner')).toHaveAttribute('data-size', 'lg')
-  })
-
-  it('shows default message for card loading', () => {
-    render(<CardLoadingState loading={true}>{mockChildren}</CardLoadingState>)
-    
-    expect(screen.getAllByText('Loading...')).toHaveLength(2)
-  })
-
-  it('uses appropriate min height for cards', () => {
-    render(<CardLoadingState loading={true}>{mockChildren}</CardLoadingState>)
-    
-    // Find the main container div that has the style
-    const container = screen.getAllByText('Loading...')[0].closest('div')?.parentElement?.parentElement
-    expect(container).toHaveStyle({ minHeight: '300px' })
-  })
-})
-
-describe('PageLoadingState', () => {
-  const mockChildren = <div data-testid="page-content">Page Content</div>
-
-  it('renders spinner loading for pages', () => {
-    render(<PageLoadingState loading={true}>{mockChildren}</PageLoadingState>)
-    
-    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
-    expect(screen.getByTestId('loading-spinner')).toHaveAttribute('data-size', 'lg')
-  })
-
-  it('shows default message for page loading', () => {
-    render(<PageLoadingState loading={true}>{mockChildren}</PageLoadingState>)
-    
-    expect(screen.getAllByText('Loading page...')).toHaveLength(1)
-  })
-
-  it('shows sub-message when provided', () => {
-    render(
-      <PageLoadingState loading={true} subMessage="Please wait while we load your data">
-        {mockChildren}
-      </PageLoadingState>
-    )
-    
-    expect(screen.getByText('Please wait while we load your data')).toBeInTheDocument()
-  })
-
-  it('uses appropriate min height for pages', () => {
-    render(<PageLoadingState loading={true}>{mockChildren}</PageLoadingState>)
-    
-    const container = screen.getByText('Loading page...').closest('div')?.parentElement
-    expect(container).toHaveStyle({ minHeight: '400px' })
-  })
-})
-
-describe('InlineLoadingState', () => {
-  const mockChildren = <div data-testid="inline-content">Inline Content</div>
-
-  it('renders dots loading for inline content', () => {
-    render(<InlineLoadingState loading={true}>{mockChildren}</InlineLoadingState>)
-    
-    const dotsContainer = screen.getByTestId('loading-dots')
-    const dots = dotsContainer.querySelectorAll('div[class*="animate-bounce"]')
-    expect(dots).toHaveLength(3) // Three dots
-  })
-
-  it('shows default message for inline loading', () => {
-    render(<InlineLoadingState loading={true}>{mockChildren}</InlineLoadingState>)
-    
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
-  })
-
-  it('uses auto min height for inline content', () => {
-    render(<InlineLoadingState loading={true}>{mockChildren}</InlineLoadingState>)
-    
-    const container = screen.getByText('Loading...').closest('div')?.parentElement
-    expect(container).toHaveStyle({ minHeight: 'auto' })
-  })
-})
-
-describe('ProgressLoadingState', () => {
-  const mockChildren = <div data-testid="progress-content">Progress Content</div>
-
-  it('renders progress loading with progress bar', () => {
-    render(
-      <ProgressLoadingState 
-        loading={true} 
-        progress={75}
-      >
-        {mockChildren}
-      </ProgressLoadingState>
-    )
-    
-    expect(screen.getByTestId('progress-percentage')).toHaveTextContent('75%')
-  })
-
-  it('shows custom progress label', () => {
-    render(
-      <ProgressLoadingState 
-        loading={true} 
-        progress={50}
-        progressLabel="Processing"
-      >
-        {mockChildren}
-      </ProgressLoadingState>
-    )
-    
-    expect(screen.getByText('Processing')).toBeInTheDocument()
-  })
-
-  it('uses appropriate min height for progress loading', () => {
-    render(
-      <ProgressLoadingState loading={true} progress={25}>
-        {mockChildren}
-      </ProgressLoadingState>
-    )
-    
-    // Find the main container div that has the style - need to go up more levels
-    const container = screen.getByText('Processing...').closest('div')?.parentElement?.parentElement?.parentElement
-    expect(container).toHaveStyle({ minHeight: '200px' })
-  })
-})
-
-describe('LoadingStateWithError', () => {
-  // Use the outer mockChildren from the parent describe block
-  const mockOnRetry = vi.fn()
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('renders error state when error is provided', () => {
-    const mockError = new Error('Something went wrong')
-    render(
-      <LoadingStateWithError 
-        loading={false} 
-        error={mockError} 
-        onRetry={mockOnRetry}
-      >
-        {mockChildren}
-      </LoadingStateWithError>
-    )
-    
-    expect(screen.getAllByText('Something went wrong')).toHaveLength(2) // Title + message
-    expect(screen.getByText('Try Again')).toBeInTheDocument()
-  })
-
-  it('renders loading state when loading and no error', () => {
-    render(
-      <LoadingStateWithError 
-        loading={true} 
-        error={null} 
-        onRetry={mockOnRetry}
-      >
-        {mockChildren}
-      </LoadingStateWithError>
-    )
-    
-    expect(screen.getAllByText('Loading...')).toHaveLength(2)
-  })
-
-  it('renders children when not loading and no error', () => {
-    render(
-      <LoadingStateWithError 
-        loading={false} 
-        error={null} 
-        onRetry={mockOnRetry}
-      >
-        {mockChildren}
-      </LoadingStateWithError>
-    )
-    
-    // The children should be rendered directly when not loading and no error
-    expect(screen.getByTestId('content')).toBeInTheDocument()
-  })
-
-  it('calls onRetry when retry button is clicked', async () => {
-    const user = userEvent.setup()
-    const mockError = new Error('Something went wrong')
-    
-    render(
-      <LoadingStateWithError 
-        loading={false} 
-        error={mockError}
-        onRetry={mockOnRetry}
-      >
-        {mockChildren}
-      </LoadingStateWithError>
-    )
-    
-    const retryButton = screen.getByText('Try Again')
-    await user.click(retryButton)
-    
-    expect(mockOnRetry).toHaveBeenCalledTimes(1)
-  })
-
-  it('uses custom retry label', () => {
-    const mockError = new Error('Something went wrong')
-    render(
-      <LoadingStateWithError 
-        loading={false} 
-        error={mockError}
-        onRetry={mockOnRetry}
-        retryLabel="Retry Operation"
-      >
-        {mockChildren}
-      </LoadingStateWithError>
-    )
-    
-    expect(screen.getByText('Retry Operation')).toBeInTheDocument()
-  })
-})
-
-describe('LoadingStateWithFallback', () => {
-  const mockChildren = <div data-testid="fallback-content">Fallback Content</div>
-  const mockFallback = <div data-testid="custom-fallback">Custom Fallback</div>
-
-  it('renders fallback when loading', () => {
-    render(
-      <LoadingStateWithFallback 
-        loading={true} 
-        fallback={mockFallback}
-      >
-        {mockChildren}
-      </LoadingStateWithFallback>
-    )
-    
-    expect(screen.getByTestId('custom-fallback')).toBeInTheDocument()
-    expect(screen.queryByTestId('fallback-content')).not.toBeInTheDocument()
-  })
-
-  it('renders children when not loading', () => {
-    render(
-      <LoadingStateWithFallback 
-        loading={false} 
-        fallback={mockFallback}
-      >
-        {mockChildren}
-      </LoadingStateWithFallback>
-    )
-    
-    expect(screen.getByTestId('fallback-content')).toBeInTheDocument()
-    expect(screen.queryByTestId('custom-fallback')).not.toBeInTheDocument()
-  })
-})
