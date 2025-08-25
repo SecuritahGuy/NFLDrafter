@@ -9,6 +9,7 @@ class TestScoringFlowIntegration:
     """Integration tests for the complete scoring flow."""
     
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_complete_scoring_flow(self, db_session, sample_player, sample_scoring_rules):
         """Test the complete flow from player creation to points calculation."""
         # 1. Create a scoring profile
@@ -105,6 +106,7 @@ class TestScoringFlowIntegration:
         assert abs(points - expected_points) < 0.01  # Allow for floating point precision
     
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_multiple_players_scoring(self, db_session, sample_scoring_rules):
         """Test scoring multiple players with the same profile."""
         # 1. Create scoring profile
@@ -244,6 +246,7 @@ class TestScoringFlowIntegration:
         assert abs(rb_points - expected_rb_points) < 0.01
     
     @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_season_long_scoring(self, db_session, sample_scoring_rules):
         """Test scoring across multiple weeks of a season."""
         # 1. Create scoring profile
