@@ -1,14 +1,13 @@
 import React, { useState, useMemo, useCallback } from 'react'
-import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
-
-export interface Player {
-  id: string
-  name: string
-  position: string
-  team: string
-  fantasyPoints: number
-  tier?: number
-}
+import { 
+  ChartBarIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  StarIcon,
+  AdjustmentsHorizontalIcon,
+  FireIcon
+} from '@heroicons/react/24/outline'
+import type { Player } from '../types'
 
 export interface TieringProps {
   players: Player[]
@@ -27,7 +26,7 @@ export const Tiering: React.FC<TieringProps> = ({
   const [expandedTiers, setExpandedTiers] = useState<Set<number>>(new Set())
 
   const tieredPlayers = useMemo(() => {
-    if (players.length === 0) return []
+    if (!players.length) return []
 
     const sortedPlayers = [...players].sort((a, b) => b.fantasyPoints - a.fantasyPoints)
     const tiers: { [tier: number]: Player[] } = {}
@@ -74,14 +73,27 @@ export const Tiering: React.FC<TieringProps> = ({
 
   const getTierColor = (tier: number) => {
     const colors = [
-      'bg-red-100 border-red-300 text-red-800',
-      'bg-orange-100 border-orange-300 text-orange-800',
-      'bg-yellow-100 border-yellow-300 text-yellow-800',
-      'bg-green-100 border-green-300 text-green-800',
-      'bg-blue-100 border-blue-300 text-blue-800',
-      'bg-purple-100 border-purple-300 text-purple-800',
+      'bg-gradient-to-r from-red-100 to-red-50 border-red-200 text-red-800',
+      'bg-gradient-to-r from-orange-100 to-orange-50 border-orange-200 text-orange-800',
+      'bg-gradient-to-r from-yellow-100 to-yellow-50 border-yellow-200 text-yellow-800',
+      'bg-gradient-to-r from-green-100 to-green-50 border-green-200 text-green-800',
+      'bg-gradient-to-r from-blue-100 to-blue-50 border-blue-200 text-blue-800',
+      'bg-gradient-to-r from-purple-100 to-purple-50 border-purple-200 text-purple-800',
+      'bg-gradient-to-r from-indigo-100 to-indigo-50 border-indigo-200 text-indigo-800',
     ]
     return colors[Math.min(tier - 1, colors.length - 1)]
+  }
+
+  const getPositionColor = (position: string) => {
+    const colors: Record<string, string> = {
+      QB: 'bg-blue-100 text-blue-800 border-blue-200',
+      RB: 'bg-green-100 text-green-800 border-green-200',
+      WR: 'bg-purple-100 text-purple-800 border-purple-200',
+      TE: 'bg-orange-100 text-orange-800 border-orange-200',
+      K: 'bg-gray-100 text-gray-800 border-gray-200',
+      DEF: 'bg-red-100 text-red-800 border-red-200',
+    }
+    return colors[position] || 'bg-gray-100 text-gray-800 border-gray-200'
   }
 
   const toggleTier = useCallback((tier: number) => {
@@ -106,122 +118,171 @@ export const Tiering: React.FC<TieringProps> = ({
     }
   }, [onTierChange])
 
-  if (players.length === 0) {
+  if (!players.length) {
     return (
-      <div className="text-center py-4 text-gray-500">
-        No players available for tiering
+      <div className="text-center py-8 text-gray-500">
+        <ChartBarIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+        <div className="text-lg font-medium">No players available</div>
+        <div className="text-sm">Add players to see tiering analysis</div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Player Tiers</h3>
-          <p className="text-sm text-gray-600">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <ChartBarIcon className="w-5 h-5 text-primary-600" />
+            Tiering Analysis
+          </h3>
+          <p className="text-sm text-gray-600 mt-1">
             {Object.keys(playersByTier).length} tiers • {players.length} players
           </p>
         </div>
-
+        
         {showControls && (
-          <div className="flex items-center space-x-3">
-            <label htmlFor="gap-control" className="text-sm font-medium text-gray-700">
-              Tier Gap:
-            </label>
-            <input
-              id="gap-control"
-              type="range"
-              min="1"
-              max="50"
-              value={gap}
-              onChange={(e) => handleGapChange(parseInt(e.target.value))}
-              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-            <span className="text-sm font-medium text-gray-900 min-w-[3rem] text-right">
-              {gap}
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Gap:</label>
+              <input
+                type="range"
+                min="1"
+                max="50"
+                value={gap}
+                onChange={(e) => handleGapChange(parseInt(e.target.value))}
+                className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+              />
+              <span className="text-sm font-medium text-gray-900 w-8">{gap}</span>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="divide-y divide-gray-200">
+      {/* Tier Controls */}
+      {showControls && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+          <div className="flex items-center gap-2 text-sm text-blue-800">
+            <AdjustmentsHorizontalIcon className="w-4 h-4" />
+            <span className="font-medium">Tier Gap Control</span>
+          </div>
+          <div className="mt-2 text-xs text-blue-700">
+            Lower gap = more tiers, Higher gap = fewer tiers
+          </div>
+          <div className="mt-3 flex items-center gap-4 text-xs text-blue-600">
+            <span>Current: {gap} points</span>
+            <span>•</span>
+            <span>Result: {Object.keys(playersByTier).length} tiers</span>
+          </div>
+        </div>
+      )}
+
+      {/* Tiers */}
+      <div className="space-y-4">
         {Object.entries(playersByTier)
           .sort(([a], [b]) => parseInt(a) - parseInt(b))
           .map(([tierNum, tierPlayers]) => {
             const tier = parseInt(tierNum)
             const isExpanded = expandedTiers.has(tier)
-            const tierColor = getTierColor(tier)
+            const tierValue = tierPlayers[0]?.fantasyPoints || 0
+            const tierSize = tierPlayers.length
             
             return (
-              <div key={tier} className="bg-white">
-                <button
-                  onClick={() => toggleTier(tier)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                >
+              <div key={tier} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
+                {/* Tier Header */}
+                <div className={`p-4 ${getTierColor(tier)} border-b border-gray-200`}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${tierColor}`}>
-                        Tier {tier}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        {tierPlayers.length} player{tierPlayers.length !== 1 ? 's' : ''}
-                      </span>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/80 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                          <StarIcon className="w-5 h-5 text-gray-700" />
+                        </div>
+                        <div>
+                          <h4 className="text-xl font-bold text-gray-900">Tier {tier}</h4>
+                          <div className="text-sm text-gray-700 font-medium">
+                            {tierSize} player{tierSize !== 1 ? 's' : ''} • {tierValue.toFixed(1)} pts
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Tier Stats */}
+                      <div className="hidden md:flex items-center gap-4 text-sm">
+                        <div className="text-center">
+                          <div className="font-bold text-gray-900">{tierSize}</div>
+                          <div className="text-gray-600">Players</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-bold text-gray-900">{tierValue.toFixed(1)}</div>
+                          <div className="text-gray-600">Avg Pts</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-bold text-gray-900">
+                            {tierPlayers.reduce((sum, p) => sum + p.vorp, 0).toFixed(1)}
+                          </div>
+                          <div className="text-gray-600">Total VORP</div>
+                        </div>
+                      </div>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-500">
-                        {tierPlayers[0].fantasyPoints.toFixed(1)} pts
-                      </span>
+                    <button
+                      onClick={() => toggleTier(tier)}
+                      className="p-2 text-gray-600 hover:text-gray-900 hover:bg-white/50 rounded-lg transition-colors"
+                    >
                       {isExpanded ? (
-                        <ChevronUpIcon className="h-4 w-4 text-gray-400" />
+                        <ChevronUpIcon className="w-5 h-5" />
                       ) : (
-                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                        <ChevronDownIcon className="w-5 h-5" />
                       )}
-                    </div>
+                    </button>
                   </div>
-                </button>
+                </div>
 
+                {/* Tier Players */}
                 {isExpanded && (
-                  <div className="px-4 pb-3 bg-gray-50">
-                    <div className="space-y-2">
-                      {tierPlayers.map((player) => (
-                        <div key={player.id} className="flex items-center justify-between p-2 bg-white rounded border">
-                          <div className="flex items-center space-x-3">
-                            <span className="text-sm font-medium text-gray-900">
-                              {player.name}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {player.position} • {player.team}
-                            </span>
+                  <div className="p-4 bg-gray-50 space-y-3">
+                    {tierPlayers.map((player) => (
+                      <div key={player.id} className="bg-white rounded-lg p-3 border border-gray-200 hover:border-gray-300 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${getPositionColor(player.position)}`}>
+                              {player.position}
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">{player.name}</div>
+                              <div className="text-sm text-gray-600">{player.team} • {player.fantasyPoints.toFixed(1)} pts</div>
+                            </div>
                           </div>
                           
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm font-medium text-gray-900">
-                              {player.fantasyPoints.toFixed(1)}
-                            </span>
+                          <div className="flex items-center gap-3">
+                            {player.newsCount > 0 && (
+                              <div className="flex items-center gap-1 text-orange-600">
+                                <FireIcon className="w-3 h-3" />
+                                <span className="text-xs">{player.newsCount}</span>
+                              </div>
+                            )}
+                            
+                            <div className="text-right">
+                              <div className="text-sm font-medium text-gray-900">{player.fantasyPoints.toFixed(1)}</div>
+                              <div className="text-xs text-gray-500">fantasy pts</div>
+                            </div>
                             
                             {onTierChange && (
-                              <div className="flex items-center space-x-1">
-                                <button
-                                  onClick={() => handleTierChange(player.id, tier - 1)}
-                                  disabled={tier <= 1}
-                                  className="btn btn-primary btn-sm px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  ↑
-                                </button>
-                                <button
-                                  onClick={() => handleTierChange(player.id, tier + 1)}
-                                  className="btn btn-primary btn-sm px-2 py-1"
-                                >
-                                  ↓
-                                </button>
-                              </div>
+                              <select
+                                value={player.tier}
+                                onChange={(e) => handleTierChange(player.id, parseInt(e.target.value))}
+                                className="text-xs border border-gray-300 rounded px-2 py-1 bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {Array.from({ length: 10 }, (_, i) => i + 1).map((t) => (
+                                  <option key={t} value={t}>T{t}</option>
+                                ))}
+                              </select>
                             )}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -229,9 +290,59 @@ export const Tiering: React.FC<TieringProps> = ({
           })}
       </div>
 
-      <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded-md">
-        <p>Tiers are automatically calculated based on {gap}-point gaps between players.</p>
-        <p>Lower tier numbers indicate higher value players.</p>
+      {/* Summary Stats */}
+      <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200">
+        <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <ChartBarIcon className="w-5 h-5 text-primary-600" />
+          Tiering Summary
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{Object.keys(playersByTier).length}</div>
+            <div className="text-sm text-gray-600">Total Tiers</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {(players.length / Object.keys(playersByTier).length).toFixed(1)}
+            </div>
+            <div className="text-sm text-gray-600">Avg Tier Size</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {Math.max(...Object.values(playersByTier).map(tier => tier.length))}
+            </div>
+            <div className="text-sm text-gray-600">Largest Tier</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {Math.min(...Object.values(playersByTier).map(tier => tier.length))}
+            </div>
+            <div className="text-sm text-gray-600">Smallest Tier</div>
+          </div>
+        </div>
+        
+        {/* Tier Distribution Chart */}
+        <div className="mt-6">
+          <h5 className="text-sm font-medium text-gray-700 mb-3">Tier Distribution</h5>
+          <div className="flex items-end gap-2 h-20">
+            {Object.entries(playersByTier)
+              .sort(([a], [b]) => parseInt(a) - parseInt(b))
+              .map(([tierNum, tierPlayers]) => {
+                const tier = parseInt(tierNum)
+                const height = (tierPlayers.length / Math.max(...Object.values(playersByTier).map(tier => tier.length))) * 100
+                return (
+                  <div key={tier} className="flex-1 flex flex-col items-center">
+                    <div 
+                      className={`w-full rounded-t-sm transition-all duration-300 ${getTierColor(tier).split(' ')[0]}`}
+                      style={{ height: `${height}%` }}
+                    ></div>
+                    <div className="text-xs text-gray-600 mt-1">T{tier}</div>
+                    <div className="text-xs font-medium text-gray-900">{tierPlayers.length}</div>
+                  </div>
+                )
+              })}
+          </div>
+        </div>
       </div>
     </div>
   )

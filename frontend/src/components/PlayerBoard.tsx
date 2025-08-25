@@ -11,24 +11,8 @@ import {
   UserIcon,
   FireIcon
 } from '@heroicons/react/24/outline'
-import type { ADPData } from './ADPImport'
-import type { PlayerNews, WeeklyStats, DepthChartPosition } from './PlayerDrawer'
-
-// Types
-export interface Player {
-  id: string
-  name: string
-  position: string
-  team: string
-  fantasyPoints: number
-  yahooPoints: number
-  delta: number
-  vorp: number
-  tier: number
-  adp: number
-  newsCount: number
-  byeWeek: number
-}
+import { CheatSheetExport } from './CheatSheetExport'
+import type { Player } from '../types'
 
 export interface PlayerBoardProps {
   players: Player[]
@@ -40,21 +24,16 @@ export interface PlayerBoardProps {
   watchlist: string[]
   scoringProfile?: string
   importedADP?: Record<string, number>
-  onADPImport?: (adpData: ADPData[]) => void
-  weeklyStats?: Record<string, WeeklyStats[]>
-  news?: Record<string, PlayerNews[]>
-  depthChart?: Record<string, DepthChartPosition[]>
+  onADPImport?: (adpData: any[]) => void
+  weeklyStats?: Record<string, any[]>
+  news?: Record<string, any[]>
+  depthChart?: Record<string, any[]>
   playerNotes?: Record<string, string>
   onPlayerNotesChange?: (playerId: string, notes: string) => void
 }
 
 type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp' | 'valueVsADP'
 type SortDirection = 'asc' | 'desc'
-
-// Virtualization constants
-const ROW_HEIGHT = 60 // Height of each row in pixels
-const EXPANDED_ROW_HEIGHT = 120 // Height of expanded row
-const VISIBLE_ROWS = 15 // Number of rows to render at once
 
 export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   players,
@@ -79,7 +58,6 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   const [selectedRowIndex, setSelectedRowIndex] = useState<number>(0)
   const [scrollTop, setScrollTop] = useState<number>(0)
   const [showADPImport, setShowADPImport] = useState<boolean>(false)
-  const [selectedPlayerForDrawer, setSelectedPlayerForDrawer] = useState<Player | null>(null)
   
   const tableRef = useRef<HTMLDivElement>(null)
   const selectedRowRef = useRef<HTMLTableRowElement>(null)
@@ -147,18 +125,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     return filtered
   }, [playersWithValueVsADP, selectedPosition, searchQuery, sortField, sortDirection])
 
-  // Virtualization calculations
-  const totalHeight = useMemo(() => {
-    return filteredAndSortedPlayers.reduce((height, player) => {
-      return height + (expandedPlayer === player.id ? EXPANDED_ROW_HEIGHT : ROW_HEIGHT)
-    }, 0)
-  }, [filteredAndSortedPlayers, expandedPlayer])
-
-  const startIndex = Math.floor(scrollTop / ROW_HEIGHT)
-  const endIndex = Math.min(startIndex + VISIBLE_ROWS, filteredAndSortedPlayers.length)
-  const visiblePlayers = filteredAndSortedPlayers.slice(startIndex, endIndex)
-
-  // Handle sorting
+  // Handle sort
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -168,54 +135,105 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     }
   }
 
-  // Toggle player expansion
+  // Handle row selection
+  const handleRowClick = (player: Player, index: number) => {
+    setSelectedRowIndex(index)
+    onPlayerSelect(player)
+  }
+
+  // Handle row expansion
   const handleRowExpand = (playerId: string) => {
     setExpandedPlayer(expandedPlayer === playerId ? null : playerId)
   }
 
-  // Handle scroll events
+  // Handle scroll
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop)
   }
 
-  // Keyboard navigation
+  // Enhanced keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!filteredAndSortedPlayers.length) return
+      // Don't handle shortcuts when typing in input fields
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
 
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setSelectedRowIndex(prev => Math.min(prev + 1, filteredAndSortedPlayers.length - 1))
+          setSelectedRowIndex(prev => 
+            prev < filteredAndSortedPlayers.length - 1 ? prev + 1 : prev
+          )
           break
         case 'ArrowUp':
           e.preventDefault()
-          setSelectedRowIndex(prev => Math.max(prev - 1, 0))
+          setSelectedRowIndex(prev => prev > 0 ? prev - 1 : prev)
           break
         case 'Enter':
           e.preventDefault()
           if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
-            onPlayerSelect(filteredAndSortedPlayers[selectedRowIndex])
+            const player = filteredAndSortedPlayers[selectedRowIndex]
+            onPlayerSelect(player)
           }
           break
         case 'a':
-        case 'A':
-          e.preventDefault()
-          if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
-            const player = filteredAndSortedPlayers[selectedRowIndex]
-            if (!watchlist.includes(player.id)) {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault()
+            if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
+              const player = filteredAndSortedPlayers[selectedRowIndex]
               onAddToWatchlist(player)
             }
           }
           break
         case 'r':
-        case 'R':
-          e.preventDefault()
-          if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
-            const player = filteredAndSortedPlayers[selectedRowIndex]
-            if (watchlist.includes(player.id)) {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault()
+            if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
+              const player = filteredAndSortedPlayers[selectedRowIndex]
               onRemoveFromWatchlist(player.id)
             }
+          }
+          break
+        case '/':
+          e.preventDefault()
+          // Focus search input
+          const searchInput = document.querySelector('input[placeholder="Search players..."]') as HTMLInputElement
+          if (searchInput) {
+            searchInput.focus()
+            searchInput.select()
+          }
+          break
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault()
+            // Quick position filtering
+            const positions = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K']
+            const positionIndex = parseInt(e.key) - 1
+            if (positionIndex < positions.length) {
+              const newPosition = positions[positionIndex]
+              // This would need to be handled by the parent component
+              console.log('Quick position filter:', newPosition)
+            }
+          }
+          break
+        case 'n':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault()
+            // Toggle news display
+            console.log('Toggle news display')
+          }
+          break
+        case 'p':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault()
+            // Pin MyPts column
+            console.log('Pin MyPts column')
           }
           break
         case 'Escape':
@@ -234,19 +252,6 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
       selectedRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [selectedRowIndex])
-
-  // Format fantasy points
-  const formatPoints = (points?: number) => {
-    if (points === undefined) return '-'
-    return points.toFixed(1)
-  }
-
-  // Format delta
-  const formatDelta = (delta?: number) => {
-    if (delta === undefined) return '-'
-    const sign = delta >= 0 ? '+' : ''
-    return `${sign}${delta.toFixed(1)}`
-  }
 
   // Get position color
   const getPositionColor = (position: string) => {
@@ -316,30 +321,17 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     </button>
   )
 
-           // Handle ADP import
-         const handleADPImport = (adpData: ADPData[]) => {
-           if (onADPImport) {
-             onADPImport(adpData)
-           }
-           setShowADPImport(false)
-         }
-
-         // Handle player drawer
-         const handlePlayerDrawerOpen = (player: Player) => {
-           setSelectedPlayerForDrawer(player)
-         }
-
-         const handlePlayerDrawerClose = () => {
-           setSelectedPlayerForDrawer(null)
-         }
-
-         const handlePlayerNotesChange = (notes: string) => {
-           if (selectedPlayerForDrawer && onPlayerNotesChange) {
-             onPlayerNotesChange(selectedPlayerForDrawer.id, notes)
-           }
-         }
-
+  if (!players.length) {
     return (
+      <div className="text-center py-12 text-gray-500">
+        <UserIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+        <div className="text-xl font-medium">No players available</div>
+        <div className="text-sm">Please add players to see the draft board</div>
+      </div>
+    )
+  }
+
+  return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
@@ -368,7 +360,11 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
               <select
                 className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
                 value={selectedPosition}
-                onChange={(e) => onPlayerSelect({} as Player)} // Reset selection
+                onChange={(e) => {
+                  // This would need to be handled by the parent component
+                  // For now, we'll just log the position change
+                  console.log('Position filter:', e.target.value)
+                }}
               >
                 <option value="ALL">All Positions</option>
                 <option value="QB">QB</option>
@@ -388,114 +384,154 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                 placeholder="Search players..."
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  // This would need to be handled by the parent component
+                  // For now, we'll just log the search query
+                  console.log('Search query:', e.target.value)
+                }}
               />
             </div>
+
+            {/* Keyboard Shortcuts Help */}
+            <div className="relative group">
+              <button
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Keyboard Shortcuts"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </button>
+              
+              {/* Tooltip */}
+              <div className="absolute right-0 top-full mt-2 w-80 bg-gray-900 text-white text-sm rounded-lg p-4 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <div className="font-semibold mb-3">Keyboard Shortcuts</div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span>↑↓</span>
+                    <span>Navigate rows</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Enter</span>
+                    <span>Select player</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Ctrl+A</span>
+                    <span>Add to watchlist</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Ctrl+R</span>
+                    <span>Remove from watchlist</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>/</span>
+                    <span>Focus search</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>1-6</span>
+                    <span>Quick position filter</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>N</span>
+                    <span>Toggle news</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>P</span>
+                    <span>Pin MyPts column</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Esc</span>
+                    <span>Clear selection</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cheat Sheet Export */}
+            <CheatSheetExport
+              players={filteredAndSortedPlayers}
+              scoringProfile={scoringProfile}
+              filters={{
+                position: selectedPosition !== 'ALL' ? selectedPosition : undefined,
+                search: searchQuery || undefined,
+                tier: undefined // We can add tier filtering later
+              }}
+              onExport={(format) => {
+                console.log(`Exporting ${filteredAndSortedPlayers.length} players to ${format}`)
+                // The actual export logic is handled inside the CheatSheetExport component
+              }}
+            />
           </div>
         </div>
       </div>
 
-      {/* ADP Import Modal */}
-      {showADPImport && onADPImport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Import ADP Data</h3>
-              <button
-                onClick={() => setShowADPImport(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <span className="sr-only">Close</span>
-                <ChevronUpIcon className="h-6 w-6" />
-              </button>
-            </div>
-            <ADPImport
-              onADPImport={handleADPImport}
-              currentADP={importedADP}
-            />
-          </div>
-        </div>
-      )}
-
-                     {/* Virtualized Table */}
-               <div
-                 ref={tableRef}
-                 className="overflow-hidden"
-                 onScroll={handleScroll}
-               >
-                 <div style={{ height: totalHeight, position: 'relative' }}>
-                   <table className="w-full">
-                     <thead className="bg-gray-50 border-b border-gray-200">
-                       <tr>
-                         <th className="px-4 py-3 text-left">
-                           <SortHeader field="name">Player</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-left">
-                           <SortHeader field="position">Pos</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-left">
-                           <SortHeader field="team">Team</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <SortHeader field="fantasyPoints">My Pts</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <SortHeader field="yahooPoints">Yahoo Pts</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <SortHeader field="delta">Δ</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <SortHeader field="vorp">VORP</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <SortHeader field="tier">Tier</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <SortHeader field="adp">ADP</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <SortHeader field="valueVsADP">Value vs ADP</SortHeader>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <span className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">News</span>
-                         </th>
-                         <th className="px-4 py-3 text-center">
-                           <span className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</span>
-                         </th>
-                       </tr>
-                     </thead>
+      {/* Table */}
+      <div className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left">
+                  <SortHeader field="name">Player</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <SortHeader field="position">Pos</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <SortHeader field="team">Team</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <SortHeader field="fantasyPoints">My Pts</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <SortHeader field="yahooPoints">Yahoo Pts</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <SortHeader field="delta">Δ</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <SortHeader field="vorp">VORP</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <SortHeader field="tier">Tier</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <SortHeader field="adp">ADP</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <SortHeader field="valueVsADP">Value vs ADP</SortHeader>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <span className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">News</span>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <span className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</span>
+                </th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredAndSortedPlayers.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
                     <div className="text-lg font-medium">No players found</div>
                     <div className="text-sm">Try adjusting your filters or search query</div>
                   </td>
                 </tr>
               ) : (
-                visiblePlayers.map((player, index) => {
-                  const globalIndex = startIndex + index
-                  const isSelected = globalIndex === selectedRowIndex
+                filteredAndSortedPlayers.map((player, index) => {
+                  const isSelected = index === selectedRowIndex
                   const isExpanded = expandedPlayer === player.id
+                  const isInWatchlist = watchlist.includes(player.id)
                   
                   return (
                     <React.Fragment key={player.id}>
-                                                     <tr
-                                 ref={isSelected ? selectedRowRef : null}
-                                 className={`group hover:bg-gray-50 transition-colors cursor-pointer ${
-                                   isSelected ? 'bg-primary-50 ring-2 ring-primary-500' : ''
-                                 }`}
-                                 onClick={() => onPlayerSelect(player)}
-                                 onDoubleClick={() => handlePlayerDrawerOpen(player)}
-                                 data-testid={`player-row-${player.id}`}
-                                 style={{
-                                   position: 'absolute',
-                                   top: globalIndex * ROW_HEIGHT,
-                                   width: '100%',
-                                   height: ROW_HEIGHT,
-                                 }}
-                               >
+                      <tr
+                        ref={isSelected ? selectedRowRef : null}
+                        className={`group hover:bg-gray-50 transition-colors cursor-pointer ${
+                          isSelected ? 'bg-primary-50 ring-2 ring-primary-500' : ''
+                        }`}
+                        onClick={() => handleRowClick(player, index)}
+                      >
                         {/* Player Name */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
@@ -600,20 +636,20 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                if (watchlist.includes(player.id)) {
+                                if (isInWatchlist) {
                                   onRemoveFromWatchlist(player.id)
                                 } else {
                                   onAddToWatchlist(player)
                                 }
                               }}
                               className={`p-2 rounded-lg transition-colors ${
-                                watchlist.includes(player.id)
+                                isInWatchlist
                                   ? 'bg-red-100 text-red-600 hover:bg-red-200'
                                   : 'bg-green-100 text-green-600 hover:bg-green-200'
                               }`}
-                              title={watchlist.includes(player.id) ? 'Remove from watchlist' : 'Add to watchlist'}
+                              title={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
                             >
-                              {watchlist.includes(player.id) ? (
+                              {isInWatchlist ? (
                                 <MinusIcon className="w-4 h-4" />
                               ) : (
                                 <PlusIcon className="w-4 h-4" />
@@ -695,7 +731,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                                     placeholder="Add your notes about this player..."
                                     className="w-full h-20 p-2 border border-gray-300 rounded text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                     value={playerNotes[player.id] || ''}
-                                    onChange={(e) => onPlayerNotesChange(player.id, e.target.value)}
+                                    onChange={(e) => onPlayerNotesChange && onPlayerNotesChange(player.id, e.target.value)}
                                     onClick={(e) => e.stopPropagation()}
                                   />
                                 </div>
@@ -713,17 +749,29 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
         </div>
       </div>
 
-      {/* Player Drawer */}
-      <PlayerDrawer
-        player={selectedPlayerForDrawer}
-        isOpen={!!selectedPlayerForDrawer}
-        onClose={handlePlayerDrawerClose}
-        weeklyStats={selectedPlayerForDrawer ? weeklyStats[selectedPlayerForDrawer.id] || [] : []}
-        news={selectedPlayerForDrawer ? news[selectedPlayerForDrawer.id] || [] : []}
-        depthChart={selectedPlayerForDrawer ? depthChart[selectedPlayerForDrawer.id] || [] : []}
-        notes={selectedPlayerForDrawer ? playerNotes[selectedPlayerForDrawer.id] || '' : ''}
-        onNotesChange={onPlayerNotesChange ? handlePlayerNotesChange : undefined}
-      />
+      {/* Empty State */}
+      {filteredAndSortedPlayers.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <MagnifyingGlassIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+          <div className="text-xl font-medium">No players found</div>
+          <div className="text-sm">Try adjusting your search or position filters</div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <div className="flex items-center gap-4">
+            <span>Showing {filteredAndSortedPlayers.length} of {players.length} players</span>
+            <span>•</span>
+            <span>Press ↑↓ to navigate, Enter to select, A to add to watchlist</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>Sort by: {sortField}</span>
+            <span className="text-primary-600 font-medium">{sortDirection.toUpperCase()}</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

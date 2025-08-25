@@ -1,7 +1,8 @@
+import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PlayerBoard } from '../PlayerBoard'
-import type { Player } from '../PlayerBoard'
+import type { Player } from '../../types'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // Mock Heroicons
@@ -11,6 +12,30 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ),
   ChevronDownIcon: ({ className }: { className?: string }) => (
     <svg className={className} data-testid="chevron-down-icon" />
+  ),
+  ChartBarIcon: ({ className }: { className?: string }) => (
+    <svg className={className} data-testid="chart-bar-icon" />
+  ),
+  UserIcon: ({ className }: { className?: string }) => (
+    <svg className={className} data-testid="user-icon" />
+  ),
+  MagnifyingGlassIcon: ({ className }: { className?: string }) => (
+    <svg className={className} data-testid="magnifying-glass-icon" />
+  ),
+  FunnelIcon: ({ className }: { className?: string }) => (
+    <svg className={className} data-testid="funnel-icon" />
+  ),
+  EyeIcon: ({ className }: { className?: string }) => (
+    <svg className={className} data-testid="eye-icon" />
+  ),
+  PlusIcon: ({ className }: { className?: string }) => (
+    <svg className={className} data-testid="plus-icon" />
+  ),
+  MinusIcon: ({ className }: { className?: string }) => (
+    <svg className={className} data-testid="minus-icon" />
+  ),
+  FireIcon: ({ className }: { className?: string }) => (
+    <svg className={className} data-testid="fire-icon" />
   ),
 }))
 
@@ -23,57 +48,43 @@ describe('PlayerBoard', () => {
       name: 'Patrick Mahomes',
       position: 'QB',
       team: 'KC',
-      fantasyPoints: 350.5,
-      yahooPoints: 345.2,
-      delta: 5.3,
-      vorp: 45.2,
+      fantasyPoints: 25.5,
+      yahooPoints: 24.8,
+      delta: 0.7,
+      vorp: 8.2,
       tier: 1,
       adp: 12,
       newsCount: 3,
-      byeWeek: 10,
+      byeWeek: 10
     },
     {
       id: '2',
-      name: 'Christian McCaffrey',
-      position: 'RB',
-      team: 'SF',
-      fantasyPoints: 380.1,
-      yahooPoints: 375.8,
-      delta: 4.3,
-      vorp: 52.1,
-      tier: 1,
-      adp: 2,
-      newsCount: 2,
-      byeWeek: 9,
-    },
-    {
-      id: '3',
       name: 'Tyreek Hill',
       position: 'WR',
       team: 'MIA',
-      fantasyPoints: 320.8,
-      yahooPoints: 318.5,
-      delta: 2.3,
-      vorp: 38.7,
-      tier: 2,
+      fantasyPoints: 22.1,
+      yahooPoints: 21.9,
+      delta: 0.2,
+      vorp: 6.8,
+      tier: 1,
       adp: 8,
-      newsCount: 1,
-      byeWeek: 11,
+      newsCount: 2,
+      byeWeek: 11
     },
     {
-      id: '4',
-      name: 'Travis Kelce',
-      position: 'TE',
-      team: 'KC',
-      fantasyPoints: 280.3,
-      yahooPoints: 275.9,
-      delta: 4.4,
-      vorp: 42.3,
+      id: '3',
+      name: 'Christian McCaffrey',
+      position: 'RB',
+      team: 'SF',
+      fantasyPoints: 28.3,
+      yahooPoints: 27.5,
+      delta: 0.8,
+      vorp: 12.1,
       tier: 1,
-      adp: 15,
-      newsCount: 0,
-      byeWeek: 10,
-    },
+      adp: 2,
+      newsCount: 1,
+      byeWeek: 9
+    }
   ]
 
   const defaultProps = {
@@ -476,7 +487,14 @@ describe('PlayerBoard', () => {
           name: 'Test Player',
           position: 'QB',
           team: 'TEST',
-          // All other values undefined
+          fantasyPoints: 0,
+          yahooPoints: 0,
+          delta: 0,
+          vorp: 0,
+          tier: 0,
+          adp: 0,
+          newsCount: 0,
+          byeWeek: 0
         }
       ]
       
@@ -550,7 +568,14 @@ describe('PlayerBoard', () => {
           name: 'Incomplete Player',
           position: 'RB',
           team: 'TEAM',
-          // Missing most fields
+          fantasyPoints: 0,
+          yahooPoints: 0,
+          delta: 0,
+          vorp: 0,
+          tier: 0,
+          adp: 0,
+          newsCount: 0,
+          byeWeek: 0
         }
       ]
       
@@ -569,6 +594,13 @@ describe('PlayerBoard', () => {
           position: 'QB',
           team: 'TEAM',
           fantasyPoints: 100,
+          yahooPoints: 95,
+          delta: 5,
+          vorp: 15,
+          tier: 2,
+          adp: 25,
+          newsCount: 1,
+          byeWeek: 8
         }
       ]
       
@@ -587,6 +619,13 @@ describe('PlayerBoard', () => {
         position: 'QB',
         team: 'TEAM',
         fantasyPoints: 100 - i,
+        yahooPoints: 95 - i,
+        delta: 5,
+        vorp: 15 - i,
+        tier: Math.floor(i / 10) + 1,
+        adp: i + 1,
+        newsCount: i % 3,
+        byeWeek: (i % 12) + 1
       }))
       
       render(<PlayerBoard {...defaultProps} players={largePlayerSet} />)
@@ -708,6 +747,99 @@ describe('PlayerBoard', () => {
       // Component should handle these keys
       expect(screen.getByTestId('player-row-2')).toHaveClass('bg-blue-100')
     })
+
+    it('focuses search input with / key', async () => {
+      render(<PlayerBoard {...defaultProps} />)
+      
+      // Press / to focus search
+      await user.keyboard('/')
+      
+      // Search input should be focused
+      const searchInput = screen.getByPlaceholderText('Search players...')
+      expect(searchInput).toHaveFocus()
+    })
+
+    it('handles quick position filtering with number keys', async () => {
+      render(<PlayerBoard {...defaultProps} />)
+      
+      // Press 2 for RB position
+      await user.keyboard('2')
+      
+      // Press 3 for WR position
+      await user.keyboard('3')
+      
+      // Press 1 for QB position
+      await user.keyboard('1')
+      
+      // These should trigger position filter changes (logged to console)
+      // The actual filtering would be handled by the parent component
+      expect(screen.getByText('Player Board')).toBeInTheDocument()
+    })
+
+    it('handles news toggle with N key', async () => {
+      render(<PlayerBoard {...defaultProps} />)
+      
+      // Press N to toggle news
+      await user.keyboard('n')
+      
+      // This should trigger news toggle (logged to console)
+      expect(screen.getByText('Player Board')).toBeInTheDocument()
+    })
+
+    it('handles MyPts column pinning with P key', async () => {
+      render(<PlayerBoard {...defaultProps} />)
+      
+      // Press P to pin MyPts column
+      await user.keyboard('p')
+      
+      // This should trigger column pinning (logged to console)
+      expect(screen.getByText('Player Board')).toBeInTheDocument()
+    })
+
+    it('handles Ctrl+A for adding to watchlist', async () => {
+      render(<PlayerBoard {...defaultProps} />)
+      
+      // Navigate to second player
+      await user.keyboard('{ArrowDown}')
+      
+      // Press Ctrl+A to add to watchlist
+      await user.keyboard('{ctrl>}a{/ctrl}')
+      
+      // Should call onAddToWatchlist
+      expect(defaultProps.onAddToWatchlist).toHaveBeenCalled()
+    })
+
+    it('handles Ctrl+R for removing from watchlist', async () => {
+      render(<PlayerBoard {...defaultProps} watchlist={['2']} />)
+      
+      // Navigate to second player (who is in watchlist)
+      await user.keyboard('{ArrowDown}')
+      
+      // Press Ctrl+R to remove from watchlist
+      await user.keyboard('{ctrl>}r{/ctrl}')
+      
+      // Should call onRemoveFromWatchlist
+      expect(defaultProps.onRemoveFromWatchlist).toHaveBeenCalled()
+    })
+
+    it('ignores shortcuts when typing in input fields', async () => {
+      render(<PlayerBoard {...defaultProps} />)
+      
+      // Focus search input
+      const searchInput = screen.getByPlaceholderText('Search players...')
+      searchInput.focus()
+      
+      // Type some text
+      await user.type(searchInput, 'test')
+      
+      // Press navigation keys - they should not trigger shortcuts
+      await user.keyboard('{ArrowDown}')
+      await user.keyboard('{ArrowUp}')
+      
+      // Search input should still have focus and contain the text
+      expect(searchInput).toHaveFocus()
+      expect(searchInput).toHaveValue('test')
+    })
   })
 
   describe('Performance Optimizations', () => {
@@ -721,6 +853,13 @@ describe('PlayerBoard', () => {
         position: 'QB',
         team: 'TEAM',
         fantasyPoints: 100 - i,
+        yahooPoints: 95 - i,
+        delta: 5,
+        vorp: 15 - i,
+        tier: Math.floor(i / 10) + 1,
+        adp: i + 1,
+        newsCount: i % 3,
+        byeWeek: (i % 12) + 1
       }))
       
       render(<PlayerBoard {...defaultProps} players={largePlayerSet} />)

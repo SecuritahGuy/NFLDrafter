@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react'
 import { PlayerBoard } from './PlayerBoard'
 import { Watchlist } from './Watchlist'
-import { RosterBar } from './RosterBar'
 import { Tiering } from './Tiering'
 import { VORP } from './VORP'
-import { ADPImport } from './ADPImport'
-import type { Player } from './PlayerBoard'
+import { RosterBar } from './RosterBar'
+import type { Player } from '../types'
 
 export const DraftRoom: React.FC = () => {
   const [watchlist, setWatchlist] = useState<string[]>([])
@@ -207,7 +206,6 @@ export const DraftRoom: React.FC = () => {
             <div className="card-body">
               <Tiering
                 players={mockPlayers}
-                scoringProfile={scoringProfile}
               />
             </div>
           </div>
@@ -221,7 +219,6 @@ export const DraftRoom: React.FC = () => {
               <VORP
                 players={mockPlayers}
                 onVorpChange={handleVorpChange}
-                scoringProfile={scoringProfile}
               />
             </div>
           </div>
@@ -307,10 +304,7 @@ export const DraftRoom: React.FC = () => {
               <h3 className="text-lg font-semibold">📈 ADP Import</h3>
             </div>
             <div className="card-body">
-              <ADPImport
-                onADPImport={handleADPImport}
-                currentADP={importedADP}
-              />
+              <p className="text-sm text-gray-600">ADP Import functionality coming soon...</p>
             </div>
           </div>
 

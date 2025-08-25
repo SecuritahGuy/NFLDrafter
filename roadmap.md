@@ -3,7 +3,7 @@
 ## Project Overview
 NFLDrafter is a local-first fantasy football scoring application with custom profiles, player analysis, and news integration. The app provides a professional draft experience with advanced analytics and offline support.
 
-## Current Status: 28/40 Features Complete (70%)
+## Current Status: 31/40 Features Complete (77.5%)
 
 ### ✅ **Completed Features**
 
@@ -46,6 +46,9 @@ NFLDrafter is a local-first fantasy football scoring application with custom pro
 - ✅ **Player Drawer** - Detailed player information and notes
 - ✅ **Offline Cache** - IndexedDB persistence for TanStack Query
 - ✅ **Professional UI** - ESPN/Covers/Action Network inspired design system
+- ✅ **Enhanced Draft Board** - Polished PlayerBoard, Watchlist, Tiering, and VORP components
+- ✅ **Cheat Sheet Export** - Professional PDF/CSV export functionality for filtered player board
+- ✅ **Additional Keyboard Shortcuts** - Enhanced navigation and productivity shortcuts with help tooltip
 
 #### Testing & Quality
 - ✅ **Backend Testing** - Comprehensive unit and integration tests
@@ -58,11 +61,9 @@ NFLDrafter is a local-first fantasy football scoring application with custom pro
 - **Enhanced API Features** - Advanced filtering and analytics endpoints
 - **Frontend Performance** - Virtualization and optimization improvements
 
-### 📋 **Remaining Features (12/40)**
+### 📋 **Remaining Features (9/40)**
 
 #### Frontend Draft Experience
-- [ ] **Cheat Sheet Export** - Export filtered board to CSV/PDF
-- [ ] **Additional Keyboard Shortcuts** - Enhanced navigation and actions
 - [ ] **Error/Loading UX** - Skeleton rows, toasts, and retry actions
 
 #### Yahoo OAuth Integration

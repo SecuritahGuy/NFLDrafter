@@ -1,31 +1,6 @@
-import React, { useState, useCallback } from 'react';
-import { XMarkIcon, ChartBarIcon, NewspaperIcon, UserGroupIcon, PencilIcon } from '@heroicons/react/24/outline';
-
-export interface PlayerNews {
-  id: string;
-  title: string;
-  summary: string;
-  source: string;
-  publishedAt: string;
-  url: string;
-}
-
-export interface WeeklyStats {
-  week: number;
-  fantasyPoints: number;
-  rushingYards?: number;
-  passingYards?: number;
-  receivingYards?: number;
-  touchdowns?: number;
-  interceptions?: number;
-  fumbles?: number;
-}
-
-export interface DepthChartPosition {
-  rank: number;
-  playerName: string;
-  status: 'starter' | 'backup' | 'practice_squad' | 'injured';
-}
+import React, { useState, useMemo } from 'react'
+import { XMarkIcon, ChartBarIcon, NewspaperIcon, UserGroupIcon, PencilIcon } from '@heroicons/react/24/outline'
+import type { Player, PlayerNews, WeeklyStats, DepthChartPosition } from '../types'
 
 export interface PlayerDrawerProps {
   player: {
@@ -73,21 +48,21 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
   const [editedNotes, setEditedNotes] = useState(notes);
 
   // Handle notes editing
-  const handleNotesSave = useCallback(() => {
+  const handleNotesSave = useMemo(() => {
     if (onNotesChange) {
       onNotesChange(editedNotes);
     }
     setIsNotesEditing(false);
   }, [editedNotes, onNotesChange]);
 
-  const handleNotesCancel = useCallback(() => {
+  const handleNotesCancel = useMemo(() => {
     setEditedNotes(notes);
     setIsNotesEditing(false);
   }, [notes]);
 
   // Format weekly stats for sparkline
-  const formatWeeklyData = useCallback((stats: WeeklyStats[]) => {
-    return stats
+  const formatWeeklyData = useMemo(() => {
+    return weeklyStats
       .sort((a, b) => a.week - b.week)
       .map((stat, index) => ({
         week: stat.week,
@@ -96,13 +71,13 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
                stat.fantasyPoints >= 15 ? '#f59e0b' : 
                stat.fantasyPoints >= 10 ? '#3b82f6' : '#6b7280'
       }));
-  }, []);
+  }, [weeklyStats]);
 
   // Get position-specific stats
-  const getPositionStats = useCallback((stats: WeeklyStats[]) => {
-    if (!stats.length) return null;
+  const getPositionStats = useMemo(() => {
+    if (!weeklyStats.length) return null;
     
-    const latest = stats[stats.length - 1];
+    const latest = weeklyStats[weeklyStats.length - 1];
     const position = player?.position;
     
     switch (position) {
@@ -130,7 +105,7 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
       default:
         return null;
     }
-  }, [player?.position]);
+  }, [player?.position, weeklyStats]);
 
   if (!player) return null;
 
@@ -241,7 +216,7 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
               
               {/* Simple sparkline visualization */}
               <div className="flex items-end space-x-1 h-20">
-                {formatWeeklyData(weeklyStats).map((stat, index) => (
+                {formatWeeklyData.map((stat, index) => (
                   <div
                     key={index}
                     className="flex-1 bg-gray-100 rounded-t"
@@ -256,7 +231,7 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
               
               {/* Week labels */}
               <div className="flex justify-between text-xs text-gray-500 mt-2">
-                {formatWeeklyData(weeklyStats).map((stat, index) => (
+                {formatWeeklyData.map((stat, index) => (
                   <span key={index} className="flex-1 text-center">
                     Week {stat.week}
                   </span>
@@ -264,11 +239,11 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
               </div>
               
               {/* Position-specific stats */}
-              {getPositionStats(weeklyStats) && (
+              {getPositionStats && (
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <p className="text-xs text-gray-500 mb-2">Latest Week Stats</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    {Object.entries(getPositionStats(weeklyStats)!).map(([key, value]) => (
+                    {Object.entries(getPositionStats!).map(([key, value]) => (
                       <div key={key} className="flex justify-between">
                         <span className="text-gray-600 capitalize">{key}:</span>
                         <span className="font-medium">{value}</span>

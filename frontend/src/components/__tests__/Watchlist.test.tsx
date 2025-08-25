@@ -120,18 +120,11 @@ describe('Watchlist', () => {
     it('shows empty state when watchlist is empty', () => {
       render(<Watchlist {...defaultProps} watchlist={[]} />)
       
-      expect(screen.getByText('No players in watchlist')).toBeInTheDocument()
-      expect(screen.getByText('Add players to your watchlist using the \'A\' key or Add button')).toBeInTheDocument()
-      expect(screen.getByText('0 players')).toBeInTheDocument()
+      expect(screen.getByText('Watchlist Empty')).toBeInTheDocument()
+      expect(screen.getByText('Add players from the Player Board to start building your watchlist')).toBeInTheDocument()
     })
 
-    it('shows keyboard shortcuts in empty state', () => {
-      render(<Watchlist {...defaultProps} watchlist={[]} />)
-      
-      expect(screen.getByText('Keyboard Shortcuts:')).toBeInTheDocument()
-      expect(screen.getByText('A - Add player to watchlist')).toBeInTheDocument()
-      expect(screen.getByText('R - Remove player from watchlist')).toBeInTheDocument()
-    })
+
 
     it('shows star icon in empty state', () => {
       render(<Watchlist {...defaultProps} watchlist={[]} />)
@@ -464,7 +457,7 @@ describe('Watchlist', () => {
       render(<Watchlist {...defaultProps} watchlist={[]} />)
       
       // Test that component handles empty players array
-      expect(screen.getByText('No players in watchlist')).toBeInTheDocument()
+      expect(screen.getByText('Watchlist Empty')).toBeInTheDocument()
     })
 
     it('handles undefined onPlayerSelect callback', () => {
