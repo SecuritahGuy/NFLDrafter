@@ -396,20 +396,25 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <ChartBarIcon className="w-6 h-6 text-primary-600" />
-              <h3 className="text-xl font-bold text-gray-900">Player Board</h3>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary-100 rounded-lg">
+                <ChartBarIcon className="w-6 h-6 text-primary-600" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">Player Board</h3>
+                <p className="text-sm text-gray-600">Comprehensive player analysis and rankings</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span className="px-2 py-1 bg-primary-100 text-primary-800 rounded-full font-medium">
+            <div className="flex items-center gap-3">
+              <div className="px-3 py-1.5 bg-primary-100 text-primary-800 rounded-full font-semibold text-sm">
                 {filteredAndSortedPlayers.length} players
-              </span>
+              </div>
               {scoringProfile && (
-                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+                <div className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full font-medium text-sm">
                   {scoringProfile}
-                </span>
+                </div>
               )}
             </div>
           </div>
@@ -419,7 +424,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
             <div className="relative">
               <FunnelIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <select
-                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+                className="pl-10 pr-8 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white font-medium min-w-[140px]"
                 value={selectedPosition}
                 onChange={(e) => {
                   // This would need to be handled by the parent component
@@ -428,12 +433,12 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                 }}
               >
                 <option value="ALL">All Positions</option>
-                <option value="QB">QB</option>
-                <option value="RB">RB</option>
-                <option value="WR">WR</option>
-                <option value="TE">TE</option>
-                <option value="K">K</option>
-                <option value="DEF">DEF</option>
+                <option value="QB">Quarterbacks</option>
+                <option value="RB">Running Backs</option>
+                <option value="WR">Wide Receivers</option>
+                <option value="TE">Tight Ends</option>
+                <option value="K">Kickers</option>
+                <option value="DEF">Defenses</option>
               </select>
             </div>
             
@@ -443,7 +448,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
               <input
                 type="text"
                 placeholder="Search players..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64"
+                className="pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-72 bg-white font-medium"
                 value={searchQuery}
                 onChange={(e) => {
                   // This would need to be handled by the parent component
@@ -456,7 +461,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
             {/* Keyboard Shortcuts Help */}
             <div className="relative group">
               <button
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-2.5 text-gray-400 hover:text-gray-600 transition-colors bg-gray-100 hover:bg-gray-200 rounded-lg"
                 title="Keyboard Shortcuts"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -464,45 +469,46 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                 </svg>
               </button>
               
-              {/* Tooltip */}
-              <div className="absolute right-0 top-full mt-2 w-80 bg-gray-900 text-white text-sm rounded-lg p-4 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                <div className="font-semibold mb-3">Keyboard Shortcuts</div>
+              {/* Enhanced Tooltip */}
+              <div className="absolute right-0 top-full mt-2 w-80 bg-gray-900 text-white text-sm rounded-xl p-4 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-gray-700">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-4 h-4 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span className="font-semibold text-primary-400">Keyboard Shortcuts</span>
+                </div>
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span>↑↓</span>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-700">
+                    <span className="text-gray-300">↑↓</span>
                     <span>Navigate rows</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Enter</span>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-700">
+                    <span className="text-gray-300">Enter</span>
                     <span>Select player</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Ctrl+A</span>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-700">
+                    <span className="text-gray-300">Ctrl+A</span>
                     <span>Add to watchlist</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Ctrl+R</span>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-700">
+                    <span className="text-gray-300">Ctrl+R</span>
                     <span>Remove from watchlist</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>/</span>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-700">
+                    <span className="text-gray-300">/</span>
                     <span>Focus search</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>1-6</span>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-700">
+                    <span className="text-gray-300">1-6</span>
                     <span>Quick position filter</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>N</span>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-700">
+                    <span className="text-gray-300">N</span>
                     <span>Toggle news</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>P</span>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-gray-300">P</span>
                     <span>Pin MyPts column</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Esc</span>
-                    <span>Clear selection</span>
                   </div>
                 </div>
               </div>
@@ -530,52 +536,117 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
       <div className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gradient-to-r from-gray-50 to-slate-50 border-b-2 border-gray-200">
               <tr>
-                <th className="px-4 py-3 text-left">
-                  <SortHeader field="name">Player</SortHeader>
+                <th className="px-6 py-4 text-left">
+                  <SortHeader field="name">
+                    <div className="flex items-center gap-2">
+                      <UserIcon className="w-4 h-4 text-gray-500" />
+                      <span>Player</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-left">
-                  <SortHeader field="position">Pos</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="position">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-3 h-3 bg-primary-500 rounded-full"></div>
+                      <span>Pos</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-left">
-                  <SortHeader field="team">Team</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="team">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                      <span>Team</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <SortHeader field="fantasyPoints">My Pts</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="fantasyPoints">
+                    <div className="flex items-center justify-center gap-2">
+                      <ChartBarIcon className="w-4 h-4 text-primary-500" />
+                      <span>My Pts</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <SortHeader field="yahooPoints">Yahoo Pts</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="yahooPoints">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                      <span>Yahoo Pts</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <SortHeader field="delta">Δ</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="delta">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                      <span>Δ</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <SortHeader field="vorp">VORP</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="vorp">
+                    <div className="flex items-center justify-center gap-2">
+                      <FireIcon className="w-4 h-4 text-orange-500" />
+                      <span>VORP</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <SortHeader field="tier">Tier</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="tier">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 bg-purple-500 rounded-lg"></div>
+                      <span>Tier</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <SortHeader field="adp">ADP</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="adp">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span>ADP</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <SortHeader field="valueVsADP">Value vs ADP</SortHeader>
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="valueVsADP">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 bg-indigo-500 rounded-full"></div>
+                      <span>Value vs ADP</span>
+                    </div>
+                  </SortHeader>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <span className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">News</span>
+                <th className="px-4 py-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 bg-red-500 rounded"></div>
+                    <span className="font-semibold text-gray-700 uppercase tracking-wider text-sm">News</span>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-center">
-                  <span className="px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</span>
+                <th className="px-4 py-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 bg-gray-500 rounded"></div>
+                    <span className="font-semibold text-gray-700 uppercase tracking-wider text-sm">Actions</span>
+                  </div>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredAndSortedPlayers.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
-                    <div className="text-lg font-medium">No players found</div>
-                    <div className="text-sm">Try adjusting your filters or search query</div>
+                  <td colSpan={12} className="px-6 py-16 text-center">
+                    <div className="max-w-md mx-auto">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <div className="text-xl font-semibold text-gray-900 mb-2">No players found</div>
+                      <div className="text-gray-500 mb-4">Try adjusting your filters or search query to find more players</div>
+                      <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                        <FunnelIcon className="w-4 h-4" />
+                        <span>Use the position filter above</span>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -588,54 +659,61 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                     <React.Fragment key={player.id}>
                       <tr
                         ref={isSelected ? selectedRowRef : null}
-                        className={`group hover:bg-gray-50 transition-colors cursor-pointer ${
-                          isSelected ? 'bg-primary-50 ring-2 ring-primary-500' : ''
+                        className={`group hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 transition-all duration-200 cursor-pointer ${
+                          isSelected ? 'bg-gradient-to-r from-primary-50 to-blue-50 ring-2 ring-primary-500 shadow-sm' : ''
                         }`}
                         onClick={() => handleRowClick(player, index)}
                       >
                         {/* Player Name */}
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${getPositionColor(player.position)}`}>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold border-2 shadow-sm ${getPositionColor(player.position)}`}>
                               {player.position}
                             </div>
                             <div>
-                              <div className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors">
+                              <div className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors text-base">
                                 {player.name}
                               </div>
-                              <div className="text-sm text-gray-500">
-                                Week {player.byeWeek} • {player.newsCount} news
+                              <div className="text-sm text-gray-500 flex items-center gap-2">
+                                <span className="flex items-center gap-1">
+                                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                  Week {player.byeWeek}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                                  {player.newsCount} news
+                                </span>
                               </div>
                             </div>
                           </div>
                         </td>
 
                         {/* Position */}
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getPositionColor(player.position)}`}>
+                        <td className="px-4 py-4 text-center">
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold border-2 shadow-sm ${getPositionColor(player.position)}`}>
                             {player.position}
                           </span>
                         </td>
 
                         {/* Team */}
-                        <td className="px-4 py-3">
-                          <span className="font-medium text-gray-900">{player.team}</span>
+                        <td className="px-4 py-4 text-center">
+                          <span className="font-semibold text-gray-900 text-base">{player.team}</span>
                         </td>
 
                         {/* My Points */}
-                        <td className="px-4 py-3 text-center">
-                          <div className="font-bold text-gray-900">{player.fantasyPoints.toFixed(1)}</div>
-                          <div className="text-xs text-gray-500">pts</div>
+                        <td className="px-4 py-4 text-center">
+                          <div className="font-bold text-gray-900 text-lg">{player.fantasyPoints.toFixed(1)}</div>
+                          <div className="text-xs text-gray-500 font-medium">points</div>
                         </td>
 
                         {/* Yahoo Points */}
-                        <td className="px-4 py-3 text-center">
-                          <div className="font-medium text-gray-700">{player.yahooPoints.toFixed(1)}</div>
-                          <div className="text-xs text-gray-500">pts</div>
+                        <td className="px-4 py-4 text-center">
+                          <div className="font-semibold text-gray-700 text-base">{player.yahooPoints.toFixed(1)}</div>
+                          <div className="text-xs text-gray-500 font-medium">points</div>
                         </td>
 
                         {/* Delta */}
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-4 text-center">
                           <div className={`font-semibold ${getDeltaColor(player.delta)}`}>
                             {player.delta > 0 ? '+' : ''}{player.delta.toFixed(1)}
                           </div>
@@ -643,7 +721,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         </td>
 
                         {/* VORP */}
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-4 text-center">
                           <div className={`font-semibold ${getVorpColor(player.vorp)}`}>
                             {player.vorp.toFixed(1)}
                           </div>
@@ -651,20 +729,20 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         </td>
 
                         {/* Tier */}
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-4 text-center">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getTierColor(player.tier)}`}>
                             T{player.tier}
                           </span>
                         </td>
 
                         {/* ADP */}
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-4 text-center">
                           <div className="font-medium text-gray-700">{player.effectiveADP}</div>
                           <div className="text-xs text-gray-500">adp</div>
                         </td>
 
                         {/* Value vs ADP */}
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-4 text-center">
                           {player.valueVsADP ? (
                             <div>
                               <div className={`font-semibold ${getValueVsADPColor(player.valueVsADP)}`}>
@@ -680,7 +758,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         </td>
 
                         {/* News */}
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-4 text-center">
                           {player.newsCount > 0 ? (
                             <div className="flex items-center justify-center">
                               <FireIcon className="w-4 h-4 text-orange-500" />
@@ -692,7 +770,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         </td>
 
                         {/* Actions */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-4 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={(e) => {

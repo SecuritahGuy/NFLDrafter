@@ -11,9 +11,11 @@ import type { Player } from '../types'
 
 export const DraftRoom: React.FC = () => {
   return (
-    <ToastProvider>
-      <DraftRoomContent />
-    </ToastProvider>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
+      <ToastProvider>
+        <DraftRoomContent />
+      </ToastProvider>
+    </div>
   )
 }
 
@@ -263,28 +265,64 @@ const DraftRoomContent: React.FC = () => {
   }
 
   return (
-    <div className="container">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div className="container py-8">
+      {/* Page Header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-3 bg-primary-100 rounded-xl">
+            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center text-white text-xl font-bold">
+              🏆
+            </div>
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Draft Room</h1>
+            <p className="text-lg text-gray-600">Professional fantasy football drafting experience</p>
+          </div>
+        </div>
+        
+        {/* Scoring Profile Selector */}
+        <div className="flex items-center gap-4">
+          <label className="text-sm font-medium text-gray-700">Scoring Profile:</label>
+          <select
+            value={scoringProfile}
+            onChange={(e) => setScoringProfile(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white font-medium"
+          >
+            <option value="Standard PPR">Standard PPR</option>
+            <option value="Half PPR">Half PPR</option>
+            <option value="Standard">Standard</option>
+            <option value="Superflex">Superflex</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
         {/* Left Sidebar - Watchlist & Tools */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="xl:col-span-1 space-y-6">
           {/* Watchlist */}
-                       <div className="card">
-               <div className="card-header">
-                 <h3 className="text-lg font-semibold">📋 Watchlist</h3>
-               </div>
-               <div className="card-body">
-                 <Watchlist
-                   watchlist={mockPlayers.filter(p => watchlist.includes(p.id))}
-                   onRemoveFromWatchlist={handleRemoveFromWatchlist}
-                   onPlayerSelect={handlePlayerSelect}
-                 />
-               </div>
-             </div>
+          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <div className="card-header bg-gradient-to-r from-primary-50 to-blue-50 border-b border-primary-100">
+              <h3 className="text-lg font-semibold text-primary-800 flex items-center gap-2">
+                <div className="w-5 h-5 bg-primary-600 rounded flex items-center justify-center text-white text-xs">📋</div>
+                Watchlist
+              </h3>
+            </div>
+            <div className="card-body">
+              <Watchlist
+                watchlist={mockPlayers.filter(p => watchlist.includes(p.id))}
+                onRemoveFromWatchlist={handleRemoveFromWatchlist}
+                onPlayerSelect={handlePlayerSelect}
+              />
+            </div>
+          </div>
 
           {/* Tiering Tool */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold">🏗️ Tiering</h3>
+          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <div className="card-header bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100">
+              <h3 className="text-lg font-semibold text-purple-800 flex items-center gap-2">
+                <div className="w-5 h-5 bg-purple-600 rounded flex items-center justify-center text-white text-xs">🏗️</div>
+                Tiering
+              </h3>
             </div>
             <div className="card-body">
               <Tiering
@@ -294,9 +332,12 @@ const DraftRoomContent: React.FC = () => {
           </div>
 
           {/* VORP Calculator */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold">📊 VORP</h3>
+          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <div className="card-header bg-gradient-to-r from-orange-50 to-red-50 border-b border-orange-100">
+              <h3 className="text-lg font-semibold text-orange-800 flex items-center gap-2">
+                <div className="w-5 h-5 bg-orange-600 rounded flex items-center justify-center text-white text-xs">🔥</div>
+                VORP
+              </h3>
             </div>
             <div className="card-body">
               <VORP
@@ -306,10 +347,31 @@ const DraftRoomContent: React.FC = () => {
             </div>
           </div>
 
+          {/* Roster Bar */}
+          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <div className="card-header bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100">
+              <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2">
+                <div className="w-5 h-5 bg-green-600 rounded flex items-center justify-center text-white text-xs">👥</div>
+                Roster
+              </h3>
+            </div>
+            <div className="card-body">
+              <RosterBar
+                rosterSlots={rosterSlots}
+                selectedPlayers={mockPlayers.filter(p => watchlist.includes(p.id))}
+                onSlotClick={handleSlotClick}
+                scoringProfile={scoringProfile}
+              />
+            </div>
+          </div>
+
           {/* Yahoo OAuth */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold">🔗 Yahoo Integration</h3>
+          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <div className="card-header bg-gradient-to-r from-yellow-50 to-amber-50 border-b border-yellow-100">
+              <h3 className="text-lg font-semibold text-yellow-800 flex items-center gap-2">
+                <div className="w-5 h-5 bg-yellow-600 rounded flex items-center justify-center text-white text-xs">🔗</div>
+                Yahoo Integration
+              </h3>
             </div>
             <div className="card-body">
               <YahooOAuth
@@ -321,9 +383,12 @@ const DraftRoomContent: React.FC = () => {
 
           {/* Yahoo League Import */}
           {yahooAccessToken && (
-            <div className="card">
-              <div className="card-header">
-                <h3 className="text-lg font-semibold">🏈 League Import</h3>
+            <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+              <div className="card-header bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-blue-100">
+                <h3 className="text-lg font-semibold text-blue-800 flex items-center gap-2">
+                  <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center text-white text-xs">🏈</div>
+                  League Import
+                </h3>
               </div>
               <div className="card-body">
                 <YahooLeagueImport
@@ -337,138 +402,27 @@ const DraftRoomContent: React.FC = () => {
         </div>
 
         {/* Main Content - Player Board */}
-        <div className="lg:col-span-2">
-          <div className="card">
-            <div className="card-header">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">👥 Player Board</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {mockPlayers.length} players available • {scoringProfile}
-                  </p>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <select
-                    className="input"
-                    value={selectedPosition}
-                    onChange={(e) => setSelectedPosition(e.target.value)}
-                    style={{ width: 'auto', minWidth: '100px' }}
-                  >
-                    <option value="ALL">All Positions</option>
-                    <option value="QB">QB</option>
-                    <option value="RB">RB</option>
-                    <option value="WR">WR</option>
-                    <option value="TE">TE</option>
-                    <option value="K">K</option>
-                    <option value="DEF">DEF</option>
-                  </select>
-                  
-                  <input
-                    type="text"
-                    placeholder="Search players..."
-                    className="input"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{ width: 'auto', minWidth: '200px' }}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="card-body p-0">
-              <PlayerBoard
-                players={mockPlayers}
-                selectedPosition={selectedPosition}
-                searchQuery={searchQuery}
-                onPlayerSelect={handlePlayerSelect}
-                onAddToWatchlist={handleAddToWatchlist}
-                onRemoveFromWatchlist={handleRemoveFromWatchlist}
-                watchlist={watchlist}
-                scoringProfile={scoringProfile}
-                importedADP={importedADP}
-                onADPImport={handleADPImport}
-                playerNotes={playerNotes}
-                onPlayerNotesChange={handlePlayerNotesChange}
-                loading={loading}
-                error={error}
-                onRetry={handleRetry}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Right Sidebar - Roster & ADP */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Roster Bar */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold">🏃‍♂️ Roster</h3>
-            </div>
-            <div className="card-body">
-              <RosterBar
-                rosterSlots={rosterSlots}
-                selectedPlayers={[]}
-                onSlotClick={handleSlotClick}
-                scoringProfile={scoringProfile}
-              />
-            </div>
-          </div>
-
-          {/* ADP Import */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold">📈 ADP Import</h3>
-            </div>
-            <div className="card-body">
-              <p className="text-sm text-gray-600">ADP Import functionality coming soon...</p>
-            </div>
-          </div>
-
-          {/* Draft Stats */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold">📊 Draft Stats</h3>
-            </div>
-            <div className="card-body">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Players Drafted</span>
-                  <span className="font-semibold">0</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Rounds Completed</span>
-                  <span className="font-semibold">0</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Time Elapsed</span>
-                  <span className="font-semibold">00:00</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Next Pick</span>
-                  <span className="font-semibold text-primary-600">1.01</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold">⚡ Quick Actions</h3>
-            </div>
-            <div className="card-body">
-              <div className="space-y-3">
-                <button className="btn btn-primary w-full">
-                  📋 Export Cheat Sheet
-                </button>
-                <button className="btn btn-secondary w-full">
-                  🔄 Reset Draft
-                </button>
-                <button className="btn btn-secondary w-full">
-                  💾 Save Draft State
-                </button>
-              </div>
-            </div>
-          </div>
+        <div className="xl:col-span-4">
+          <PlayerBoard
+            players={mockPlayers}
+            selectedPosition={selectedPosition}
+            searchQuery={searchQuery}
+            onPlayerSelect={handlePlayerSelect}
+            onAddToWatchlist={handleAddToWatchlist}
+            onRemoveFromWatchlist={handleRemoveFromWatchlist}
+            watchlist={watchlist}
+            scoringProfile={scoringProfile}
+            importedADP={importedADP}
+            onADPImport={handleADPImport}
+            weeklyStats={{}}
+            news={{}}
+            depthChart={{}}
+            playerNotes={playerNotes}
+            onPlayerNotesChange={handlePlayerNotesChange}
+            loading={loading}
+            error={error}
+            onRetry={handleRetry}
+          />
         </div>
       </div>
     </div>
