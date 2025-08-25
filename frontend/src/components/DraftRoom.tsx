@@ -8,10 +8,13 @@ import { YahooOAuth } from './YahooOAuth'
 import { YahooLeagueImport } from './YahooLeagueImport'
 import { ToastProvider, useToast } from './Toast'
 import type { Player } from '../types'
+import { usePlayers } from '../hooks/usePlayers'
+import { useScoringProfiles } from '../hooks/useScoringProfiles'
+import { usePlayersWithPoints } from '../hooks/useFantasyPoints'
 
 export const DraftRoom: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
       <ToastProvider>
         <DraftRoomContent />
       </ToastProvider>
@@ -47,121 +50,63 @@ const DraftRoomContent: React.FC = () => {
     { position: 'BN', required: 6, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
   ]
 
-  // Mock data for demonstration
-  const mockPlayers: Player[] = useMemo(() => [
-    {
-      id: '1',
-      name: 'Patrick Mahomes',
-      position: 'QB',
-      team: 'KC',
-      fantasyPoints: 350.5,
-      yahooPoints: 345.2,
-      delta: 5.3,
-      vorp: 45.2,
-      tier: 1,
-      adp: 12,
-      newsCount: 3,
-      byeWeek: 10,
-    },
-    {
-      id: '2',
-      name: 'Christian McCaffrey',
-      position: 'RB',
-      team: 'SF',
-      fantasyPoints: 380.2,
-      yahooPoints: 375.8,
-      delta: 4.4,
-      vorp: 52.1,
-      tier: 1,
-      adp: 2,
-      newsCount: 2,
-      byeWeek: 9,
-    },
-    {
-      id: '3',
-      name: 'Tyreek Hill',
-      position: 'WR',
-      team: 'MIA',
-      fantasyPoints: 320.8,
-      yahooPoints: 318.5,
-      delta: 2.3,
-      vorp: 38.7,
-      tier: 1,
-      adp: 8,
-      newsCount: 4,
-      byeWeek: 11,
-    },
-    {
-      id: '4',
-      name: 'Travis Kelce',
-      position: 'TE',
-      team: 'KC',
-      fantasyPoints: 280.3,
-      yahooPoints: 275.1,
-      delta: 5.2,
-      vorp: 42.8,
-      tier: 1,
-      adp: 15,
-      newsCount: 1,
-      byeWeek: 10,
-    },
-    {
-      id: '5',
-      name: 'Josh Allen',
-      position: 'QB',
-      team: 'BUF',
-      fantasyPoints: 340.1,
-      yahooPoints: 335.7,
-      delta: 4.4,
-      vorp: 43.9,
-      tier: 2,
-      adp: 18,
-      newsCount: 2,
-      byeWeek: 13,
-    },
-    {
-      id: '6',
-      name: 'Justin Jefferson',
-      position: 'WR',
-      team: 'MIN',
-      fantasyPoints: 310.5,
-      yahooPoints: 308.2,
-      delta: 2.3,
-      vorp: 35.8,
-      tier: 1,
-      adp: 5,
-      newsCount: 2,
-      byeWeek: 13,
-    },
-    {
-      id: '7',
-      name: 'Saquon Barkley',
-      position: 'RB',
-      team: 'PHI',
-      fantasyPoints: 290.3,
-      yahooPoints: 285.1,
-      delta: 5.2,
-      vorp: 38.9,
-      tier: 2,
-      adp: 20,
-      newsCount: 1,
-      byeWeek: 10,
-    },
-    {
-      id: '8',
-      name: 'Mark Andrews',
-      position: 'TE',
-      team: 'BAL',
-      fantasyPoints: 220.8,
-      yahooPoints: 218.5,
-      delta: 2.3,
-      vorp: 28.7,
-      tier: 2,
-      adp: 45,
-      newsCount: 1,
-      byeWeek: 13,
-    },
-  ], [])
+  // Real data from backend API
+  const currentSeason = 2024
+  const currentWeek = 1
+  
+  // Fetch scoring profiles
+  const { data: scoringProfiles, isLoading: profilesLoading } = useScoringProfiles()
+  
+  // Get the selected scoring profile ID
+  const selectedProfile = useMemo(() => {
+    if (!scoringProfiles) return null
+    return scoringProfiles.find(profile => profile.name === scoringProfile)
+  }, [scoringProfiles, scoringProfile])
+  
+  // Fetch players with filters
+  const { data: players, isLoading: playersLoading } = usePlayers({
+    q: searchQuery,
+    position: selectedPosition === 'ALL' ? undefined : selectedPosition,
+    limit: 100
+  })
+  
+  // Calculate fantasy points for players
+  const { data: playersWithPoints, isLoading: pointsLoading } = usePlayersWithPoints(
+    players?.map(p => p.player_id) || [],
+    currentSeason,
+    currentWeek,
+    selectedProfile?.profile_id || ''
+  )
+  
+  // Combine player data with calculated points
+  const enrichedPlayers: Player[] = useMemo(() => {
+    if (!players || !playersWithPoints) return []
+    
+    return players.map(player => {
+      const pointsData = playersWithPoints[player.player_id]
+      const fantasyPoints = pointsData?.points || 0
+      const yahooPoints = 0 // TODO: Implement Yahoo points calculation
+      
+      return {
+        id: player.player_id,
+        name: player.name,
+        position: player.position,
+        team: player.team,
+        fantasyPoints,
+        yahooPoints,
+        delta: fantasyPoints - yahooPoints,
+        vorp: 0, // TODO: Calculate VORP
+        tier: 0, // TODO: Calculate tiers
+        adp: player.adp || 0,
+        newsCount: player.news_count || 0,
+        byeWeek: player.bye_week || 0,
+      }
+    })
+  }, [players, playersWithPoints])
+  
+  // Loading and error states
+  const isLoading = profilesLoading || playersLoading || pointsLoading
+  const hasError = !profilesLoading && !playersLoading && !pointsLoading && (!players || !scoringProfiles)
 
   const handlePlayerSelect = (player: Player) => {
     console.log('Player selected:', player)
@@ -180,7 +125,7 @@ const DraftRoomContent: React.FC = () => {
   }
 
   const handleRemoveFromWatchlist = (playerId: string) => {
-    const player = mockPlayers.find(p => p.id === playerId)
+    const player = enrichedPlayers.find(p => p.id === playerId)
     setWatchlist(prev => prev.filter(id => id !== playerId))
     if (player) {
       addToast({
@@ -265,164 +210,206 @@ const DraftRoomContent: React.FC = () => {
   }
 
   return (
-    <div className="container py-8">
-      {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="p-3 bg-primary-100 rounded-xl">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center text-white text-xl font-bold">
-              🏆
-            </div>
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Draft Room</h1>
-            <p className="text-lg text-gray-600">Professional fantasy football drafting experience</p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.03%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
         </div>
         
-        {/* Scoring Profile Selector */}
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-gray-700">Scoring Profile:</label>
-          <select
-            value={scoringProfile}
-            onChange={(e) => setScoringProfile(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white font-medium"
-          >
-            <option value="Standard PPR">Standard PPR</option>
-            <option value="Half PPR">Half PPR</option>
-            <option value="Standard">Standard</option>
-            <option value="Superflex">Superflex</option>
-          </select>
+        {/* Header Content */}
+        <div className="relative z-10 container mx-auto px-6 py-12">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full shadow-2xl mb-6">
+              <span className="text-3xl">🏆</span>
+            </div>
+            <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">
+              Draft Room
+            </h1>
+            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+              Professional fantasy football drafting experience with advanced analytics, 
+              real-time insights, and expert tools to dominate your league
+            </p>
+            
+            {/* Quick Stats */}
+            <div className="flex justify-center gap-8 mb-8">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-yellow-400">{enrichedPlayers.length}</div>
+                <div className="text-blue-200 text-sm">Players Available</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-green-400">{watchlist.length}</div>
+                <div className="text-blue-200 text-sm">Watchlist</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-purple-400">{rosterSlots.length}</div>
+                <div className="text-blue-200 text-sm">Roster Slots</div>
+              </div>
+            </div>
+
+            {/* Scoring Profile Selector */}
+            <div className="inline-flex items-center gap-4 bg-white/10 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/20">
+              <label className="text-blue-100 font-medium">Scoring Profile:</label>
+              <select
+                value={scoringProfile}
+                onChange={(e) => setScoringProfile(e.target.value)}
+                className="px-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white font-medium focus:ring-2 focus:ring-blue-400 focus:border-blue-400 backdrop-blur-sm"
+              >
+                <option value="Standard PPR" className="bg-slate-800 text-white">Standard PPR</option>
+                <option value="Half PPR" className="bg-slate-800 text-white">Half PPR</option>
+                <option value="Standard" className="bg-slate-800 text-white">Standard</option>
+                <option value="Superflex" className="bg-slate-800 text-white">Superflex</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
-        {/* Left Sidebar - Watchlist & Tools */}
-        <div className="xl:col-span-1 space-y-6">
-          {/* Watchlist */}
-          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <div className="card-header bg-gradient-to-r from-primary-50 to-blue-50 border-b border-primary-100">
-              <h3 className="text-lg font-semibold text-primary-800 flex items-center gap-2">
-                <div className="w-5 h-5 bg-primary-600 rounded flex items-center justify-center text-white text-xs">📋</div>
-                Watchlist
-              </h3>
-            </div>
-            <div className="card-body">
-              <Watchlist
-                watchlist={mockPlayers.filter(p => watchlist.includes(p.id))}
-                onRemoveFromWatchlist={handleRemoveFromWatchlist}
-                onPlayerSelect={handlePlayerSelect}
-              />
-            </div>
-          </div>
-
-          {/* Tiering Tool */}
-          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <div className="card-header bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100">
-              <h3 className="text-lg font-semibold text-purple-800 flex items-center gap-2">
-                <div className="w-5 h-5 bg-purple-600 rounded flex items-center justify-center text-white text-xs">🏗️</div>
-                Tiering
-              </h3>
-            </div>
-            <div className="card-body">
-              <Tiering
-                players={mockPlayers}
-              />
-            </div>
-          </div>
-
-          {/* VORP Calculator */}
-          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <div className="card-header bg-gradient-to-r from-orange-50 to-red-50 border-b border-orange-100">
-              <h3 className="text-lg font-semibold text-orange-800 flex items-center gap-2">
-                <div className="w-5 h-5 bg-orange-600 rounded flex items-center justify-center text-white text-xs">🔥</div>
-                VORP
-              </h3>
-            </div>
-            <div className="card-body">
-              <VORP
-                players={mockPlayers}
-                onVorpChange={handleVorpChange}
-              />
-            </div>
-          </div>
-
-          {/* Roster Bar */}
-          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <div className="card-header bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100">
-              <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2">
-                <div className="w-5 h-5 bg-green-600 rounded flex items-center justify-center text-white text-xs">👥</div>
-                Roster
-              </h3>
-            </div>
-            <div className="card-body">
-              <RosterBar
-                rosterSlots={rosterSlots}
-                selectedPlayers={mockPlayers.filter(p => watchlist.includes(p.id))}
-                onSlotClick={handleSlotClick}
-                scoringProfile={scoringProfile}
-              />
-            </div>
-          </div>
-
-          {/* Yahoo OAuth */}
-          <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-            <div className="card-header bg-gradient-to-r from-yellow-50 to-amber-50 border-b border-yellow-100">
-              <h3 className="text-lg font-semibold text-yellow-800 flex items-center gap-2">
-                <div className="w-5 h-5 bg-yellow-600 rounded flex items-center justify-center text-white text-xs">🔗</div>
-                Yahoo Integration
-              </h3>
-            </div>
-            <div className="card-body">
-              <YahooOAuth
-                onAuthSuccess={handleAuthSuccess}
-                onAuthError={handleAuthError}
-              />
-            </div>
-          </div>
-
-          {/* Yahoo League Import */}
-          {yahooAccessToken && (
-            <div className="card shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <div className="card-header bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-blue-100">
-                <h3 className="text-lg font-semibold text-blue-800 flex items-center gap-2">
-                  <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center text-white text-xs">🏈</div>
-                  League Import
+      {/* Main Content */}
+      <div className="container mx-auto px-6 pb-12">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
+          {/* Left Sidebar - Tools & Analytics */}
+          <div className="xl:col-span-1 space-y-6">
+            {/* Watchlist */}
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                  <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">📋</span>
+                  </div>
+                  Watchlist
                 </h3>
               </div>
-              <div className="card-body">
-                <YahooLeagueImport
-                  accessToken={yahooAccessToken}
-                  onLeagueSelect={handleLeagueSelect}
-                  onImportComplete={handleLeagueImport}
+              <div className="p-4">
+                <Watchlist
+                  watchlist={enrichedPlayers.filter(p => watchlist.includes(p.id))}
+                  onRemoveFromWatchlist={handleRemoveFromWatchlist}
+                  onPlayerSelect={handlePlayerSelect}
                 />
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Main Content - Player Board */}
-        <div className="xl:col-span-4">
-          <PlayerBoard
-            players={mockPlayers}
-            selectedPosition={selectedPosition}
-            searchQuery={searchQuery}
-            onPlayerSelect={handlePlayerSelect}
-            onAddToWatchlist={handleAddToWatchlist}
-            onRemoveFromWatchlist={handleRemoveFromWatchlist}
-            watchlist={watchlist}
-            scoringProfile={scoringProfile}
-            importedADP={importedADP}
-            onADPImport={handleADPImport}
-            weeklyStats={{}}
-            news={{}}
-            depthChart={{}}
-            playerNotes={playerNotes}
-            onPlayerNotesChange={handlePlayerNotesChange}
-            loading={loading}
-            error={error}
-            onRetry={handleRetry}
-          />
+            {/* Tiering Tool */}
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                  <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">🏗️</span>
+                  </div>
+                  Tiering Analysis
+                </h3>
+              </div>
+              <div className="p-4">
+                <Tiering
+                  players={enrichedPlayers}
+                />
+              </div>
+            </div>
+
+            {/* VORP Calculator */}
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                  <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">🔥</span>
+                  </div>
+                  VORP Analysis
+                </h3>
+              </div>
+              <div className="p-4">
+                <VORP
+                  players={enrichedPlayers}
+                  onVorpChange={handleVorpChange}
+                />
+              </div>
+            </div>
+
+            {/* Roster Bar */}
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                  <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">👥</span>
+                  </div>
+                  Roster Overview
+                </h3>
+              </div>
+              <div className="p-4">
+                <RosterBar
+                  rosterSlots={rosterSlots}
+                  selectedPlayers={mockPlayers.filter(p => watchlist.includes(p.id))}
+                  onSlotClick={handleSlotClick}
+                  scoringProfile={scoringProfile}
+                />
+              </div>
+            </div>
+
+            {/* Yahoo Integration */}
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+              <div className="bg-gradient-to-r from-yellow-600 to-orange-600 px-6 py-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                  <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">🔗</span>
+                  </div>
+                  Yahoo Fantasy
+                </h3>
+              </div>
+              <div className="p-4 space-y-4">
+                <YahooOAuth
+                  onAuthSuccess={handleAuthSuccess}
+                  onAuthError={handleAuthError}
+                />
+                
+                {yahooAccessToken && (
+                  <YahooLeagueImport
+                    accessToken={yahooAccessToken}
+                    onLeagueSelect={handleLeagueSelect}
+                    onImportComplete={handleLeagueImport}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content - Player Board */}
+          <div className="xl:col-span-4">
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+              <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-6 py-4">
+                <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                  <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">📊</span>
+                  </div>
+                  Player Board
+                </h3>
+                <p className="text-blue-100 text-sm mt-1">
+                  Comprehensive player analysis, rankings, and drafting tools
+                </p>
+              </div>
+              <div className="p-6">
+                <PlayerBoard
+                  players={mockPlayers}
+                  selectedPosition={selectedPosition}
+                  searchQuery={searchQuery}
+                  onPlayerSelect={handlePlayerSelect}
+                  onAddToWatchlist={handleAddToWatchlist}
+                  onRemoveFromWatchlist={handleRemoveFromWatchlist}
+                  watchlist={watchlist}
+                  scoringProfile={scoringProfile}
+                  importedADP={importedADP}
+                  onADPImport={handleADPImport}
+                  weeklyStats={{}}
+                  news={{}}
+                  depthChart={{}}
+                  playerNotes={playerNotes}
+                  onPlayerNotesChange={handlePlayerNotesChange}
+                  loading={loading}
+                  error={error}
+                  onRetry={handleRetry}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
