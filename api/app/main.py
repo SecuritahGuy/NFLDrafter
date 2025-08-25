@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .db import init_db
-from .routers import fantasy, players
+from .routers import fantasy, players, yahoo
 
 
 @asynccontextmanager
@@ -42,6 +42,7 @@ app.add_middleware(
 # Include routers
 app.include_router(fantasy.router)
 app.include_router(players.router)
+app.include_router(yahoo.router)
 
 # Health check endpoint
 @app.get("/health")

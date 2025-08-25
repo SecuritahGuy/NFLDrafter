@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { XMarkIcon, ChartBarIcon, NewspaperIcon, UserGroupIcon, PencilIcon } from '@heroicons/react/24/outline'
 import type { Player, PlayerNews, WeeklyStats, DepthChartPosition } from '../types'
 
@@ -48,14 +48,14 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
   const [editedNotes, setEditedNotes] = useState(notes);
 
   // Handle notes editing
-  const handleNotesSave = useMemo(() => {
+  const handleNotesSave = useCallback(() => {
     if (onNotesChange) {
       onNotesChange(editedNotes);
     }
     setIsNotesEditing(false);
   }, [editedNotes, onNotesChange]);
 
-  const handleNotesCancel = useMemo(() => {
+  const handleNotesCancel = useCallback(() => {
     setEditedNotes(notes);
     setIsNotesEditing(false);
   }, [notes]);
@@ -64,7 +64,7 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
   const formatWeeklyData = useMemo(() => {
     return weeklyStats
       .sort((a, b) => a.week - b.week)
-      .map((stat, index) => ({
+      .map((stat) => ({
         week: stat.week,
         points: stat.fantasyPoints,
         color: stat.fantasyPoints >= 20 ? '#10b981' : 
@@ -318,7 +318,7 @@ export const PlayerDrawer: React.FC<PlayerDrawerProps> = ({
                       position.status === 'practice_squad' ? 'bg-gray-100 text-gray-800' :
                       'bg-red-100 text-red-800'
                     }`}>
-                      {position.status.replace('_', ' ')}
+                      {position.status?.replace('_', ' ') || 'Unknown'}
                     </span>
                   </div>
                 ))}

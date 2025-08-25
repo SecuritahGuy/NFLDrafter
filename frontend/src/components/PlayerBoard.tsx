@@ -12,6 +12,8 @@ import {
   FireIcon
 } from '@heroicons/react/24/outline'
 import { CheatSheetExport } from './CheatSheetExport'
+import { LoadingState } from './LoadingState'
+import { ErrorDisplay } from './ErrorDisplay'
 import type { Player } from '../types'
 
 export interface PlayerBoardProps {
@@ -30,6 +32,9 @@ export interface PlayerBoardProps {
   depthChart?: Record<string, any[]>
   playerNotes?: Record<string, string>
   onPlayerNotesChange?: (playerId: string, notes: string) => void
+  loading?: boolean
+  error?: Error | null
+  onRetry?: () => void
 }
 
 type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp' | 'valueVsADP'
@@ -51,6 +56,9 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   depthChart = {},
   playerNotes = {},
   onPlayerNotesChange,
+  loading = false,
+  error = null,
+  onRetry,
 }) => {
   const [sortField, setSortField] = useState<SortField>('fantasyPoints')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
@@ -320,6 +328,59 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
       </div>
     </button>
   )
+
+  // Handle loading and error states
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
+          <div className="flex items-center gap-2">
+            <ChartBarIcon className="w-6 h-6 text-primary-600" />
+            <h3 className="text-xl font-bold text-gray-900">Player Board</h3>
+          </div>
+        </div>
+        <div className="p-6">
+          <LoadingState 
+            loading={true} 
+            type="skeleton" 
+            message="Loading players..."
+            skeletonRows={10}
+            skeletonColumns={8}
+          >
+            <div>Loading...</div>
+          </LoadingState>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
+          <div className="flex items-center gap-2">
+            <ChartBarIcon className="w-6 h-6 text-primary-600" />
+            <h3 className="text-xl font-bold text-gray-900">Player Board</h3>
+          </div>
+        </div>
+        <div className="p-6">
+          <ErrorDisplay 
+            error={{
+              title: 'Failed to load players',
+              message: error.message,
+              severity: 'high',
+              timestamp: new Date(),
+              details: 'Unable to fetch player data from the server',
+              suggestions: ['Check your internet connection', 'Try refreshing the page'],
+              retryable: !!onRetry,
+              onRetry: onRetry ? async () => onRetry() : undefined
+            }}
+            showRetry={!!onRetry}
+          />
+        </div>
+      </div>
+    )
+  }
 
   if (!players.length) {
     return (

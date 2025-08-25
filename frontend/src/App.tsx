@@ -5,6 +5,7 @@ import { Navigation } from './components/Navigation'
 import { ScoringBuilder } from './components/ScoringBuilder'
 import { PlayerExplorer } from './components/PlayerExplorer'
 import { DraftRoom } from './components/DraftRoom'
+import { OAuthCallback } from './components/OAuthCallback'
 import './styles/design-system.css'
 
 // Create a client
@@ -156,6 +157,10 @@ function App() {
                     <DraftRoom />
                   </div>
                 } 
+              />
+              <Route 
+                path="/auth/callback" 
+                element={<OAuthCallback />} 
               />
             </Routes>
           </main>

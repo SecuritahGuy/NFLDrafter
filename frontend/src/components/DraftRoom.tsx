@@ -4,15 +4,34 @@ import { Watchlist } from './Watchlist'
 import { Tiering } from './Tiering'
 import { VORP } from './VORP'
 import { RosterBar } from './RosterBar'
+import { YahooOAuth } from './YahooOAuth'
+import { YahooLeagueImport } from './YahooLeagueImport'
+import { ToastProvider, useToast } from './Toast'
 import type { Player } from '../types'
 
 export const DraftRoom: React.FC = () => {
-  const [watchlist, setWatchlist] = useState<string[]>([])
+  return (
+    <ToastProvider>
+      <DraftRoomContent />
+    </ToastProvider>
+  )
+}
+
+const DraftRoomContent: React.FC = () => {
+  const { addToast } = useToast()
   const [selectedPosition, setSelectedPosition] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const [watchlist, setWatchlist] = useState<string[]>([])
   const [scoringProfile, setScoringProfile] = useState<string>('Standard PPR')
   const [importedADP, setImportedADP] = useState<Record<string, number>>({})
   const [playerNotes, setPlayerNotes] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<Error | null>(null)
+  
+  // Yahoo OAuth state
+  const [yahooAccessToken, setYahooAccessToken] = useState<string | null>(null)
+  const [yahooRefreshToken, setYahooRefreshToken] = useState<string | null>(null)
+  const [selectedLeague, setSelectedLeague] = useState<any>(null)
   
   // Roster configuration
   const rosterSlots = [
@@ -147,11 +166,28 @@ export const DraftRoom: React.FC = () => {
   }
 
   const handleAddToWatchlist = (player: Player) => {
-    setWatchlist(prev => [...prev, player.id])
+    if (!watchlist.includes(player.id)) {
+      setWatchlist(prev => [...prev, player.id])
+      addToast({
+        type: 'success',
+        title: 'Added to Watchlist',
+        message: `${player.name} has been added to your watchlist`,
+        duration: 3000
+      })
+    }
   }
 
   const handleRemoveFromWatchlist = (playerId: string) => {
+    const player = mockPlayers.find(p => p.id === playerId)
     setWatchlist(prev => prev.filter(id => id !== playerId))
+    if (player) {
+      addToast({
+        type: 'info',
+        title: 'Removed from Watchlist',
+        message: `${player.name} has been removed from your watchlist`,
+        duration: 3000
+      })
+    }
   }
 
   const handleADPImport = (adpData: any[]) => {
@@ -163,10 +199,57 @@ export const DraftRoom: React.FC = () => {
   }
 
   const handlePlayerNotesChange = (playerId: string, notes: string) => {
-    setPlayerNotes(prev => ({
-      ...prev,
-      [playerId]: notes
-    }))
+    setPlayerNotes(prev => ({ ...prev, [playerId]: notes }))
+  }
+
+  const handleRetry = () => {
+    setError(null)
+    setLoading(true)
+    // Simulate retry - in real app this would refetch data
+    setTimeout(() => {
+      setLoading(false)
+    }, 1000)
+  }
+
+  // Yahoo OAuth handlers
+  const handleAuthSuccess = (accessToken: string, refreshToken: string) => {
+    setYahooAccessToken(accessToken)
+    setYahooRefreshToken(refreshToken)
+    addToast({
+      type: 'success',
+      title: 'Connected to Yahoo!',
+      message: 'Successfully connected to Yahoo Fantasy Football',
+      duration: 5000
+    })
+  }
+
+  const handleAuthError = (error: string) => {
+    addToast({
+      type: 'error',
+      title: 'Yahoo Connection Failed',
+      message: error,
+      duration: 5000
+    })
+  }
+
+  const handleLeagueSelect = (league: any) => {
+    setSelectedLeague(league)
+    addToast({
+      type: 'info',
+      title: 'League Selected',
+      message: `Selected ${league.name} for import`,
+      duration: 3000
+    })
+  }
+
+  const handleLeagueImport = (leagueData: any) => {
+    addToast({
+      type: 'success',
+      title: 'League Imported!',
+      message: `Successfully imported ${leagueData.teams_imported} teams`,
+      duration: 5000
+    })
+    // Here you would update the local state with imported data
   }
 
   const handleSlotClick = (position: string) => {
@@ -222,6 +305,35 @@ export const DraftRoom: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Yahoo OAuth */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold">🔗 Yahoo Integration</h3>
+            </div>
+            <div className="card-body">
+              <YahooOAuth
+                onAuthSuccess={handleAuthSuccess}
+                onAuthError={handleAuthError}
+              />
+            </div>
+          </div>
+
+          {/* Yahoo League Import */}
+          {yahooAccessToken && (
+            <div className="card">
+              <div className="card-header">
+                <h3 className="text-lg font-semibold">🏈 League Import</h3>
+              </div>
+              <div className="card-body">
+                <YahooLeagueImport
+                  accessToken={yahooAccessToken}
+                  onLeagueSelect={handleLeagueSelect}
+                  onImportComplete={handleLeagueImport}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Main Content - Player Board */}
@@ -276,6 +388,9 @@ export const DraftRoom: React.FC = () => {
                 onADPImport={handleADPImport}
                 playerNotes={playerNotes}
                 onPlayerNotesChange={handlePlayerNotesChange}
+                loading={loading}
+                error={error}
+                onRetry={handleRetry}
               />
             </div>
           </div>

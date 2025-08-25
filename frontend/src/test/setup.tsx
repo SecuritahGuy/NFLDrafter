@@ -366,12 +366,15 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ArrowTrendingUpIcon: ({ className }: { className?: string }) => (
     <svg className={className} data-testid="arrow-trending-up-icon" />
   ),
-  ArrowTrendingDownIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="arrow-trending-down-icon" />
-  ),
-  XMarkIcon: ({ className }: { className?: string }) => (
-    <svg className={className} data-testid="x-mark-icon" />
-  ),
+           ArrowTrendingDownIcon: ({ className }: { className?: string }) => (
+           <svg className={className} data-testid="arrow-trending-down-icon" />
+         ),
+         ArrowDownTrayIcon: ({ className }: { className?: string }) => (
+           <svg className={className} data-testid="arrow-down-tray-icon" />
+         ),
+         XMarkIcon: ({ className }: { className?: string }) => (
+           <svg className={className} data-testid="x-mark-icon" />
+         ),
   CloudArrowUpIcon: ({ className }: { className?: string }) => (
     <svg className={className} data-testid="cloud-arrow-up-icon" />
   ),
