@@ -5,16 +5,14 @@ import {
   TrophyIcon, 
   Cog6ToothIcon, 
   MagnifyingGlassIcon,
-  SignalIcon,
   WifiIcon
 } from '@heroicons/react/24/outline'
 
 interface NavigationProps {
-  currentPage: string
   onPageChange: (page: string) => void
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ currentPage, onPageChange }) => {
+export const Navigation: React.FC<NavigationProps> = ({ onPageChange }) => {
   const location = useLocation()
 
   const navItems = [
@@ -29,45 +27,62 @@ export const Navigation: React.FC<NavigationProps> = ({ currentPage, onPageChang
   }
 
   return (
-    <nav className="nav">
-      <div className="nav-container">
-        <Link to="/" className="nav-brand" onClick={() => handleNavClick('home')}>
-          <div className="nav-brand-content">
-            <div className="nav-brand-icon">🏈</div>
-            <div className="nav-brand-text">
-              <span className="nav-brand-title">NFLDrafter</span>
-              <span className="nav-brand-subtitle">Fantasy Football</span>
+    <nav className="not-prose bg-slate-900 border-b border-slate-700 shadow-md">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 lg:px-6">
+        <div className="flex items-center justify-between h-12">
+          {/* Brand/Logo */}
+          <Link to="/" className="flex items-center space-x-3" onClick={() => handleNavClick('home')}>
+            <div className="flex items-center justify-center w-5 h-5 bg-gradient-to-br from-orange-500 to-red-600 rounded-md shadow-sm">
+              <span className="text-white text-xs font-bold">🏈</span>
             </div>
-          </div>
-        </Link>
-        
-        <div className="nav-menu">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path
-            const IconComponent = item.icon
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`nav-link ${isActive ? 'active' : ''}`}
-                onClick={() => handleNavClick(item.path.slice(1).replace('-', '_') || 'home')}
-              >
-                <IconComponent className="nav-link-icon" />
-                <span className="nav-link-text">{item.label}</span>
-              </Link>
-            )
-          })}
-        </div>
-        
-        <div className="nav-status">
-          <div className="nav-status-item">
-            <div className="nav-status-indicator online"></div>
-            <span className="nav-status-text">v1.0.0</span>
+                          <div className="flex flex-col">
+                <span className="text-white font-bold text-sm leading-tight">NFLDrafter</span>
+                <span className="text-slate-300 text-xs font-medium">Fantasy Football</span>
+              </div>
+          </Link>
+          
+          {/* Navigation Menu */}
+          <div className="hidden md:flex items-center space-x-1 w-auto">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.path
+              const IconComponent = item.icon
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 whitespace-nowrap ${
+                    isActive 
+                      ? 'bg-blue-600 text-white shadow-md' 
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  onClick={() => handleNavClick(item.path.slice(1).replace('-', '_') || 'home')}
+                >
+                  <IconComponent 
+                    className="!h-4 !w-4 flex-none" 
+                    aria-hidden="true"
+                    style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                  />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
           </div>
           
-          <div className="nav-status-item">
-            <WifiIcon className="nav-status-icon" />
-            <span className="nav-status-text">Online</span>
+          {/* Status Indicators */}
+          <div className="flex items-center space-x-3 w-auto">
+            <div className="flex items-center space-x-1.5 text-slate-300 whitespace-nowrap">
+              <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+              <span className="text-xs font-medium">v1.0.0</span>
+            </div>
+            
+            <div className="flex items-center space-x-1.5 text-slate-300 whitespace-nowrap">
+              <WifiIcon 
+                className="!h-4 !w-4 flex-none" 
+                aria-hidden="true"
+                style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+              />
+              <span className="text-xs font-medium">Online</span>
+            </div>
           </div>
         </div>
       </div>

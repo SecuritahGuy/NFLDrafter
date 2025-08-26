@@ -161,7 +161,10 @@ export const RosterBar: React.FC<RosterBarProps> = ({
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-primary-100 rounded-xl">
-              <TrophyIcon className="w-6 h-6 text-primary-600" />
+              <TrophyIcon 
+                className="w-6 h-6 text-primary-600" 
+                style={{ width: '1.5rem', height: '1.5rem', flexShrink: 0 }}
+              />
             </div>
             <div>
               <h3 className="text-2xl font-bold text-gray-900">Roster Overview</h3>
@@ -175,7 +178,10 @@ export const RosterBar: React.FC<RosterBarProps> = ({
                   </>
                 )}
                 <span className="flex items-center gap-1">
-                  <ChartBarIcon className="w-4 h-4 text-gray-400" />
+                  <ChartBarIcon 
+                    className="w-4 h-4 text-gray-400" 
+                    style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                  />
                   Draft Progress
                 </span>
               </p>
@@ -225,7 +231,7 @@ export const RosterBar: React.FC<RosterBarProps> = ({
       </div>
 
       {/* Roster Slots */}
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {rosterSlots.map((slot) => {
           const scarcityStyles = getScarcityStyles(slot.scarcity)
           const isExpanded = expandedSlot === slot.position
@@ -243,43 +249,51 @@ export const RosterBar: React.FC<RosterBarProps> = ({
               onClick={() => onSlotClick(slot.position)}
             >
               {/* Slot Header */}
-              <div className="p-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white/80 rounded-xl shadow-sm">
-                      {getPositionIcon(slot.position)}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xl text-gray-900 mb-2">{slot.position}</h4>
-                      <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 ${scarcityStyles.badge}`}>
+              <div className="p-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/80 rounded-lg shadow-sm">
+                        {getPositionIcon(slot.position)}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-lg text-gray-900">{slot.position}</h4>
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${scarcityStyles.badge}`}>
                           {slot.scarcity} priority
                         </span>
-                        {slot.filled > 0 && slot.byeWeeks.length > 0 && (
-                          <span className="flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium border border-orange-200">
-                            <ExclamationCircleIcon className="w-3 h-3" />
-                            {slot.byeWeeks.length} bye conflict{slot.byeWeeks.length > 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-gray-900">
+                        {slot.filled}/{slot.required}
+                      </div>
+                      <div className="text-xs text-gray-600 font-medium">
+                        {slot.filled === slot.required ? (
+                          <span className="flex items-center gap-1 text-green-600">
+                            <CheckCircleIcon 
+                              className="w-3 h-3" 
+                              style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+                            />
+                            Complete
                           </span>
+                        ) : (
+                          `${slot.required - slot.filled} needed`
                         )}
                       </div>
                     </div>
                   </div>
                   
-                  <div className="text-right">
-                    <div className="text-3xl font-bold text-gray-900 mb-1">
-                      {slot.filled}/{slot.required}
+                  {/* Bye Week Conflicts - Show inline if present */}
+                  {slot.filled > 0 && slot.byeWeeks.length > 0 && (
+                    <div className="flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded-lg text-xs font-medium border border-orange-200">
+                      <ExclamationCircleIcon 
+                        className="w-3 h-3" 
+                        style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+                      />
+                      {slot.byeWeeks.length} bye conflict{slot.byeWeeks.length > 1 ? 's' : ''}
                     </div>
-                    <div className="text-sm text-gray-600 font-medium">
-                      {slot.filled === slot.required ? (
-                        <span className="flex items-center gap-1 text-green-600">
-                          <CheckCircleIcon className="w-4 h-4" />
-                          Complete
-                        </span>
-                      ) : (
-                        `${slot.required - slot.filled} needed`
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -291,54 +305,69 @@ export const RosterBar: React.FC<RosterBarProps> = ({
                     console.log(`Button clicked for slot: ${slot.position}`)
                     toggleSlotExpansion(slot.position)
                   }}
-                  className="w-full px-5 py-3 flex items-center justify-between text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-white/50 transition-all duration-200 group-hover:bg-white/30"
+                  className="w-full px-4 py-2 flex items-center justify-between text-xs font-semibold text-gray-600 hover:text-gray-900 hover:bg-white/50 transition-all duration-200 group-hover:bg-white/30"
                 >
                   <span className="flex items-center gap-2">
-                    <UserIcon className="w-4 h-4" />
+                    <UserIcon 
+                      className="w-3 h-3" 
+                      style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+                    />
                     View Details
                   </span>
                   {isExpanded ? (
-                    <ChevronDownIcon className="w-5 h-5 text-gray-400 transition-transform duration-200" />
+                    <ChevronDownIcon 
+                      className="w-4 h-4 text-gray-400 transition-transform duration-200" 
+                      style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                    />
                   ) : (
-                    <ChevronRightIcon className="w-5 h-5 text-gray-400 transition-transform duration-200" />
+                    <ChevronRightIcon 
+                      className="w-4 h-4 text-gray-400 transition-transform duration-200" 
+                      style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                    />
                   )}
                 </button>
                 
                 {isExpanded && (
-                  <div className="px-5 pb-5 space-y-3">
+                  <div className="px-4 pb-4 space-y-2">
                     {slotPlayers.length > 0 ? (
                       slotPlayers.map((player) => (
-                        <div key={player.id} className="flex items-center justify-between p-4 bg-white/80 rounded-xl border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-200">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center shadow-sm">
-                              <span className="text-sm font-bold text-primary-700">{player.position}</span>
+                        <div key={player.id} className="flex items-center justify-between p-3 bg-white/80 rounded-lg border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-6 h-6 bg-primary-100 rounded-md flex items-center justify-center shadow-sm">
+                              <span className="text-xs font-bold text-primary-700">{player.position}</span>
                             </div>
                             <div>
-                              <div className="font-semibold text-gray-900 text-base">{player.name}</div>
-                              <div className="text-sm text-gray-600 flex items-center gap-2">
+                              <div className="font-semibold text-gray-900 text-sm">{player.name}</div>
+                              <div className="text-xs text-gray-600 flex items-center gap-2">
                                 <span className="flex items-center gap-1">
-                                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
                                   {player.team}
                                 </span>
                                 <span className="flex items-center gap-1">
-                                  <CalendarIcon className="w-3 h-3 text-gray-400" />
+                                  <CalendarIcon 
+                                    className="w-3 h-3 text-gray-400" 
+                                    style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+                                  />
                                   Week {player.byeWeek}
                                 </span>
                               </div>
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold text-gray-900 text-lg">{player.fantasyPoints.toFixed(1)}</div>
+                            <div className="font-bold text-gray-900 text-base">{player.fantasyPoints.toFixed(1)}</div>
                             <div className="text-xs text-gray-500 font-medium">points</div>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center py-6 text-gray-500">
-                        <div className="w-12 h-12 bg-gray-200 rounded-full mx-auto mb-3 flex items-center justify-center">
-                          <UserIcon className="w-6 h-6 text-gray-400" />
-                        </div>
-                        <div className="text-sm font-medium mb-1">No players drafted</div>
+                      <div className="text-center py-4 text-gray-500">
+                                <div className="w-6 h-6 bg-gray-200 rounded-full mx-auto mb-2 flex items-center justify-center">
+          <UserIcon 
+            className="w-3 h-3 text-gray-400" 
+            style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+          />
+        </div>
+                        <div className="text-xs font-medium mb-1">No players drafted</div>
                         <div className="text-xs">Click to add players to this position</div>
                       </div>
                     )}
@@ -355,7 +384,10 @@ export const RosterBar: React.FC<RosterBarProps> = ({
         <div className="bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-xl p-5 shadow-sm">
           <div className="flex items-start gap-4">
             <div className="p-2 bg-orange-100 rounded-lg flex-shrink-0">
-              <ExclamationTriangleIcon className="w-6 h-6 text-orange-600" />
+              <ExclamationTriangleIcon 
+                className="w-6 h-6 text-orange-600" 
+                style={{ width: '1.5rem', height: '1.5rem', flexShrink: 0 }}
+              />
             </div>
             <div className="flex-1">
               <h4 className="font-bold text-orange-800 text-lg mb-2">Bye Week Conflicts Detected</h4>

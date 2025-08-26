@@ -250,6 +250,7 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
               Select League
             </label>
             <select
+              title="Select League"
               value={selectedLeague?.id || ''}
               onChange={(e) => {
                 const league = leagues.find(l => l.id === e.target.value)

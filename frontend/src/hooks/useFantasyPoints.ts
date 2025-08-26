@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fantasyAPI, PointsResponse, BulkPointsRequest, LeaderboardParams, Player } from '../api';
+import { useQuery } from '@tanstack/react-query';
+import { fantasyAPI } from '../api';
+import type { BulkPointsRequest, LeaderboardParams } from '../api';
 
 // Query keys for caching
 export const fantasyPointsKeys = {

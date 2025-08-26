@@ -19,14 +19,24 @@ export const endpoints = {
   // Fantasy scoring
   points: '/fantasy/points',
   profiles: '/fantasy/profiles',
-  bulkPoints: '/fantasy/bulk-points',
-  leaderboard: '/fantasy/leaderboard',
+  bulkPoints: '/fantasy/points/batch',
+  leaderboard: '/fantasy/points/leaderboard',
   
   // Health check
   health: '/health',
 } as const;
 
 // Types for API responses
+export interface BackendPlayer {
+  player_id: string;
+  full_name: string;
+  position: string;
+  team: string;
+  nflverse_id?: string;
+  yahoo_id?: string;
+  sleeper_id?: string;
+}
+
 export interface Player {
   player_id: string;
   name: string;
@@ -101,13 +111,13 @@ export interface LeaderboardParams {
 // API functions
 export const playersAPI = {
   // Search players with filters
-  async searchPlayers(params: PlayerSearchParams = {}): Promise<Player[]> {
+  async searchPlayers(params: PlayerSearchParams = {}): Promise<BackendPlayer[]> {
     const response = await api.get(endpoints.players, { params });
     return response.data;
   },
 
   // Get player by ID
-  async getPlayer(playerId: string): Promise<Player> {
+  async getPlayer(playerId: string): Promise<BackendPlayer> {
     const response = await api.get(`${endpoints.players}/${playerId}`);
     return response.data;
   },
@@ -154,19 +164,57 @@ export const fantasyAPI = {
   // Calculate points for multiple players
   async getBulkPoints(request: BulkPointsRequest): Promise<Record<string, PointsResponse>> {
     const response = await api.post(endpoints.bulkPoints, request);
-    return response.data;
+    // Transform backend response format to frontend expected format
+    const results = response.data.results || [];
+    const transformed: Record<string, PointsResponse> = {};
+    
+    results.forEach((result: any) => {
+      if (result.player_id && !result.error) {
+        transformed[result.player_id] = {
+          points: result.fantasy_points || 0,
+          stats: result.stats || {},
+          profile_name: response.data.profile_name || ''
+        };
+      }
+    });
+    
+    return transformed;
   },
 
   // Get leaderboard
   async getLeaderboard(params: LeaderboardParams): Promise<Player[]> {
     const response = await api.get(endpoints.leaderboard, { params });
-    return response.data;
+    // Transform backend response format to frontend expected format
+    const leaderboard = response.data.leaderboard || [];
+    return leaderboard.map((item: any) => ({
+      player_id: item.player_id,
+      name: item.full_name,
+      position: item.position,
+      team: item.team,
+      fantasy_points: item.fantasy_points,
+      yahoo_points: 0, // TODO: Implement Yahoo points
+      delta: 0, // TODO: Calculate delta
+      vorp: 0, // TODO: Calculate VORP
+      tier: 0, // TODO: Calculate tier
+      adp: 0, // TODO: Get ADP data
+      news_count: 0, // TODO: Get news count
+      bye_week: 0, // TODO: Get bye week
+    }));
   },
 
   // Get available scoring profiles
   async getProfiles(): Promise<ScoringProfile[]> {
     const response = await api.get(endpoints.profiles);
-    return response.data;
+    // Transform backend response format to frontend expected format
+    const profiles = response.data.profiles || [];
+    return profiles.map((profile: any) => ({
+      profile_id: profile.profile_id,
+      name: profile.name,
+      description: profile.description,
+      is_public: true, // Backend only returns public profiles
+      created_at: profile.created_at,
+      rules: [], // TODO: Backend doesn't return rules in list endpoint
+    }));
   },
 
   // Get specific scoring profile

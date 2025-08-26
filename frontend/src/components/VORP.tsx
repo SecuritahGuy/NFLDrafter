@@ -1,12 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo } from 'react'
 import { 
   ChartBarIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
   AdjustmentsHorizontalIcon,
-  FireIcon,
   UserIcon
 } from '@heroicons/react/24/outline'
 import type { Player } from '../types'
@@ -77,15 +75,7 @@ export const VORP: React.FC<VORPProps> = ({
     }
   }
 
-  // Get VORP color
-  const getVorpColor = (vorp: number) => {
-    if (vorp >= 50) return 'text-green-600 font-bold'
-    if (vorp >= 25) return 'text-green-500 font-semibold'
-    if (vorp >= 10) return 'text-blue-600 font-medium'
-    if (vorp <= -25) return 'text-red-600 font-semibold'
-    if (vorp <= -10) return 'text-red-500 font-medium'
-    return 'text-gray-600'
-  }
+
 
   // Get position color
   const getPositionColor = (position: string) => {
@@ -113,7 +103,10 @@ export const VORP: React.FC<VORPProps> = ({
   if (!players.length) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <ChartBarIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                    <ChartBarIcon 
+              className="w-8 h-8 mx-auto mb-2 text-gray-400" 
+              style={{ width: '2rem', height: '2rem', flexShrink: 0 }}
+            />
         <div className="text-lg font-medium">No players available</div>
         <div className="text-sm">Add players to see VORP calculations</div>
       </div>
@@ -121,12 +114,15 @@ export const VORP: React.FC<VORPProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <ArrowTrendingUpIcon className="w-5 h-5 text-primary-600" />
+                          <ArrowTrendingUpIcon 
+                className="w-5 h-5 text-primary-600" 
+                style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0 }}
+              />
             VORP Analysis
           </h3>
           <p className="text-sm text-gray-600 mt-1">
@@ -138,11 +134,17 @@ export const VORP: React.FC<VORPProps> = ({
           onClick={() => setExpanded(!expanded)}
           className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
         >
-          {expanded ? (
-            <ChevronUpIcon className="w-4 h-4" />
-          ) : (
-            <ChevronDownIcon className="w-4 h-4" />
-          )}
+                              {expanded ? (
+                      <ChevronUpIcon 
+                        className="w-4 h-4" 
+                        style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                      />
+                    ) : (
+                      <ChevronDownIcon 
+                        className="w-4 h-4" 
+                        style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                      />
+                    )}
         </button>
       </div>
 
@@ -152,7 +154,10 @@ export const VORP: React.FC<VORPProps> = ({
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                <AdjustmentsHorizontalIcon className="w-4 h-4 text-primary-600" />
+                <AdjustmentsHorizontalIcon 
+              className="w-4 h-4 text-primary-600" 
+              style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+            />
                 Replacement Ranks
               </h4>
               <button
@@ -175,6 +180,9 @@ export const VORP: React.FC<VORPProps> = ({
                       min="1"
                       value={rank}
                       onChange={(e) => handleReplacementRankChange(position, parseInt(e.target.value))}
+                      aria-label={`Set replacement rank for ${position}`}
+                      title={`Set replacement rank for ${position}`}
+                      placeholder="Rank"
                       className="w-16 text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
@@ -188,49 +196,65 @@ export const VORP: React.FC<VORPProps> = ({
           </div>
 
           {/* Top VORP Players */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-              <ArrowTrendingUpIcon className="w-4 h-4 text-green-600" />
+                                              <ArrowTrendingUpIcon 
+                                  className="w-4 h-4 text-green-600" 
+                                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                                />
               Top VORP Players
             </h4>
             
-            {playersWithVORP.slice(0, 10).map((player, index) => (
-              <div key={player.id} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full text-sm font-bold text-gray-700">
-                      {index + 1}
-                    </div>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${getPositionColor(player.position)}`}>
-                      {player.position}
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">{player.name}</div>
-                      <div className="text-sm text-gray-600">{player.team} • {player.fantasyPoints.toFixed(1)} pts</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    {player.newsCount > 0 && (
-                      <div className="flex items-center gap-1 text-orange-600">
-                        <FireIcon className="w-3 h-3" />
-                        <span className="text-xs">{player.newsCount}</span>
-                      </div>
-                    )}
-                    
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border ${getVorpBadgeColor(player.calculatedVorp)}`}>
-                      {player.calculatedVorp > 0 ? '+' : ''}{player.calculatedVorp.toFixed(1)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {/* Professional Table Format */}
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                    <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+                    <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pos</th>
+                    <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
+                    <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pts</th>
+                    <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VORP</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {playersWithVORP.slice(0, 8).map((player, index) => (
+                    <tr key={player.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-2 py-1.5 text-sm font-medium text-gray-900">
+                        <div className="flex items-center justify-center w-5 h-5 bg-gray-100 rounded-full text-xs font-bold">
+                          {index + 1}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <div className="font-medium text-gray-900 text-xs">{player.name}</div>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium border ${getPositionColor(player.position)}`}>
+                          {player.position}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-gray-600">{player.team}</td>
+                      <td className="px-2 py-1.5 text-xs text-gray-600">{player.fantasyPoints.toFixed(1)}</td>
+                      <td className="px-2 py-1.5">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-bold border ${getVorpBadgeColor(player.calculatedVorp)}`}>
+                          {player.calculatedVorp > 0 ? '+' : ''}{player.calculatedVorp.toFixed(1)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* VORP Summary Stats */}
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-              <ChartBarIcon className="w-4 h-4 text-primary-600" />
+              <ChartBarIcon 
+              className="w-4 h-4 text-primary-600" 
+              style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+            />
               VORP Summary
             </h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -264,7 +288,10 @@ export const VORP: React.FC<VORPProps> = ({
           {/* Position Breakdown */}
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-              <UserIcon className="w-4 h-4 text-primary-600" />
+              <UserIcon 
+              className="w-4 h-4 text-primary-600" 
+              style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+            />
               Position Breakdown
             </h4>
             <div className="space-y-3">

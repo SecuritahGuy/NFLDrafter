@@ -164,6 +164,13 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't handle shortcuts when typing in input fields
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        // Allow typing in input fields without triggering shortcuts
+        // Only handle specific keys that should work in input fields
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setSelectedRowIndex(-1)
+          setExpandedPlayer(null)
+        }
         return
       }
 
@@ -186,6 +193,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
           }
           break
         case 'a':
+        case 'A':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault()
             if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
@@ -195,6 +203,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
           }
           break
         case 'r':
+        case 'R':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault()
             if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
@@ -246,6 +255,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
           break
         case 'Escape':
           setSelectedRowIndex(-1)
+          setExpandedPlayer(null)
           break
       }
     }
@@ -304,12 +314,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     return 'text-gray-600'
   }
 
-  // Get value vs ADP color
-  const getValueVsADPColor = (valueVsADP: any) => {
-    if (!valueVsADP) return 'text-gray-500'
-    if (valueVsADP.isValue) return 'text-green-600 font-semibold'
-    return 'text-red-600 font-semibold'
-  }
+
 
   // Sort header component
   const SortHeader: React.FC<{ field: SortField; children: React.ReactNode }> = ({ field, children }) => (
@@ -320,9 +325,11 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
       {children}
       <div className="flex flex-col">
         <ChevronUpIcon 
+          data-testid="chevron-up-icon"
           className={`w-3 h-3 ${sortField === field && sortDirection === 'asc' ? 'text-primary-600' : 'text-gray-400'}`} 
         />
         <ChevronDownIcon 
+          data-testid="chevron-down-icon"
           className={`w-3 h-3 ${sortField === field && sortDirection === 'desc' ? 'text-primary-600' : 'text-gray-400'}`} 
         />
       </div>
@@ -384,9 +391,9 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
 
   if (!players.length) {
     return (
-      <div className="text-center py-12 text-gray-500">
-        <UserIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-        <div className="text-xl font-medium">No players available</div>
+      <div className="text-center py-6 text-gray-500">
+                      <UserIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+        <div className="text-xl font-medium">No players found</div>
         <div className="text-sm">Please add players to see the draft board</div>
       </div>
     )
@@ -395,36 +402,43 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary-100 rounded-lg">
-                <ChartBarIcon className="w-6 h-6 text-primary-600" />
+      <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-primary-100 rounded-md">
+                <ChartBarIcon 
+                  className="w-4 h-4 text-primary-600" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
               </div>
               <div>
-                <h3 className="text-2xl font-bold text-gray-900">Player Board</h3>
-                <p className="text-sm text-gray-600">Comprehensive player analysis and rankings</p>
+                <h3 className="text-lg font-bold text-gray-900">Player Board</h3>
+                <p className="text-xs text-gray-600">Comprehensive player analysis and rankings</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="px-3 py-1.5 bg-primary-100 text-primary-800 rounded-full font-semibold text-sm">
+            <div className="flex items-center gap-2">
+              <div className="px-2 py-1 bg-primary-100 text-primary-800 rounded-full font-semibold text-xs">
                 {filteredAndSortedPlayers.length} players
               </div>
               {scoringProfile && (
-                <div className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full font-medium text-sm">
+                <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full font-medium text-xs">
                   {scoringProfile}
                 </div>
               )}
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Position Filter */}
             <div className="relative">
-              <FunnelIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                              <FunnelIcon 
+                  className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                  style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }}
+                />
               <select
-                className="pl-10 pr-8 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white font-medium min-w-[140px]"
+                title="Position Filter"
+                className="pl-8 pr-6 py-2 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white font-medium min-w-[120px]"
                 value={selectedPosition}
                 onChange={(e) => {
                   // This would need to be handled by the parent component
@@ -444,11 +458,14 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
             
             {/* Search */}
             <div className="relative">
-              <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                              <MagnifyingGlassIcon 
+                  className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                  style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }}
+                />
               <input
                 type="text"
                 placeholder="Search players..."
-                className="pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-72 bg-white font-medium"
+                className="pl-8 pr-3 py-2 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-60 bg-white font-medium"
                 value={searchQuery}
                 onChange={(e) => {
                   // This would need to be handled by the parent component
@@ -461,10 +478,10 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
             {/* Keyboard Shortcuts Help */}
             <div className="relative group">
               <button
-                className="p-2.5 text-gray-400 hover:text-gray-600 transition-colors bg-gray-100 hover:bg-gray-200 rounded-lg"
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors bg-gray-100 hover:bg-gray-200 rounded-md"
                 title="Keyboard Shortcuts"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </button>
@@ -532,16 +549,19 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden">
+      {/* Professional Player Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-gray-50 to-slate-50 border-b-2 border-gray-200">
+            <thead className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-4 text-left">
                   <SortHeader field="name">
                     <div className="flex items-center gap-2">
-                      <UserIcon className="w-4 h-4 text-gray-500" />
+                      <UserIcon 
+                  className="w-4 h-4 text-gray-500" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                       <span>Player</span>
                     </div>
                   </SortHeader>
@@ -565,31 +585,22 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                 <th className="px-4 py-4 text-center">
                   <SortHeader field="fantasyPoints">
                     <div className="flex items-center justify-center gap-2">
-                      <ChartBarIcon className="w-4 h-4 text-primary-500" />
+                      <ChartBarIcon 
+                  className="w-4 h-4 text-primary-500" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                       <span>My Pts</span>
                     </div>
                   </SortHeader>
                 </th>
-                <th className="px-4 py-4 text-center">
-                  <SortHeader field="yahooPoints">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-                      <span>Yahoo Pts</span>
-                    </div>
-                  </SortHeader>
-                </th>
-                <th className="px-4 py-4 text-center">
-                  <SortHeader field="delta">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                      <span>Δ</span>
-                    </div>
-                  </SortHeader>
-                </th>
+
                 <th className="px-4 py-4 text-center">
                   <SortHeader field="vorp">
                     <div className="flex items-center justify-center gap-2">
-                      <FireIcon className="w-4 h-4 text-orange-500" />
+                      <FireIcon 
+                  className="w-4 h-4 text-orange-500" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                       <span>VORP</span>
                     </div>
                   </SortHeader>
@@ -610,20 +621,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                     </div>
                   </SortHeader>
                 </th>
-                <th className="px-4 py-4 text-center">
-                  <SortHeader field="valueVsADP">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 bg-indigo-500 rounded-full"></div>
-                      <span>Value vs ADP</span>
-                    </div>
-                  </SortHeader>
-                </th>
-                <th className="px-4 py-4 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 bg-red-500 rounded"></div>
-                    <span className="font-semibold text-gray-700 uppercase tracking-wider text-sm">News</span>
-                  </div>
-                </th>
+
                 <th className="px-4 py-4 text-center">
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-4 h-4 bg-gray-500 rounded"></div>
@@ -635,15 +633,21 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
             <tbody className="divide-y divide-gray-200">
               {filteredAndSortedPlayers.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-16 text-center">
+                                      <td colSpan={8} className="px-4 py-8 text-center">
                     <div className="max-w-md mx-auto">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
-                      </div>
+                              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                          <MagnifyingGlassIcon 
+                  className="w-4 h-4 text-gray-400" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
+        </div>
                       <div className="text-xl font-semibold text-gray-900 mb-2">No players found</div>
                       <div className="text-gray-500 mb-4">Try adjusting your filters or search query to find more players</div>
                       <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
-                        <FunnelIcon className="w-4 h-4" />
+                        <FunnelIcon 
+                  className="w-4 h-4" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                         <span>Use the position filter above</span>
                       </div>
                     </div>
@@ -659,15 +663,16 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                     <React.Fragment key={player.id}>
                       <tr
                         ref={isSelected ? selectedRowRef : null}
-                        className={`group hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 transition-all duration-200 cursor-pointer ${
-                          isSelected ? 'bg-gradient-to-r from-primary-50 to-blue-50 ring-2 ring-primary-500 shadow-sm' : ''
+                        data-testid={`player-row-${index + 1}`}
+                        className={`group hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 transition-colors duration-200 cursor-pointer ${
+                          isSelected ? 'bg-blue-100' : ''
                         }`}
                         onClick={() => handleRowClick(player, index)}
                       >
                         {/* Player Name */}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold border-2 shadow-sm ${getPositionColor(player.position)}`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold border-2 shadow-sm ${getPositionColor(player.position)}`}>
                               {player.position}
                             </div>
                             <div>
@@ -702,20 +707,24 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
 
                         {/* My Points */}
                         <td className="px-4 py-4 text-center">
-                          <div className="font-bold text-gray-900 text-lg">{player.fantasyPoints.toFixed(1)}</div>
+                          <div className="font-bold text-gray-900 text-lg">
+                            {player.fantasyPoints?.toFixed(1) || '0.0'}
+                          </div>
                           <div className="text-xs text-gray-500 font-medium">points</div>
                         </td>
 
                         {/* Yahoo Points */}
                         <td className="px-4 py-4 text-center">
-                          <div className="font-semibold text-gray-700 text-base">{player.yahooPoints.toFixed(1)}</div>
+                          <div className="font-semibold text-gray-700 text-base">
+                            {player.yahooPoints?.toFixed(1) || '0.0'}
+                          </div>
                           <div className="text-xs text-gray-500 font-medium">points</div>
                         </td>
 
                         {/* Delta */}
                         <td className="px-4 py-4 text-center">
                           <div className={`font-semibold ${getDeltaColor(player.delta)}`}>
-                            {player.delta > 0 ? '+' : ''}{player.delta.toFixed(1)}
+                            {player.delta > 0 ? '+' : ''}{player.delta?.toFixed(1) || '0.0'}
                           </div>
                           <div className="text-xs text-gray-500">diff</div>
                         </td>
@@ -723,7 +732,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         {/* VORP */}
                         <td className="px-4 py-4 text-center">
                           <div className={`font-semibold ${getVorpColor(player.vorp)}`}>
-                            {player.vorp.toFixed(1)}
+                            {player.vorp?.toFixed(1) || '0.0'}
                           </div>
                           <div className="text-xs text-gray-500">vorp</div>
                         </td>
@@ -741,33 +750,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                           <div className="text-xs text-gray-500">adp</div>
                         </td>
 
-                        {/* Value vs ADP */}
-                        <td className="px-4 py-4 text-center">
-                          {player.valueVsADP ? (
-                            <div>
-                              <div className={`font-semibold ${getValueVsADPColor(player.valueVsADP)}`}>
-                                {player.valueVsADP.isValue ? '+' : ''}{player.valueVsADP.value}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {player.valueVsADP.percentage}%
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-gray-400 text-xs">N/A</div>
-                          )}
-                        </td>
 
-                        {/* News */}
-                        <td className="px-4 py-4 text-center">
-                          {player.newsCount > 0 ? (
-                            <div className="flex items-center justify-center">
-                              <FireIcon className="w-4 h-4 text-orange-500" />
-                              <span className="ml-1 text-xs font-medium text-orange-600">{player.newsCount}</span>
-                            </div>
-                          ) : (
-                            <div className="text-gray-400 text-xs">-</div>
-                          )}
-                        </td>
 
                         {/* Actions */}
                         <td className="px-4 py-4 text-center">
@@ -789,13 +772,20 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                               title={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
                             >
                               {isInWatchlist ? (
-                                <MinusIcon className="w-4 h-4" />
+                                <MinusIcon 
+                  className="w-4 h-4" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                               ) : (
-                                <PlusIcon className="w-4 h-4" />
+                                                                  <PlusIcon 
+                                    className="w-4 h-4" 
+                                    style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                                  />
                               )}
                             </button>
                             
                             <button
+                              data-testid={`expand-button-${index + 1}`}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleRowExpand(player.id)
@@ -803,7 +793,10 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                               title="View details"
                             >
-                              <EyeIcon className="w-4 h-4" />
+                              <EyeIcon 
+                  className="w-4 h-4" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                             </button>
                           </div>
                         </td>
@@ -812,23 +805,26 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                       {/* Expanded Row */}
                       {isExpanded && (
                         <tr>
-                          <td colSpan={12} className="px-4 py-4 bg-gray-50">
+                          <td colSpan={8} className="px-4 py-4 bg-gray-50">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                               {/* Player Stats */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                                  <ChartBarIcon className="w-4 h-4 text-primary-600" />
+                                  <ChartBarIcon 
+                  className="w-4 h-4 text-primary-600" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                                   Season Stats
                                 </h4>
                                 <div className="bg-white rounded-lg p-4 border border-gray-200">
                                   <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
                                       <div className="text-gray-600">Fantasy Points</div>
-                                      <div className="font-bold text-lg text-gray-900">{player.fantasyPoints.toFixed(1)}</div>
+                                      <div className="font-bold text-lg text-gray-900">{player.fantasyPoints?.toFixed(1) || '0.0'}</div>
                                     </div>
                                     <div>
                                       <div className="text-gray-600">VORP</div>
-                                      <div className="font-bold text-lg text-gray-900">{player.vorp.toFixed(1)}</div>
+                                      <div className="font-bold text-lg text-gray-900">{player.vorp?.toFixed(1) || '0.0'}</div>
                                     </div>
                                     <div>
                                       <div className="text-gray-600">Tier</div>
@@ -845,7 +841,10 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                               {/* News */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                                  <FireIcon className="w-4 h-4 text-orange-600" />
+                                  <FireIcon 
+                  className="w-4 h-4 text-orange-600" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                                   Recent News
                                 </h4>
                                 <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -862,7 +861,10 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                               {/* Notes */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                                  <UserIcon className="w-4 h-4 text-primary-600" />
+                                  <UserIcon 
+                  className="w-4 h-4 text-primary-600" 
+                  style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+                />
                                   Notes
                                 </h4>
                                 <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -890,8 +892,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
 
       {/* Empty State */}
       {filteredAndSortedPlayers.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          <MagnifyingGlassIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+        <div className="text-center py-6 text-gray-500">
+          <MagnifyingGlassIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
           <div className="text-xl font-medium">No players found</div>
           <div className="text-sm">Try adjusting your search or position filters</div>
         </div>

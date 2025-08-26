@@ -121,7 +121,10 @@ export const Tiering: React.FC<TieringProps> = ({
   if (!players.length) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <ChartBarIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                    <ChartBarIcon 
+              className="w-8 h-8 mx-auto mb-2 text-gray-400" 
+              style={{ width: '2rem', height: '2rem', flexShrink: 0 }}
+            />
         <div className="text-lg font-medium">No players available</div>
         <div className="text-sm">Add players to see tiering analysis</div>
       </div>
@@ -134,7 +137,10 @@ export const Tiering: React.FC<TieringProps> = ({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <ChartBarIcon className="w-5 h-5 text-primary-600" />
+            <ChartBarIcon 
+              className="w-5 h-5 text-primary-600" 
+              style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0 }}
+            />
             Tiering Analysis
           </h3>
           <p className="text-sm text-gray-600 mt-1">
@@ -145,12 +151,21 @@ export const Tiering: React.FC<TieringProps> = ({
         {showControls && (
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Gap:</label>
+              <label
+                htmlFor="tier-gap-slider"
+                className="text-sm font-medium text-gray-700"
+              >
+                Gap:
+              </label>
               <input
+                id="tier-gap-slider"
                 type="range"
                 min="1"
                 max="50"
                 value={gap}
+                title="Adjust the gap between tiers"
+                aria-label="Tier gap"
+                placeholder="Tier gap"
                 onChange={(e) => handleGapChange(parseInt(e.target.value))}
                 className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
               />
@@ -164,7 +179,10 @@ export const Tiering: React.FC<TieringProps> = ({
       {showControls && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
           <div className="flex items-center gap-2 text-sm text-blue-800">
-            <AdjustmentsHorizontalIcon className="w-4 h-4" />
+            <AdjustmentsHorizontalIcon 
+              className="w-4 h-4" 
+              style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
+            />
             <span className="font-medium">Tier Gap Control</span>
           </div>
           <div className="mt-2 text-xs text-blue-700">
@@ -196,7 +214,10 @@ export const Tiering: React.FC<TieringProps> = ({
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-white/80 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                          <StarIcon className="w-5 h-5 text-gray-700" />
+                          <StarIcon 
+                            className="w-5 h-5 text-gray-700" 
+                            style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0 }}
+                          />
                         </div>
                         <div>
                           <h4 className="text-xl font-bold text-gray-900">Tier {tier}</h4>
@@ -230,9 +251,15 @@ export const Tiering: React.FC<TieringProps> = ({
                       className="p-2 text-gray-600 hover:text-gray-900 hover:bg-white/50 rounded-lg transition-colors"
                     >
                       {isExpanded ? (
-                        <ChevronUpIcon className="w-5 h-5" />
+                        <ChevronUpIcon 
+                          className="w-5 h-5" 
+                          style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0 }}
+                        />
                       ) : (
-                        <ChevronDownIcon className="w-5 h-5" />
+                        <ChevronDownIcon 
+                          className="w-5 h-5" 
+                          style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0 }}
+                        />
                       )}
                     </button>
                   </div>
@@ -257,7 +284,10 @@ export const Tiering: React.FC<TieringProps> = ({
                           <div className="flex items-center gap-3">
                             {player.newsCount > 0 && (
                               <div className="flex items-center gap-1 text-orange-600">
-                                <FireIcon className="w-3 h-3" />
+                                <FireIcon 
+                                  className="w-3 h-3" 
+                                  style={{ width: '0.75rem', height: '0.75rem', flexShrink: 0 }}
+                                />
                                 <span className="text-xs">{player.newsCount}</span>
                               </div>
                             )}
@@ -273,6 +303,7 @@ export const Tiering: React.FC<TieringProps> = ({
                                 onChange={(e) => handleTierChange(player.id, parseInt(e.target.value))}
                                 className="text-xs border border-gray-300 rounded px-2 py-1 bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                 onClick={(e) => e.stopPropagation()}
+                                aria-label={`Change tier for ${player.name}`}
                               >
                                 {Array.from({ length: 10 }, (_, i) => i + 1).map((t) => (
                                   <option key={t} value={t}>T{t}</option>
@@ -293,7 +324,10 @@ export const Tiering: React.FC<TieringProps> = ({
       {/* Summary Stats */}
       <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200">
         <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <ChartBarIcon className="w-5 h-5 text-primary-600" />
+          <ChartBarIcon 
+            className="w-5 h-5 text-primary-600" 
+            style={{ width: '1.25rem', height: '1.25rem', flexShrink: 0 }}
+          />
           Tiering Summary
         </h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">

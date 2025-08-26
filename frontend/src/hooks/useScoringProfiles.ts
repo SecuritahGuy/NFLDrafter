@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fantasyAPI, ScoringProfile } from '../api';
+import { fantasyAPI } from '../api';
+import type { ScoringProfile } from '../api';
 
 // Query keys for caching
 export const scoringProfileKeys = {

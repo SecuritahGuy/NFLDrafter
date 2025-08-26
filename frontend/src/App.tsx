@@ -27,7 +27,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Router>
         <div className="app">
-          <Navigation currentPage={currentPage} onPageChange={setCurrentPage} />
+          <Navigation onPageChange={setCurrentPage} />
           
           <main className="main-content">
             <Routes>

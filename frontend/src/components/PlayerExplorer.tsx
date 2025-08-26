@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useScoringProfiles } from '../hooks/usePoints'
+import { useScoringProfiles } from '../hooks/useScoringProfiles'
 
 export function PlayerExplorer() {
   const { data: profilesData, isLoading: profilesLoading } = useScoringProfiles()
@@ -72,7 +72,7 @@ export function PlayerExplorer() {
               className="input"
             >
               <option value="">Select Profile</option>
-              {profilesData?.profiles.map((profile) => (
+              {profilesData?.map((profile) => (
                 <option key={profile.profile_id} value={profile.profile_id}>
                   {profile.name}
                 </option>

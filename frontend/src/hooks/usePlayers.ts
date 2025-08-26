@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { playersAPI, Player, PlayerSearchParams, PlayerWeekStat } from '../api';
+import { useQuery } from '@tanstack/react-query';
+import { playersAPI } from '../api';
+import type { PlayerSearchParams } from '../api';
 
 // Query keys for caching
 export const playerKeys = {
@@ -90,12 +91,13 @@ export const usePlayersByTeam = (team: string, limit: number = 100) => {
 };
 
 // Hook for getting players with recent stats (for current season)
-export const useCurrentSeasonPlayers = (season: number = 2024, limit: number = 100) => {
+// Note: Backend search endpoint doesn't include season data
+// This hook is simplified to just get players without season filtering
+export const useCurrentSeasonPlayers = (_season: number = 2024, limit: number = 100) => {
   return useQuery({
     queryKey: playerKeys.list({ limit }),
     queryFn: () => playersAPI.searchPlayers({ limit }),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
-    select: (players) => players.filter(player => player.season === season),
   });
 };

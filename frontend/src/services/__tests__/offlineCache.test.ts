@@ -68,7 +68,7 @@ describe('OfflineCacheService', () => {
 
   describe('Initialization', () => {
     it('should initialize successfully', async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -78,9 +78,7 @@ describe('OfflineCacheService', () => {
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
       // Simulate successful initialization
-      setTimeout(() => {
-        mockRequest.onsuccess?.();
-      }, 0);
+      mockRequest.onsuccess?.();
       
       await cacheService.initialize();
       
@@ -88,7 +86,7 @@ describe('OfflineCacheService', () => {
     });
 
     it('should handle initialization errors', async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -98,15 +96,13 @@ describe('OfflineCacheService', () => {
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
       // Simulate error
-      setTimeout(() => {
-        mockRequest.onerror?.();
-      }, 0);
+      mockRequest.onerror?.();
       
       await expect(cacheService.initialize()).rejects.toThrow('Database error');
     });
 
     it('should create object store on upgrade', async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -115,11 +111,9 @@ describe('OfflineCacheService', () => {
       
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
-      // Simulate upgrade needed
-      setTimeout(() => {
-        mockRequest.onupgradeneeded?.({ target: { result: mockDB } });
-        mockRequest.onsuccess?.();
-      }, 0);
+      // Simulate upgrade needed immediately
+      mockRequest.onupgradeneeded?.({ target: { result: mockDB } });
+      mockRequest.onsuccess?.();
       
       await cacheService.initialize();
       
@@ -129,7 +123,7 @@ describe('OfflineCacheService', () => {
 
   describe('Basic Operations', () => {
     beforeEach(async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -138,9 +132,7 @@ describe('OfflineCacheService', () => {
       
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
-      setTimeout(() => {
-        mockRequest.onsuccess?.();
-      }, 0);
+      mockRequest.onsuccess?.();
       
       await cacheService.initialize();
     });
@@ -156,9 +148,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.put.mockReturnValue(mockSetRequest);
       
-      setTimeout(() => {
-        mockSetRequest.onsuccess?.();
-      }, 0);
+      mockSetRequest.onsuccess?.();
       
       await cacheService.set(testKey, testData);
       
@@ -182,9 +172,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.get.mockReturnValue(mockGetRequest);
       
-      setTimeout(() => {
-        mockGetRequest.onsuccess?.();
-      }, 0);
+      mockGetRequest.onsuccess?.();
       
       const result = await cacheService.get(testKey);
       
@@ -203,13 +191,14 @@ describe('OfflineCacheService', () => {
         onerror: null,
       };
       mockStore.put.mockReturnValue(mockSetRequest);
-      
-      setTimeout(() => {
-        mockSetRequest.onsuccess?.();
-      }, 0);
-      
+
+      // Simulate IndexedDB onsuccess event for put
+      if (typeof mockSetRequest.onsuccess === 'function') {
+        mockSetRequest.onsuccess({} as Event);
+      }
+
       await cacheService.set(testKey, testData, ttl);
-      
+
       // Mock successful get operation with expired TTL
       const mockGetRequest = {
         onsuccess: null,
@@ -230,10 +219,8 @@ describe('OfflineCacheService', () => {
       };
       mockStore.delete.mockReturnValue(mockDeleteRequest);
       
-      setTimeout(() => {
-        mockGetRequest.onsuccess?.();
-        mockDeleteRequest.onsuccess?.();
-      }, 0);
+      mockGetRequest.onsuccess?.();
+      mockDeleteRequest.onsuccess?.();
       
       const result = await cacheService.get(testKey);
       
@@ -251,9 +238,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.delete.mockReturnValue(mockDeleteRequest);
       
-      setTimeout(() => {
-        mockDeleteRequest.onsuccess?.();
-      }, 0);
+      mockDeleteRequest.onsuccess?.();
       
       await cacheService.delete(testKey);
       
@@ -268,9 +253,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.clear.mockReturnValue(mockClearRequest);
       
-      setTimeout(() => {
-        mockClearRequest.onsuccess?.();
-      }, 0);
+      mockClearRequest.onsuccess?.();
       
       await cacheService.clear();
       
@@ -280,7 +263,7 @@ describe('OfflineCacheService', () => {
 
   describe('Advanced Operations', () => {
     beforeEach(async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -289,9 +272,7 @@ describe('OfflineCacheService', () => {
       
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
-      setTimeout(() => {
-        mockRequest.onsuccess?.();
-      }, 0);
+      mockRequest.onsuccess?.();
       
       await cacheService.initialize();
     });
@@ -320,9 +301,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.getAll.mockReturnValue(mockGetAllRequest);
       
-      setTimeout(() => {
-        mockGetAllRequest.onsuccess?.();
-      }, 0);
+      mockGetAllRequest.onsuccess?.();
       
       const stats = await cacheService.getStats();
       
@@ -342,9 +321,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.getAllKeys.mockReturnValue(mockGetAllKeysRequest);
       
-      setTimeout(() => {
-        mockGetAllKeysRequest.onsuccess?.();
-      }, 0);
+      mockGetAllKeysRequest.onsuccess?.();
       
       const keys = await cacheService.getKeys();
       
@@ -367,9 +344,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.get.mockReturnValue(mockGetRequest);
       
-      setTimeout(() => {
-        mockGetRequest.onsuccess?.();
-      }, 0);
+      mockGetRequest.onsuccess?.();
       
       const exists = await cacheService.has(testKey);
       
@@ -387,9 +362,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.get.mockReturnValue(mockGetRequest);
       
-      setTimeout(() => {
-        mockGetRequest.onsuccess?.();
-      }, 0);
+      mockGetRequest.onsuccess?.();
       
       const exists = await cacheService.has(testKey);
       
@@ -399,7 +372,7 @@ describe('OfflineCacheService', () => {
 
   describe('Batch Operations', () => {
     beforeEach(async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -408,9 +381,7 @@ describe('OfflineCacheService', () => {
       
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
-      setTimeout(() => {
-        mockRequest.onsuccess?.();
-      }, 0);
+      mockRequest.onsuccess?.();
       
       await cacheService.initialize();
     });
@@ -428,10 +399,8 @@ describe('OfflineCacheService', () => {
       };
       mockStore.put.mockReturnValue(mockPutRequest);
       
-      setTimeout(() => {
-        mockPutRequest.onsuccess?.();
-        mockPutRequest.onsuccess?.();
-      }, 0);
+      mockPutRequest.onsuccess?.();
+      mockPutRequest.onsuccess?.();
       
       await cacheService.setMultiple(entries);
       
@@ -455,10 +424,8 @@ describe('OfflineCacheService', () => {
       };
       mockStore.get.mockReturnValue(mockGetRequest);
       
-      setTimeout(() => {
-        mockGetRequest.onsuccess?.();
-        mockGetRequest.onsuccess?.();
-      }, 0);
+      mockGetRequest.onsuccess?.();
+      mockGetRequest.onsuccess?.();
       
       const results = await cacheService.getMultiple(keys);
       
@@ -470,7 +437,7 @@ describe('OfflineCacheService', () => {
 
   describe('Cleanup Operations', () => {
     beforeEach(async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -479,9 +446,7 @@ describe('OfflineCacheService', () => {
       
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
-      setTimeout(() => {
-        mockRequest.onsuccess?.();
-      }, 0);
+      mockRequest.onsuccess?.();
       
       await cacheService.initialize();
     });
@@ -506,13 +471,11 @@ describe('OfflineCacheService', () => {
       };
       mockIndex.openCursor.mockReturnValue(mockCursorRequest);
       
-      setTimeout(() => {
-        mockCursorRequest.onsuccess?.();
-        // Simulate cursor completion
-        mockCursor.continue();
-        mockCursorRequest.onsuccess?.();
-        mockCursorRequest.result = null; // End of cursor
-      }, 0);
+      mockCursorRequest.onsuccess?.();
+      // Simulate cursor completion
+      mockCursor.continue();
+      mockCursorRequest.onsuccess?.();
+      mockCursorRequest.result = null; // End of cursor
       
       const deletedCount = await cacheService.cleanup();
       
@@ -523,7 +486,7 @@ describe('OfflineCacheService', () => {
 
   describe('Error Handling', () => {
     beforeEach(async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -532,9 +495,7 @@ describe('OfflineCacheService', () => {
       
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
-      setTimeout(() => {
-        mockRequest.onsuccess?.();
-      }, 0);
+      mockRequest.onsuccess?.();
       
       await cacheService.initialize();
     });
@@ -551,9 +512,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.put.mockReturnValue(mockPutRequest);
       
-      setTimeout(() => {
-        mockPutRequest.onerror?.();
-      }, 0);
+      mockPutRequest.onerror?.();
       
       await expect(cacheService.set(testKey, testData)).rejects.toThrow('Put failed');
     });
@@ -569,9 +528,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.get.mockReturnValue(mockGetRequest);
       
-      setTimeout(() => {
-        mockGetRequest.onerror?.();
-      }, 0);
+      mockGetRequest.onerror?.();
       
       await expect(cacheService.get(testKey)).rejects.toThrow('Get failed');
     });
@@ -587,9 +544,7 @@ describe('OfflineCacheService', () => {
       };
       mockStore.delete.mockReturnValue(mockDeleteRequest);
       
-      setTimeout(() => {
-        mockDeleteRequest.onerror?.();
-      }, 0);
+      mockDeleteRequest.onerror?.();
       
       await expect(cacheService.delete(testKey)).rejects.toThrow('Delete failed');
     });
@@ -604,7 +559,7 @@ describe('OfflineCacheService', () => {
     });
 
     it('should handle multiple initializations gracefully', async () => {
-      const mockRequest = {
+      const mockRequest: any = {
         onerror: null,
         onsuccess: null,
         onupgradeneeded: null,
@@ -613,9 +568,7 @@ describe('OfflineCacheService', () => {
       
       mockIndexedDB.open.mockReturnValue(mockRequest);
       
-      setTimeout(() => {
-        mockRequest.onsuccess?.();
-      }, 0);
+      mockRequest.onsuccess?.();
       
       await cacheService.initialize();
       await cacheService.initialize(); // Should not throw

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useScoringProfiles } from '../hooks/usePoints'
+import { useScoringProfiles } from '../hooks/useScoringProfiles'
 
 interface ScoringRule {
   stat_key: string
@@ -71,7 +71,7 @@ export function ScoringBuilder() {
             className="input"
           >
             <option value="">Create New Profile</option>
-            {profilesData?.profiles.map((profile) => (
+            {profilesData?.map((profile) => (
               <option key={profile.profile_id} value={profile.profile_id}>
                 {profile.name}
               </option>

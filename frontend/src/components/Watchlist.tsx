@@ -119,7 +119,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
   if (watchlist.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <StarIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+        <StarIcon className="w-8 h-8 mx-auto mb-2 text-gray-400" />
         <div className="text-lg font-medium">Watchlist Empty</div>
         <div className="text-sm">Add players from the Player Board to start building your watchlist</div>
       </div>

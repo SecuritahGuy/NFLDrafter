@@ -36,7 +36,7 @@ async def get_teams():
     }
 
 
-@router.get("/", response_model=List[PlayerSchema])
+@router.get("/")
 async def search_players_endpoint(
     q: str = Query("", description="Search query for player names"),
     position: Optional[str] = Query(None, description="Filter by position (QB, RB, WR, TE, etc.)"),
