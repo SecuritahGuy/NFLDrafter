@@ -8,6 +8,7 @@ import os
 from urllib.parse import urlencode
 from datetime import datetime, timedelta
 import jwt
+from dotenv import load_dotenv
 from app.deps import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.yahoo_xml import (
@@ -28,10 +29,17 @@ router = APIRouter(prefix="/yahoo", tags=["yahoo"])
 callback_router = APIRouter(tags=["yahoo"])
 security = HTTPBearer()
 
-# OAuth configuration
+FANTASY_PERMISSION_DETAIL = (
+    "Yahoo authorized the account, but this app cannot access Fantasy Sports. "
+    "Enable Fantasy Sports Read permission in the Yahoo developer app, then disconnect and reconnect."
+)
+
+# OAuth configuration. Local .env values support the HTTPS callback used by
+# Yahoo while deployed environments can continue to inject real environment variables.
+load_dotenv()
 YAHOO_CLIENT_ID = os.getenv("YAHOO_CLIENT_ID")
 YAHOO_CLIENT_SECRET = os.getenv("YAHOO_CLIENT_SECRET")
-YAHOO_REDIRECT_URI = os.getenv("YAHOO_REDIRECT_URI", "http://localhost:5173/auth/callback")
+YAHOO_REDIRECT_URI = os.getenv("YAHOO_REDIRECT_URI", "http://localhost:8000/auth/yahoo/callback")
 YAHOO_FRONTEND_CALLBACK_URI = os.getenv(
     "YAHOO_FRONTEND_CALLBACK_URI", "http://localhost:5173/auth/callback"
 )
@@ -78,6 +86,20 @@ class YahooTeam(BaseModel):
 class YahooRoster(BaseModel):
     team_id: str
     players: List[Dict[str, Any]]
+
+
+@router.get("/readiness")
+async def yahoo_readiness():
+    """Report whether this server can begin a Yahoo OAuth dress rehearsal."""
+    client_id_configured = bool(YAHOO_CLIENT_ID)
+    client_secret_configured = bool(YAHOO_CLIENT_SECRET)
+    return {
+        "configured": client_id_configured and client_secret_configured,
+        "client_id_configured": client_id_configured,
+        "client_secret_configured": client_secret_configured,
+        "redirect_uri": YAHOO_REDIRECT_URI,
+        "frontend_callback_uri": YAHOO_FRONTEND_CALLBACK_URI,
+    }
 
 
 @callback_router.get("/auth/yahoo/callback")
@@ -318,8 +340,16 @@ async def get_leagues(
             
             if leagues_response.status_code != 200:
                 raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Failed to fetch leagues"
+                    status_code=(
+                        status.HTTP_403_FORBIDDEN
+                        if leagues_response.status_code in {401, 403}
+                        else status.HTTP_502_BAD_GATEWAY
+                    ),
+                    detail=(
+                        FANTASY_PERMISSION_DETAIL
+                        if leagues_response.status_code in {401, 403}
+                        else "Yahoo returned an error while fetching leagues"
+                    ),
                 )
             
             return {"leagues": parse_leagues(leagues_response.text)}

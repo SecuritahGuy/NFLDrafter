@@ -8,7 +8,7 @@ from httpx import AsyncClient
 
 from app.main import app
 from app.deps import get_db_session
-from app.models import Base, Player, ScoringProfile
+from app.models import Base, Player, PlayerRanking, ScoringProfile, ScoringRule
 
 
 # Test database URL - use in-memory SQLite for testing
@@ -47,6 +47,13 @@ async def test_db_setup():
             )
         )
         await conn.execute(
+            Player.__table__.insert(),
+            [
+                {"player_id": "fixture-wr-1", "full_name": "Fixture Receiver One", "position": "WR", "team": "KC", "last_season": 2026, "status": "ACT"},
+                {"player_id": "fixture-wr-2", "full_name": "Fixture Receiver Two", "position": "WR", "team": "BUF", "last_season": 2026, "status": "ACT"},
+            ],
+        )
+        await conn.execute(
             ScoringProfile.__table__.insert().values(
                 profile_id="fixture-ppr",
                 name="Fixture PPR",
@@ -54,6 +61,34 @@ async def test_db_setup():
                 is_public=True,
                 created_at=0,
             )
+        )
+        await conn.execute(
+            ScoringRule.__table__.insert().values(
+                rule_id="fixture-receptions",
+                profile_id="fixture-ppr",
+                stat_key="receptions",
+                multiplier=1.0,
+                per=1.0,
+            )
+        )
+        await conn.execute(
+            PlayerRanking.__table__.insert(),
+            [
+                {
+                    "ranking_id": "fixture-espn-1", "player_id": "fixture-wr-1",
+                    "full_name": "Fixture Receiver One", "position": "WR", "team": "KC",
+                    "source": "espn-draft-rank", "rank_type": "preseason", "scoring": "PPR",
+                    "season": 2026, "rank": 1, "snapshot_date": "2026-08-07", "snapshot_ts": 1,
+                    "raw": {"projected_points": 200, "projected_stats": {"receptions": 100}, "weekly_projections": []},
+                },
+                {
+                    "ranking_id": "fixture-espn-2", "player_id": "fixture-wr-2",
+                    "full_name": "Fixture Receiver Two", "position": "WR", "team": "BUF",
+                    "source": "espn-draft-rank", "rank_type": "preseason", "scoring": "PPR",
+                    "season": 2026, "rank": 2, "snapshot_date": "2026-08-07", "snapshot_ts": 1,
+                    "raw": {"projected_points": 150, "projected_stats": {"receptions": 70}, "weekly_projections": []},
+                },
+            ],
         )
     yield
     async with test_engine.begin() as conn:

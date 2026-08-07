@@ -95,7 +95,7 @@ export const OAuthCallback: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 max-w-md w-full text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600 mx-auto mb-6"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-6"></div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Completing Authentication</h2>
           <p className="text-gray-600">
             Please wait while we complete your Yahoo Fantasy Football connection...
@@ -118,7 +118,7 @@ export const OAuthCallback: React.FC = () => {
           </p>
           <button
             onClick={handleBackToDraft}
-            className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 mx-auto"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 mx-auto"
           >
             <ArrowLeftIcon className="w-5 h-5" />
             Go to Draft Room
@@ -142,7 +142,7 @@ export const OAuthCallback: React.FC = () => {
         <div className="space-y-3">
           <button
             onClick={handleRetry}
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
           >
             Try Again
           </button>

@@ -166,7 +166,7 @@ def get_default_scoring_profiles() -> Dict[str, List[Dict[str, Any]]]:
             {"stat_key": "rushing_touchdowns", "multiplier": 6.0, "per": 1},
             {"stat_key": "receiving_yards", "multiplier": 0.1, "per": 1},
             {"stat_key": "receiving_touchdowns", "multiplier": 6.0, "per": 1},
-            {"stat_key": "receptions", "multiplier": 0.5, "per": 1},
+            {"stat_key": "receptions", "multiplier": 0.0, "per": 1},
             {"stat_key": "fumbles_lost", "multiplier": -2.0, "per": 1},
         ],
         "PPR": [

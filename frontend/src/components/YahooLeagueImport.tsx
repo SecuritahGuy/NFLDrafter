@@ -23,6 +23,34 @@ interface YahooTeam {
   points_against: number
 }
 
+interface YahooLeagueSettings {
+  roster_positions: Array<{ position: string; count: number }>
+  translation: {
+    rules: Array<{ stat_key: string; multiplier: number; source_name: string }>
+    unmapped_stat_modifiers: Array<{ stat_id: string; value: number; name: string }>
+    roster_slots: Array<{ position: string; normalized_position: string; count: number }>
+    draft_config: { league_size: number; rounds: number }
+    complete: boolean
+  }
+}
+
+interface YahooImportResult {
+  imported_at: string
+  teams_imported: number
+  players_imported: number
+  rosters_imported: number
+  prepared_league: YahooLeagueSettings['translation']
+  scoring_profile: { name: string; rule_count: number; complete: boolean } | null
+  player_mapping: {
+    total: number
+    matched: number
+    ambiguous: number
+    unmatched: number
+    results: Array<{ external_id: string; status: string; method: string }>
+  }
+  status: string
+}
+
 interface YahooLeagueImportProps {
   accessToken: string
   onLeagueSelect?: (league: YahooLeague) => void
@@ -41,9 +69,20 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
   const [selectedLeague, setSelectedLeague] = useState<YahooLeague | null>(null)
   const [teams, setTeams] = useState<YahooTeam[]>([])
   const [rosters, setRosters] = useState<any[]>([])
+  const [settings, setSettings] = useState<YahooLeagueSettings | null>(null)
+  const [importResult, setImportResult] = useState<YahooImportResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const responseError = async (response: Response, fallback: string) => {
+    try {
+      const data = await response.json()
+      return typeof data?.detail === 'string' ? data.detail : fallback
+    } catch {
+      return fallback
+    }
+  }
 
   useEffect(() => {
     if (accessToken) {
@@ -54,6 +93,7 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
   const fetchLeagues = async () => {
     setIsLoading(true)
     setError(null)
+    let failureMessage = 'Failed to fetch leagues from Yahoo'
 
     try {
       const response = await fetch('/api/yahoo/leagues', {
@@ -63,7 +103,8 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
       })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch leagues')
+        failureMessage = await responseError(response, failureMessage)
+        throw new Error(failureMessage)
       }
 
       const data = await response.json()
@@ -79,11 +120,11 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
       }
     } catch (err) {
       console.error('Error fetching leagues:', err)
-      setError('Failed to fetch leagues from Yahoo')
+      setError(failureMessage)
       addToast({
         type: 'error',
         title: 'Error',
-        message: 'Failed to fetch leagues from Yahoo',
+        message: failureMessage,
         duration: 5000
       })
     } finally {
@@ -95,50 +136,41 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
     setSelectedLeague(league)
     setTeams([])
     setRosters([])
+    setSettings(null)
+    setImportResult(null)
     
     // Call onLeagueSelect immediately
     onLeagueSelect?.(league)
     
     try {
-      await fetchLeagueDetails(league.id, league)
+      await fetchLeagueDetails(league.id)
     } catch (err) {
       console.error('Error fetching league details', err)
       setError('Failed to fetch league details')
     }
   }
 
-  const fetchLeagueDetails = async (leagueId: string, league: YahooLeague) => {
+  const fetchLeagueDetails = async (leagueId: string) => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // Fetch teams
-      const teamsResponse = await fetch(`/api/yahoo/leagues/${leagueId}/teams`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
-
-      if (!teamsResponse.ok) {
-        throw new Error('Failed to fetch teams')
+      const headers = { 'Authorization': `Bearer ${accessToken}` }
+      const [teamsResponse, rostersResponse, settingsResponse] = await Promise.all([
+        fetch(`/api/yahoo/leagues/${leagueId}/teams`, { headers }),
+        fetch(`/api/yahoo/leagues/${leagueId}/rosters`, { headers }),
+        fetch(`/api/yahoo/leagues/${leagueId}/settings`, { headers }),
+      ])
+      if (!teamsResponse.ok || !rostersResponse.ok || !settingsResponse.ok) {
+        throw new Error('Yahoo did not return complete league details')
       }
 
-      const teamsData = await teamsResponse.json()
+      const [teamsData, rostersData, settingsData] = await Promise.all([
+        teamsResponse.json(), rostersResponse.json(), settingsResponse.json(),
+      ])
       setTeams(teamsData.teams || [])
-
-      // Fetch rosters
-      const rostersResponse = await fetch(`/api/yahoo/leagues/${leagueId}/rosters`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
-
-      if (!rostersResponse.ok) {
-        throw new Error('Failed to fetch rosters')
-      }
-
-      const rostersData = await rostersResponse.json()
       setRosters(rostersData.rosters || [])
+      setSettings(settingsData)
 
     } catch (err) {
       console.error('Error fetching league details:', err)
@@ -173,11 +205,12 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
       }
 
       const data = await response.json()
+      setImportResult(data)
       
       addToast({
         type: 'success',
         title: 'League Imported!',
-        message: `Successfully imported ${selectedLeague.name} with ${teams.length} teams`,
+        message: `Imported ${data.teams_imported} teams and matched ${data.player_mapping?.matched ?? 0} players`,
         duration: 5000
       })
 
@@ -201,18 +234,26 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
     return (
       <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-6 ${className}`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading leagues...</p>
         </div>
       </div>
     )
   }
 
+  const previewPlayerCount = rosters.reduce(
+    (total, roster) => total + (roster.players?.length ?? 0),
+    0,
+  )
+  const mappingCoverage = importResult?.player_mapping.total
+    ? Math.round((importResult.player_mapping.matched / importResult.player_mapping.total) * 100)
+    : 0
+
   return (
     <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-6 ${className}`}>
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-          <UserGroupIcon className="w-6 h-6 text-primary-600" />
+        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+          <UserGroupIcon className="w-6 h-6 text-blue-600" />
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Yahoo League Import</h3>
@@ -238,7 +279,7 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
           </p>
           <button
             onClick={fetchLeagues}
-            className="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
             Refresh Leagues
           </button>
@@ -256,7 +297,7 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
                 const league = leagues.find(l => l.id === e.target.value)
                 if (league) handleLeagueSelect(league)
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Choose a league...</option>
               {leagues.map((league) => (
@@ -307,10 +348,39 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
                 </div>
               )}
 
+              {settings && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-semibold text-slate-900">Import preflight</h5>
+                    <span className={`rounded-full px-2 py-1 text-xs font-bold ${settings.translation.complete ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {settings.translation.complete ? 'Scoring mapped' : 'Review scoring'}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-slate-500">Teams loaded</span><div className="font-bold text-slate-900">{teams.length} / {selectedLeague.num_teams}</div></div>
+                    <div><span className="text-slate-500">Roster players</span><div className="font-bold text-slate-900">{previewPlayerCount}</div></div>
+                    <div><span className="text-slate-500">Draft rounds</span><div className="font-bold text-slate-900">{settings.translation.draft_config.rounds}</div></div>
+                    <div><span className="text-slate-500">Scoring rules</span><div className="font-bold text-slate-900">{settings.translation.rules.length} mapped</div></div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Yahoo roster slots">
+                    {settings.translation.roster_slots.map((slot, index) => (
+                      <span key={`${slot.position}-${index}`} className="rounded bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                        {slot.normalized_position} × {slot.count}
+                      </span>
+                    ))}
+                  </div>
+                  {settings.translation.unmapped_stat_modifiers.length > 0 && (
+                    <p className="mt-3 text-xs font-medium text-amber-800">
+                      {settings.translation.unmapped_stat_modifiers.length} Yahoo scoring categories need manual review; NFLDrafter will not guess their meaning.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <button
                 onClick={handleImportLeague}
                 disabled={isImporting}
-                className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {isImporting ? (
                   <>
@@ -324,6 +394,37 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
                   </>
                 )}
               </button>
+
+              {importResult && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4" data-testid="yahoo-import-report">
+                  <div className="flex items-center gap-2">
+                    <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+                    <h5 className="font-bold text-emerald-950">Dress rehearsal report</h5>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                    <div><span className="text-emerald-800">Teams</span><div className="font-black text-emerald-950">{importResult.teams_imported}</div></div>
+                    <div><span className="text-emerald-800">Rosters</span><div className="font-black text-emerald-950">{importResult.rosters_imported}</div></div>
+                    <div><span className="text-emerald-800">Players</span><div className="font-black text-emerald-950">{importResult.players_imported}</div></div>
+                    <div><span className="text-emerald-800">ID coverage</span><div className="font-black text-emerald-950">{mappingCoverage}%</div></div>
+                  </div>
+                  <p className="mt-3 text-xs text-emerald-900">
+                    {importResult.player_mapping.matched} matched · {importResult.player_mapping.ambiguous} ambiguous · {importResult.player_mapping.unmatched} unmatched
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-900">
+                    Scoring profile: {importResult.scoring_profile?.name ?? 'not created'} ({importResult.scoring_profile?.rule_count ?? 0} rules)
+                  </p>
+                  {(importResult.player_mapping.ambiguous > 0 || importResult.player_mapping.unmatched > 0) && (
+                    <details className="mt-3 text-xs text-amber-950">
+                      <summary className="cursor-pointer font-bold">Review unresolved Yahoo player IDs</summary>
+                      <ul className="mt-2 space-y-1">
+                        {importResult.player_mapping.results.filter(item => item.status !== 'matched').map(item => (
+                          <li key={item.external_id}>{item.external_id} — {item.status}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -91,7 +91,7 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
   const lastSeason = season - 1
   const { data: currentSummary } = usePlayerSummary(player?.id ?? '', season, profileId)
   const { data: lastSummary, isLoading: isLoadingStats } = usePlayerSummary(player?.id ?? '', lastSeason, profileId)
-  const { data: context, isLoading: isLoadingContext } = usePlayerContext(player?.id ?? '', season)
+  const { data: context, isLoading: isLoadingContext } = usePlayerContext(player?.id ?? '', season, profileId)
 
   useEffect(() => {
     if (!player) return
@@ -112,8 +112,15 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
   if (!player) return null
 
   const projection = context?.projection
-  const projectedPoints = projection?.points ?? player.projectedPoints
-  const projectedPpg = projection?.points_per_game ?? player.projectedPointsPerGame
+  const espnProjectedPoints = projection?.points ?? player.projectedPoints
+  const profileProjectedPoints = projection?.profile_points
+    ?? (player.projectionScoringBasis === 'profile' ? player.fantasyPoints : null)
+  const projectedPoints = (profileProjectedPoints ?? player.fantasyPoints) || espnProjectedPoints
+  const projectedPpg = projection?.profile_points_per_game
+    ?? (projectedPoints ? projectedPoints / 17 : projection?.points_per_game ?? player.projectedPointsPerGame)
+  const projectionSource = projection?.source ?? 'ESPN'
+  const projectionLabel = projection?.profile_name
+    ?? (player.projectionScoringBasis === 'profile' ? 'Selected profile' : `${projectionSource} PPR fallback`)
   const pprPoints = lastSummary?.season_stats.fantasy_points_ppr?.total
   const weeklyPoints = (lastSummary?.weekly_sparkline ?? []).map((week) => ({
     week: week.week,
@@ -126,9 +133,20 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
     const value = projection?.stats[key]
     return value == null ? [] : [{ key, label, value }]
   })
-  const projectedWeeks = (projection?.weekly ?? []).filter((week) => week.points != null)
-  const maxProjectedWeek = Math.max(...projectedWeeks.map((week) => week.points ?? 0), 1)
+  const projectedWeeks = (projection?.weekly ?? [])
+    .map((week) => ({ ...week, displayPoints: week.profile_points ?? week.points }))
+    .filter((week) => week.displayPoints != null)
+  const maxProjectedWeek = Math.max(...projectedWeeks.map((week) => week.displayPoints ?? 0), 1)
   const ownership = projection?.ownership
+  const opportunity = projection?.opportunity
+  const exactOpportunityLabels: Record<string, string> = {
+    carry_share: 'Projected carries',
+    target_share: 'Projected targets',
+    reception_share: 'Projected catches',
+    rushing_yard_share: 'Projected rush yards',
+    receiving_yard_share: 'Projected rec. yards',
+  }
+  const exactOpportunityRows = Object.entries(opportunity?.exact_shares ?? {})
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true" aria-label={`${player.name} details`}>
@@ -152,10 +170,11 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
         <div className="space-y-6 p-6">
           <section>
             <div className="mb-3 flex items-center gap-2"><ShieldCheckIcon className="h-5 w-5 text-blue-700" /><h3 className="font-bold text-slate-900">Draft outlook</h3></div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               {[
                 ['Consensus', player.rank ? `#${player.rank}` : '—', 'Blended rank'],
-                ['ESPN projection', projectedPoints ? projectedPoints.toFixed(1) : '—', projectedPpg ? `${projectedPpg.toFixed(1)} PPG` : 'Points unavailable'],
+                [projectionLabel, projectedPoints ? projectedPoints.toFixed(1) : '—', projectedPpg ? `${projectedPpg.toFixed(1)} PPG` : 'Points unavailable'],
+                ['Tier / VORP', player.tier ? `T${player.tier}` : '—', player.tier ? `${player.vorp.toFixed(1)} over ${player.position}${player.replacementRank ?? ''}` : 'Analytics unavailable'],
                 [`${lastSeason} PPR`, pprPoints ? pprPoints.toFixed(1) : '—', `${lastSummary?.total_games ?? 0} games`],
                 ['Market ADP', player.adp ? player.adp.toFixed(1) : '—', `FP ${player.ecr ? `#${Math.round(player.ecr)}` : '—'} · ESPN ${player.espnRank ? `#${player.espnRank}` : '—'}`],
               ].map(([label, value, note]) => (
@@ -167,16 +186,25 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
               ))}
             </div>
             <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-950">
-              Rankings use {player.rankingSourceCount ?? 0} sources{player.byeWeek ? ` · Bye week ${player.byeWeek}` : ''}. Projected points are ESPN {projection?.scoring ?? 'PPR'} from {projection?.snapshot_date ?? 'the latest snapshot'}.
+              Rankings use {player.rankingSourceCount ?? 0} sources{player.byeWeek ? ` · Bye week ${player.byeWeek}` : ''}. {profileProjectedPoints != null ? `${projectionLabel} scoring is applied to ${projectionSource}' projected stat line` : `${projectionSource} ${projection?.scoring ?? 'PPR'} is the fallback because the profile has no matching projected-stat rules`} from {projection?.snapshot_date ?? 'the latest snapshot'}.
             </div>
             {projectedStatRows.length > 0 && <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h4 className="font-bold text-slate-900">ESPN projected stat line</h4><p className="text-xs text-slate-500">Season-long forecast · {projection?.scoring ?? 'PPR'} scoring</p></div>
+                <div><h4 className="font-bold text-slate-900">{projectionSource} projected stat line</h4><p className="text-xs text-slate-500">Season-long forecast · {projection?.scoring ?? 'PPR'} scoring</p></div>
                 {ownership && <div className="flex gap-4 text-right text-xs"><div><div className="text-slate-500">Rostered</div><div className="font-black text-slate-900">{ownership.percent_owned != null ? `${ownership.percent_owned.toFixed(1)}%` : '—'}</div></div><div><div className="text-slate-500">Started</div><div className="font-black text-slate-900">{ownership.percent_started != null ? `${ownership.percent_started.toFixed(1)}%` : '—'}</div></div><div><div className="text-slate-500">Auction avg.</div><div className="font-black text-slate-900">{ownership.auction_value_average != null ? `$${ownership.auction_value_average.toFixed(0)}` : '—'}</div></div></div>}
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">{projectedStatRows.map((stat) => <div key={stat.key} className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{stat.label}</div><div className="mt-1 text-lg font-black text-slate-950">{stat.value.toLocaleString(undefined, { maximumFractionDigits: stat.value < 100 ? 1 : 0 })}</div></div>)}</div>
-              {projectedWeeks.length > 0 && <div className="mt-4 border-t border-slate-100 pt-4"><div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Weekly projected PPR</span><span className="text-[10px] text-slate-400">Calculated from ESPN projected stats</span></div><div className="flex h-16 items-end gap-1">{projectedWeeks.map((week) => <div key={week.week} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`Week ${week.week}: ${week.points?.toFixed(1)} projected PPR points`}><div className="w-full rounded-t bg-violet-500 transition-colors group-hover:bg-violet-700" style={{ height: `${Math.max(((week.points ?? 0) / maxProjectedWeek) * 42, 3)}px` }} /><span className="text-[8px] text-slate-400">{week.week}</span></div>)}</div></div>}
+              {projectedWeeks.length > 0 && <div className="mt-4 border-t border-slate-100 pt-4"><div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Weekly projected · {projectionLabel}</span><span className="text-[10px] text-slate-400">Scored from {projectionSource} projected stats</span></div><div className="flex h-16 items-end gap-1">{projectedWeeks.map((week) => <div key={week.week} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`Week ${week.week}: ${week.displayPoints?.toFixed(1)} projected ${projectionLabel} points`}><div className="w-full rounded-t bg-violet-500 transition-colors group-hover:bg-violet-700" style={{ height: `${Math.max(((week.displayPoints ?? 0) / maxProjectedWeek) * 42, 3)}px` }} /><span className="text-[8px] text-slate-400">{week.week}</span></div>)}</div></div>}
               {projection?.season_outlook && <details className="mt-4 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-sm font-bold text-blue-800">Read ESPN season outlook excerpt</summary><p className="mt-2 text-sm leading-6 text-slate-600">{projection.season_outlook.slice(0, 600)}{projection.season_outlook.length > 600 ? '…' : ''}</p></details>}
+            </div>}
+            {opportunity?.role_share_estimate != null && <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><h4 className="font-bold text-slate-900">Projected team role</h4><p className="text-xs text-slate-500">Compared with {opportunity.teammates_ranked - 1} ranked {player.team} RB/WR/TE teammates</p></div>
+                <div className="rounded-xl bg-violet-100 px-4 py-2 text-right text-violet-950"><div className="text-[10px] font-bold uppercase tracking-wide">Role estimate</div><div className="text-2xl font-black">{(opportunity.role_share_estimate * 100).toFixed(1)}%</div></div>
+              </div>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.min(opportunity.role_share_estimate * 100, 100)}%` }} /></div>
+              {exactOpportunityRows.length > 0 && <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{exactOpportunityRows.map(([key, value]) => <div key={key} className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{exactOpportunityLabels[key] ?? key}</div><div className="mt-1 text-lg font-black text-slate-950">{(value.share * 100).toFixed(1)}%</div><div className="text-[10px] text-slate-500">{value.player_value.toLocaleString()} of {value.team_total.toLocaleString()} · {value.players_covered} players</div></div>)}</div>}
+              <p className="mt-3 text-xs leading-5 text-slate-500">{opportunity.method} This is not a projected snap or possession share.{exactOpportunityRows.length > 0 ? ` ${opportunity.exact_share_method}` : ''}</p>
             </div>}
           </section>
 
@@ -225,7 +253,7 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
               <div><dt className="text-slate-500">Roster season</dt><dd className="font-bold text-slate-900">{player.lastSeason ?? 'Unknown'}</dd></div>
               <div><dt className="text-slate-500">Current games</dt><dd className="font-bold text-slate-900">{currentSummary?.total_games ?? 0}</dd></div>
               <div><dt className="text-slate-500">Last-season games</dt><dd className="font-bold text-slate-900">{lastSummary?.total_games ?? 0}</dd></div>
-              <div><dt className="text-slate-500">Projection source</dt><dd className="font-bold text-slate-900">{projectedPoints ? 'ESPN' : 'Unavailable'}</dd></div>
+              <div><dt className="text-slate-500">Projection source</dt><dd className="font-bold text-slate-900">{projectedPoints ? projectionSource : 'Unavailable'}</dd></div>
             </dl>
           </section>
         </div>

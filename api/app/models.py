@@ -147,6 +147,44 @@ class PlayerRanking(Base):
     )
 
 
+class ApiResponseCache(Base):
+    """Persistent cache for quota-limited third-party JSON responses."""
+
+    __tablename__ = "api_response_cache"
+
+    cache_key: Mapped[str] = mapped_column(String, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32), index=True)
+    endpoint: Mapped[str] = mapped_column(String, index=True)
+    query: Mapped[dict] = mapped_column(JSON)
+    response: Mapped[dict] = mapped_column(JSON)
+    fetched_at: Mapped[int] = mapped_column(Integer, index=True)
+    expires_at: Mapped[int] = mapped_column(Integer, index=True)
+    last_accessed_at: Mapped[int] = mapped_column(Integer)
+    status_code: Mapped[int] = mapped_column(Integer)
+    response_headers: Mapped[dict] = mapped_column(JSON)
+
+    __table_args__ = (
+        Index("ix_api_cache_provider_expiry", "provider", "expires_at"),
+    )
+
+
+class ApiCallLog(Base):
+    """Local audit of quota-consuming outbound API calls."""
+
+    __tablename__ = "api_call_log"
+
+    call_id: Mapped[str] = mapped_column(String, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32), index=True)
+    endpoint: Mapped[str] = mapped_column(String, index=True)
+    query: Mapped[dict] = mapped_column(JSON)
+    requested_at: Mapped[int] = mapped_column(Integer, index=True)
+    status_code: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        Index("ix_api_calls_provider_requested", "provider", "requested_at"),
+    )
+
+
 class PlayerInjury(Base):
     """Weekly injury report data from nflverse (NFL official reports)."""
     __tablename__ = "player_injuries"

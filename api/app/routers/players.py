@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -375,6 +375,7 @@ async def get_player_summary(
 async def get_player_context(
     player_id: str,
     season: int = Query(..., description="Upcoming NFL season", ge=2000, le=2030),
+    profile_id: Optional[str] = Query(None, description="Scoring profile for projection scoring"),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Return projections, schedule difficulty, injuries, and recent news."""
@@ -391,14 +392,56 @@ async def get_player_context(
             select(PlayerRanking)
             .where(
                 PlayerRanking.player_id == player_id,
-                PlayerRanking.source == "espn-draft-rank",
+                PlayerRanking.source.in_(("fantasypros-projection", "espn-draft-rank")),
                 PlayerRanking.season == season,
             )
-            .order_by(PlayerRanking.snapshot_date.desc())
+            .order_by(
+                case((PlayerRanking.source == "fantasypros-projection", 0), else_=1),
+                PlayerRanking.snapshot_date.desc(),
+            )
             .limit(1)
         )
     ).scalar_one_or_none()
     projection_raw = projection_row.raw or {} if projection_row else {}
+    opportunity = None
+    if projection_row and player.team:
+        from ..services.projection_analytics import projected_team_opportunity
+
+        teammate_rows = (
+            await db.execute(
+                select(PlayerRanking).where(
+                    PlayerRanking.source == projection_row.source,
+                    PlayerRanking.rank_type == projection_row.rank_type,
+                    PlayerRanking.scoring == projection_row.scoring,
+                    PlayerRanking.season == season,
+                    PlayerRanking.snapshot_date == projection_row.snapshot_date,
+                    PlayerRanking.team == player.team,
+                )
+            )
+        ).scalars().all()
+        opportunity = projected_team_opportunity(teammate_rows).get(player_id)
+    profile = None
+    profile_points = None
+    profile_weekly = {}
+    if profile_id and projection_row:
+        from ..models import ScoringProfile, ScoringRule
+        from ..services.projection_analytics import rule_dicts, score_projected_stats
+
+        profile = (
+            await db.execute(select(ScoringProfile).where(ScoringProfile.profile_id == profile_id))
+        ).scalar_one_or_none()
+        if profile:
+            rules = (
+                await db.execute(select(ScoringRule).where(ScoringRule.profile_id == profile_id))
+            ).scalars().all()
+            normalized_rules = rule_dicts(rules)
+            profile_points = score_projected_stats(
+                projection_raw.get("projected_stats"), normalized_rules
+            )
+            profile_weekly = {
+                week.get("week"): score_projected_stats(week.get("stats"), normalized_rules)
+                for week in projection_raw.get("weekly_projections") or []
+            }
 
     injury_rows = (
         await db.execute(
@@ -436,16 +479,24 @@ async def get_player_context(
         "player_id": player_id,
         "season": season,
         "projection": {
-            "source": "ESPN",
+            "source": "FantasyPros" if projection_row and projection_row.source == "fantasypros-projection" else "ESPN",
             "scoring": projection_row.scoring if projection_row else None,
             "points": projection_raw.get("projected_points"),
             "points_per_game": projection_raw.get("projected_points_per_game"),
+            "profile_id": profile.profile_id if profile else None,
+            "profile_name": profile.name if profile else None,
+            "profile_points": profile_points,
+            "profile_points_per_game": round(profile_points / 17, 2) if profile_points is not None else None,
             "projection_season": projection_raw.get("projection_season"),
             "snapshot_date": projection_row.snapshot_date if projection_row else None,
             "stats": projection_raw.get("projected_stats") or {},
-            "weekly": projection_raw.get("weekly_projections") or [],
+            "weekly": [
+                {**week, "profile_points": profile_weekly.get(week.get("week"))}
+                for week in projection_raw.get("weekly_projections") or []
+            ],
             "season_outlook": projection_raw.get("season_outlook"),
             "ownership": projection_raw.get("ownership") or {},
+            "opportunity": opportunity,
         },
         "schedule_strength": schedule_strength,
         "injuries": [

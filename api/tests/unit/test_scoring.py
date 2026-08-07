@@ -272,6 +272,8 @@ class TestDefaultScoringProfiles:
         assert "passing_touchdowns" in stat_keys
         assert "rushing_touchdowns" in stat_keys
         assert "receiving_touchdowns" in stat_keys
+        receptions_rule = next(rule for rule in standard_rules if rule["stat_key"] == "receptions")
+        assert receptions_rule["multiplier"] == 0.0
     
     def test_ppr_scoring_rules(self):
         """Test PPR scoring profile rules."""

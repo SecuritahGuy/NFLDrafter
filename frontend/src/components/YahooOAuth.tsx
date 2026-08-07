@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react'
-import { CloudArrowUpIcon, UserIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, CloudArrowUpIcon, UserIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { useToast } from './Toast'
 
 interface YahooOAuthProps {
   onAuthSuccess?: (accessToken: string, refreshToken: string) => void
   onAuthError?: (error: string) => void
   className?: string
+}
+
+interface YahooReadiness {
+  configured: boolean
+  client_id_configured: boolean
+  client_secret_configured: boolean
+  redirect_uri: string
+  frontend_callback_uri: string
 }
 
 export const YahooOAuth: React.FC<YahooOAuthProps> = ({
@@ -18,9 +26,20 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [userInfo, setUserInfo] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [readiness, setReadiness] = useState<YahooReadiness | null>(null)
 
   // Check if user is already authenticated on component mount
   useEffect(() => {
+    const checkReadiness = async () => {
+      try {
+        const response = await fetch('/api/yahoo/readiness')
+        if (!response?.ok) throw new Error('Yahoo readiness check failed')
+        setReadiness(await response.json())
+      } catch {
+        setReadiness(null)
+      }
+    }
+    checkReadiness()
     checkAuthStatus()
   }, [])
 
@@ -156,7 +175,7 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
     return (
       <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-6 ${className}`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Connecting to Yahoo...</h3>
           <p className="text-gray-600">Please complete the authentication in the new window</p>
         </div>
@@ -164,17 +183,17 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
     )
   }
 
-  if (isAuthenticated && userInfo) {
+  if (isAuthenticated) {
     return (
       <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-6 ${className}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-              <UserIcon className="w-6 h-6 text-primary-600" />
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+              <UserIcon className="w-6 h-6 text-blue-600" />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Connected to Yahoo</h3>
-              <p className="text-sm text-gray-600">{userInfo.email || 'Fantasy Football Account'}</p>
+              <p className="text-sm text-gray-600">{userInfo?.email || userInfo?.name || 'Fantasy Football Account'}</p>
             </div>
           </div>
           <button
@@ -193,7 +212,7 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
             </span>
           </div>
           
-          {userInfo.leagues && (
+          {userInfo?.leagues && (
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <span className="text-sm text-gray-600">Leagues</span>
               <span className="text-sm font-medium text-gray-900">{userInfo.leagues.length}</span>
@@ -207,14 +226,30 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
   return (
     <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-6 ${className}`}>
       <div className="text-center mb-6">
-        <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CloudArrowUpIcon className="w-8 h-8 text-primary-600" />
+        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CloudArrowUpIcon className="w-8 h-8 text-blue-600" />
         </div>
         <h3 className="text-xl font-semibold text-gray-900 mb-2">Connect Yahoo Fantasy Football</h3>
         <p className="text-gray-600">
           Import your leagues, rosters, and player data from Yahoo Fantasy Football
         </p>
       </div>
+
+      {readiness && (
+        <div className={`mb-4 rounded-lg border p-3 text-sm ${readiness.configured ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          <div className="flex items-center gap-2 font-semibold text-slate-900">
+            {readiness.configured ? (
+              <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+            ) : (
+              <ExclamationTriangleIcon className="h-5 w-5 text-amber-600" />
+            )}
+            {readiness.configured ? 'Server ready for Yahoo OAuth' : 'Yahoo credentials are incomplete'}
+          </div>
+          <p className="mt-1 break-all text-xs text-slate-600">
+            Registered callback: {readiness.redirect_uri}
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -227,8 +262,8 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
 
       <button
         onClick={initiateOAuth}
-        disabled={isAuthenticating}
-        className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+        disabled={isAuthenticating || readiness?.configured === false}
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
       >
         <CloudArrowUpIcon className="w-5 h-5" />
         Connect Yahoo Account

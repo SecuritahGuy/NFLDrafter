@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { PlayerBoard } from './PlayerBoard'
 import { Watchlist } from './Watchlist'
-import { Tiering } from './Tiering'
-import { VORP } from './VORP'
+import { ProjectionAnalyticsPanel } from './ProjectionAnalyticsPanel'
 import { RosterBar } from './RosterBar'
 import { YahooOAuth } from './YahooOAuth'
 import { YahooLeagueImport } from './YahooLeagueImport'
@@ -12,12 +11,11 @@ import { ErrorDisplay } from './ErrorDisplay'
 import type { Player } from '../types'
 import { usePlayers } from '../hooks/usePlayers'
 import { useScoringProfiles } from '../hooks/useScoringProfiles'
-import { usePlayersWithPoints } from '../hooks/useFantasyPoints'
 import type { BackendPlayer } from '../api'
 import { ManualDraftConsole } from './ManualDraftConsole'
 import { useDraftSession } from '../hooks/useDraftSession'
-import { useRankings, useRankingSources } from '../hooks/useRankings'
-import { assignRosterSlots } from '../services/draftEngine'
+import { useProjectionAnalytics, useRankings, useRankingSources } from '../hooks/useRankings'
+import { assignRosterSlots, teamForPick } from '../services/draftEngine'
 import { buildCompositeRankings } from '../services/compositeRankings'
 import { PlayerDetailDrawer } from './PlayerDetailDrawer'
 import {
@@ -84,7 +82,6 @@ const DraftRoomContent: React.FC = () => {
   
   // Real data from backend API
   const currentSeason = 2026
-  const currentWeek = 1
   
   // Fetch scoring profiles
   const { data: scoringProfiles, isLoading: profilesLoading } = useScoringProfiles()
@@ -111,25 +108,34 @@ const DraftRoomContent: React.FC = () => {
     )
   }, [espnRankings, fantasyProsRankings, ffcRankings, players])
 
-  const rankedPlayerIds = useMemo(
-    () => (players ?? []).filter((player) => compositeRankings.has(player.player_id)).map((player) => player.player_id),
-    [compositeRankings, players],
-  )
-  const { data: playersWithPoints, isLoading: pointsLoading, error: pointsError } = usePlayersWithPoints(
-    rankedPlayerIds,
-    currentSeason,
-    currentWeek,
-    selectedProfile?.profile_id || ''
-  )
+  const projectionConfig = useMemo(() => {
+    const count = (position: string) => rosterDefinitions
+      .filter((slot) => slot.position === position)
+      .reduce((sum, slot) => sum + slot.required, 0)
+    return {
+      league_size: session.config.leagueSize,
+      qb: count('QB'), rb: count('RB'), wr: count('WR'), te: count('TE'),
+      flex: count('FLEX'), superflex: count('SUPERFLEX') + count('SF'),
+      k: count('K'), defense: count('DEF') + count('DST'),
+    }
+  }, [rosterDefinitions, session.config.leagueSize])
+  const {
+    data: projectionAnalytics,
+    isLoading: projectionsLoading,
+    error: projectionsError,
+  } = useProjectionAnalytics(selectedProfile?.profile_id || '', currentSeason, projectionConfig)
   
   // Combine player data with calculated points
   const enrichedPlayers: Player[] = useMemo(() => {
     if (!players) return []
     
+    const analyticsByPlayer = new Map(
+      (projectionAnalytics?.players ?? []).map((row) => [row.player_id, row]),
+    )
     return players.map((player: BackendPlayer) => {
-      const pointsData = playersWithPoints?.[player.player_id]
-      const fantasyPoints = pointsData?.points || 0
-      const yahooPoints = 0 // TODO: Implement Yahoo points calculation
+      const projection = analyticsByPlayer.get(player.player_id)
+      const fantasyPoints = projection?.analytics_points ?? 0
+      const yahooPoints = projection?.espn_points ?? 0
       const composite = compositeRankings.get(player.player_id)
       const fantasyPros = composite?.fantasyPros
       const espn = composite?.espn
@@ -142,9 +148,10 @@ const DraftRoomContent: React.FC = () => {
         team: player.team,
         fantasyPoints,
         yahooPoints,
-        delta: fantasyPoints - yahooPoints,
-        vorp: 0, // TODO: Calculate VORP
-        tier: 0, // TODO: Calculate tiers
+        delta: projection?.profile_points != null && projection.espn_points != null
+          ? projection.profile_points - projection.espn_points : 0,
+        vorp: projection?.vorp ?? 0,
+        tier: projection?.tier ?? 0,
         adp: ffc?.ecr ?? 0,
         newsCount: 0, // TODO: Get news count
         byeWeek: ffc?.bye ?? fantasyPros?.bye ?? 0,
@@ -154,12 +161,16 @@ const DraftRoomContent: React.FC = () => {
         rankingSourceCount: composite?.sourceCount ?? 0,
         projectedPoints: espn?.projected_points ?? undefined,
         projectedPointsPerGame: espn?.projected_points_per_game ?? undefined,
+        projectionScoringBasis: projection?.scoring_basis,
+        replacementRank: projection?.replacement_rank,
+        replacementPoints: projection?.replacement_points,
+        positionProjectionRank: projection?.position_rank,
         status: player.status,
         lastSeason: player.last_season,
         headshot: player.headshot,
       }
     })
-  }, [compositeRankings, players, playersWithPoints])
+  }, [compositeRankings, players, projectionAnalytics])
 
   const effectivePlayers = enrichedPlayers.length
     ? enrichedPlayers
@@ -186,6 +197,8 @@ const DraftRoomContent: React.FC = () => {
       byeWeeks: (assignments[slot.position] ?? []).map((player) => player.byeWeek),
     }))
   }, [myPlayers, rosterDefinitions])
+  const currentPick = session.picks.length + 1
+  const isMyTurn = teamForPick(currentPick, session.config.leagueSize) === session.config.draftSlot
   
   // Set default scoring profile when data loads
   useEffect(() => {
@@ -218,11 +231,11 @@ const DraftRoomContent: React.FC = () => {
   }, [enrichedPlayers, rosterDefinitions, selectedProfile, session.config])
 
   // Loading and error states
-  const isLoading = (profilesLoading || playersLoading || pointsLoading) && !effectivePlayers.length
+  const isLoading = (profilesLoading || playersLoading || projectionsLoading) && !effectivePlayers.length
   const hasError = !effectivePlayers.length && Boolean(
-    (!profilesLoading && !playersLoading && !pointsLoading && (!players || !scoringProfiles))
+    (!profilesLoading && !playersLoading && !projectionsLoading && (!players || !scoringProfiles))
     || playersError
-    || pointsError
+    || projectionsError
   )
 
   const handlePlayerSelect = (player: Player) => {
@@ -384,11 +397,6 @@ const DraftRoomContent: React.FC = () => {
     // TODO: Implement slot selection logic
   }
 
-  const handleVorpChange = (playerId: string, vorp: number) => {
-    console.log(`VORP changed for player ${playerId}: ${vorp}`)
-    // TODO: Implement VORP update logic
-  }
-
   // Show loading state while fetching data
   if (isLoading) {
     return (
@@ -428,7 +436,7 @@ const DraftRoomContent: React.FC = () => {
 
   return (
     <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700">
-      {/* Hero Header */}
+      {/* Compact command header */}
       <div className="relative overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10">
@@ -436,18 +444,13 @@ const DraftRoomContent: React.FC = () => {
         </div>
         
         {/* Header Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-6 py-6">
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full shadow-md mb-3">
-              <span className="text-sm" style={{ fontSize: '0.875rem' }}>🏆</span>
+        <div className="relative z-10 mx-auto max-w-7xl px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.2em] text-blue-300">Manual-first workspace</div>
+              <h1 className="mt-1 text-3xl font-black tracking-tight text-white">Draft Room</h1>
+              <p className="mt-1 text-sm text-slate-300">Track every pick locally, keep the board clean, and stay ready if league sync is unavailable.</p>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">
-              Draft Room
-            </h1>
-            <p className="text-lg text-blue-100 mb-6 max-w-2xl mx-auto">
-              Professional fantasy football drafting experience with advanced analytics, 
-              real-time insights, and expert tools to dominate your league
-            </p>
             
 
 
@@ -476,24 +479,8 @@ const DraftRoomContent: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Overview */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <h2 className="text-xl font-bold text-white text-center mb-4">Draft Overview</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 text-center">
-            <div className="text-3xl font-bold text-yellow-400 mb-1">{availablePlayers.length}</div>
-            <div className="text-blue-200 text-sm font-medium">Players Available</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 text-center">
-            <div className="text-3xl font-bold text-green-400 mb-1">{watchlist.length}</div>
-            <div className="text-blue-200 text-sm font-medium">Watchlist</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 text-center">
-            <div className="text-3xl font-bold text-purple-400 mb-1">{rosterSlots.length}</div>
-            <div className="text-blue-200 text-sm font-medium">Roster Slots</div>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2" aria-label="Ranking data sources">
+      <div className="mx-auto max-w-7xl px-4 pb-4 pt-2">
+        <div className="flex flex-wrap items-center gap-2" aria-label="Ranking data sources">
           {rankingSources?.map((source) => (
             <a
               key={source.source}
@@ -521,6 +508,7 @@ const DraftRoomContent: React.FC = () => {
           onUndo={undo}
           onRemovePick={removePick}
           onReset={reset}
+          onDraftPlayer={draftPlayer}
           draftPackage={draftPackage}
           onImportPackage={handlePackageImport}
           onPackageError={(message) => addToast({
@@ -550,42 +538,14 @@ const DraftRoomContent: React.FC = () => {
               </div>
             </div>
 
-            {hasProjectionData ? <>
-            {/* Tiering Tool */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
-              <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white/20 rounded-md flex items-center justify-center">
-                    <span className="text-white text-xs">🏗️</span>
-                  </div>
-                  Tiering Analysis
-                </h3>
-              </div>
-              <div className="p-4">
-                <Tiering
-                  players={effectivePlayers}
-                />
-              </div>
-            </div>
-
-            {/* VORP Calculator */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
-              <div className="bg-gradient-to-r from-orange-600 to-red-600 px-4 py-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white/20 rounded-md flex items-center justify-center">
-                    <span className="text-white text-xs">🔥</span>
-                  </div>
-                  VORP Analysis
-                </h3>
-              </div>
-              <div className="p-4">
-                <VORP
-                  players={effectivePlayers}
-                  onVorpChange={handleVorpChange}
-                />
-              </div>
-            </div>
-            </> : (
+            {hasProjectionData ? (
+              <ProjectionAnalyticsPanel
+                players={effectivePlayers}
+                profileName={projectionAnalytics?.profile.name ?? scoringProfile}
+                snapshotDate={projectionAnalytics?.snapshot_date}
+                methodology={projectionAnalytics?.methodology}
+              />
+            ) : (
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm md:col-span-2 lg:col-span-1">
                 <div className="text-xs font-bold uppercase tracking-wider text-blue-700">Projection analytics</div>
                 <h3 className="mt-1 text-lg font-black text-slate-950">Tiers and VORP are pending</h3>
@@ -677,8 +637,8 @@ const DraftRoomContent: React.FC = () => {
                   onRetry={handleRetry}
                   onPositionChange={setSelectedPosition}
                   onSearchChange={setSearchQuery}
-                  onDraftOther={(player) => draftPlayer(player.id, false)}
-                  onDraftMine={(player) => draftPlayer(player.id, true)}
+                  onDraftOther={!isMyTurn ? (player) => draftPlayer(player.id, false) : undefined}
+                  onDraftMine={isMyTurn ? (player) => draftPlayer(player.id, true) : undefined}
                 />
               </div>
             </div>

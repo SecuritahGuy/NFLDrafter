@@ -66,6 +66,19 @@ async def init_db():
                 if column not in player_columns:
                     await conn.execute(text(f"ALTER TABLE players ADD COLUMN {column} {definition}"))
 
+            # Early revival builds accidentally seeded "Standard" with 0.5 PPR.
+            # Repair only that exact legacy default value; custom profiles are untouched.
+            await conn.execute(text("""
+                UPDATE scoring_rules
+                SET multiplier = 0.0
+                WHERE stat_key = 'receptions'
+                  AND multiplier = 0.5
+                  AND profile_id IN (
+                      SELECT profile_id FROM scoring_profiles
+                      WHERE name = 'Standard' AND is_public = 1
+                  );
+            """))
+
             await conn.execute(text("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS news_items_fts 
                 USING fts5(title, summary, content='news_items', content_rowid='rowid');

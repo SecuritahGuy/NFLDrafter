@@ -41,9 +41,21 @@ Object.defineProperty(window, 'location', {
 })
 
 describe('YahooOAuth', () => {
+  const readinessResponse = {
+    ok: true,
+    json: async () => ({
+      configured: true,
+      client_id_configured: true,
+      client_secret_configured: true,
+      redirect_uri: 'http://localhost:8000/auth/yahoo/callback',
+      frontend_callback_uri: 'http://localhost:5173/auth/callback'
+    })
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     localStorageMock.getItem.mockReturnValue(null)
+    global.fetch = vi.fn().mockResolvedValue(readinessResponse)
   })
 
   it('renders connect button when not authenticated', () => {
@@ -77,6 +89,7 @@ describe('YahooOAuth', () => {
 
     // Mock successful token verification
     global.fetch = vi.fn()
+      .mockResolvedValueOnce(readinessResponse)
       .mockResolvedValueOnce({
         ok: true
       })
@@ -108,6 +121,7 @@ describe('YahooOAuth', () => {
       .mockReturnValueOnce('mock-refresh-token')
 
     global.fetch = vi.fn()
+      .mockResolvedValueOnce(readinessResponse)
       .mockResolvedValueOnce({
         ok: true
       })
@@ -148,9 +162,10 @@ describe('YahooOAuth', () => {
       .mockReturnValueOnce('invalid-token')
       .mockReturnValueOnce('invalid-refresh-token')
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: false
-    })
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(readinessResponse)
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false })
 
     render(
       <ToastProvider>
@@ -171,6 +186,7 @@ describe('YahooOAuth', () => {
       .mockReturnValueOnce('mock-refresh-token')
 
     global.fetch = vi.fn()
+      .mockResolvedValueOnce(readinessResponse)
       .mockResolvedValueOnce({
         ok: true
       })

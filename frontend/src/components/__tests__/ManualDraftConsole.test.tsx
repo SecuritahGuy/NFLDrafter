@@ -26,11 +26,31 @@ describe('ManualDraftConsole', () => {
       />,
     )
 
-    expect(screen.getByText('Pick 2 · Team 2')).toBeInTheDocument()
+    expect(screen.getByText('Team 2 · Round 1, pick 2')).toBeInTheDocument()
     expect(screen.getByText('#1 First Player', { exact: false })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo First Player' }))
     fireEvent.click(screen.getByRole('button', { name: 'Remove pick 1' }))
     expect(onUndo).toHaveBeenCalledOnce()
     expect(onRemovePick).toHaveBeenCalledWith(1)
+  })
+
+  it('records a searched player with ownership inferred from snake order', () => {
+    const onDraftPlayer = vi.fn()
+    render(
+      <ManualDraftConsole
+        session={createDraftSession({ leagueSize: 12, draftSlot: 1, rounds: 15 })}
+        players={players}
+        availablePlayers={players}
+        onConfigure={vi.fn()}
+        onUndo={vi.fn()}
+        onRemovePick={vi.fn()}
+        onReset={vi.fn()}
+        onDraftPlayer={onDraftPlayer}
+      />,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('Type a player, team, or position…'), { target: { value: 'First' } })
+    fireEvent.click(screen.getByRole('button', { name: /First Player/ }))
+    expect(onDraftPlayer).toHaveBeenCalledWith('p1', true)
   })
 })

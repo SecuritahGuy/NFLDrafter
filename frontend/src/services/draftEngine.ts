@@ -135,6 +135,8 @@ export const assignRosterSlots = (
   take('DEF', ['DEF', 'DST'])
   take('DST', ['DEF', 'DST'])
   take('FLEX', ['RB', 'WR', 'TE'])
+  take('SUPERFLEX', ['QB', 'RB', 'WR', 'TE'])
+  take('SF', ['QB', 'RB', 'WR', 'TE'])
   if (assignments.BN) assignments.BN.push(...remaining.slice(0, slots.find((slot) => slot.position === 'BN')?.required ?? 0))
   return assignments
 }

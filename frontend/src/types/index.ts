@@ -17,6 +17,10 @@ export interface Player {
   rankingSourceCount?: number
   projectedPoints?: number
   projectedPointsPerGame?: number
+  projectionScoringBasis?: 'profile' | 'source_fallback'
+  replacementRank?: number
+  replacementPoints?: number
+  positionProjectionRank?: number
   status?: string
   lastSeason?: number
   headshot?: string
