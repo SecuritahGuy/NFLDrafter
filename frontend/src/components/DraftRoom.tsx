@@ -14,6 +14,35 @@ import { usePlayers } from '../hooks/usePlayers'
 import { useScoringProfiles } from '../hooks/useScoringProfiles'
 import { usePlayersWithPoints } from '../hooks/useFantasyPoints'
 import type { BackendPlayer } from '../api'
+import { ManualDraftConsole } from './ManualDraftConsole'
+import { useDraftSession } from '../hooks/useDraftSession'
+import { useRankings, useRankingSources } from '../hooks/useRankings'
+import { assignRosterSlots } from '../services/draftEngine'
+import { buildCompositeRankings } from '../services/compositeRankings'
+import { PlayerDetailDrawer } from './PlayerDetailDrawer'
+import {
+  createDraftPackage,
+  loadDraftPackage,
+  saveDraftPackage,
+  type DraftPackageV1,
+} from '../services/draftPackage'
+
+const BASE_ROSTER_SLOTS = [
+  { position: 'QB', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
+  { position: 'RB', required: 2, filled: 0, byeWeeks: [], scarcity: 'high' as const },
+  { position: 'WR', required: 2, filled: 0, byeWeeks: [], scarcity: 'high' as const },
+  { position: 'TE', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
+  { position: 'FLEX', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
+  { position: 'K', required: 1, filled: 0, byeWeeks: [], scarcity: 'low' as const },
+  { position: 'DEF', required: 1, filled: 0, byeWeeks: [], scarcity: 'low' as const },
+  { position: 'BN', required: 6, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
+]
+
+const rosterScarcity = (position: string): 'low' | 'medium' | 'high' => {
+  if (position === 'RB' || position === 'WR') return 'high'
+  if (position === 'K' || position === 'DEF' || position === 'DST') return 'low'
+  return 'medium'
+}
 
 export const DraftRoom: React.FC = () => {
   return (
@@ -33,28 +62,28 @@ const DraftRoomContent: React.FC = () => {
   const [scoringProfile, setScoringProfile] = useState<string>('')
   const [importedADP, setImportedADP] = useState<Record<string, number>>({})
   const [playerNotes, setPlayerNotes] = useState<Record<string, string>>({})
+  const [selectedDetailPlayer, setSelectedDetailPlayer] = useState<Player | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<Error | null>(null)
+  const [draftPackage, setDraftPackage] = useState<DraftPackageV1 | null>(loadDraftPackage)
+  const [rosterDefinitions, setRosterDefinitions] = useState(() =>
+    draftPackage?.rosterSlots.map((slot) => ({
+      ...slot, filled: 0, byeWeeks: [] as number[], scarcity: rosterScarcity(slot.position),
+    })) ?? BASE_ROSTER_SLOTS
+  )
+  const { session, draftPlayer, undo, removePick, configure, reset } = useDraftSession()
+  const { data: fantasyProsRankings } = useRankings('fantasypros-ecr')
+  const { data: espnRankings } = useRankings('espn-draft-rank')
+  const { data: ffcRankings } = useRankings('ffc-adp')
+  const { data: rankingSources } = useRankingSources()
   
   // Yahoo OAuth state
   const [yahooAccessToken, setYahooAccessToken] = useState<string | null>(null)
   const [yahooRefreshToken, setYahooRefreshToken] = useState<string | null>(null)
   const [selectedLeague, setSelectedLeague] = useState<any>(null)
   
-  // Roster configuration
-  const rosterSlots = [
-    { position: 'QB', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
-    { position: 'RB', required: 2, filled: 0, byeWeeks: [], scarcity: 'high' as const },
-    { position: 'WR', required: 2, filled: 0, byeWeeks: [], scarcity: 'high' as const },
-    { position: 'TE', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
-    { position: 'FLEX', required: 1, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
-    { position: 'K', required: 1, filled: 0, byeWeeks: [], scarcity: 'low' as const },
-    { position: 'DEF', required: 1, filled: 0, byeWeeks: [], scarcity: 'low' as const },
-    { position: 'BN', required: 6, filled: 0, byeWeeks: [], scarcity: 'medium' as const },
-  ]
-
   // Real data from backend API
-  const currentSeason = 2025
+  const currentSeason = 2026
   const currentWeek = 1
   
   // Fetch scoring profiles
@@ -66,16 +95,28 @@ const DraftRoomContent: React.FC = () => {
     return scoringProfiles.find(profile => profile.name === scoringProfile)
   }, [scoringProfiles, scoringProfile])
   
-  // Fetch players with filters
+  // Fetch the complete player board once; position and search filters run locally.
   const { data: players, isLoading: playersLoading, error: playersError } = usePlayers({
-    q: searchQuery,
-    position: selectedPosition === 'ALL' ? undefined : selectedPosition,
-    limit: 100
+    limit: 1200,
+    current_only: true,
+    season: currentSeason,
   })
-  
-  // Calculate fantasy points for players
+
+  const compositeRankings = useMemo(() => {
+    return buildCompositeRankings(
+      players ?? [],
+      fantasyProsRankings?.rankings ?? [],
+      espnRankings?.rankings ?? [],
+      ffcRankings?.rankings ?? [],
+    )
+  }, [espnRankings, fantasyProsRankings, ffcRankings, players])
+
+  const rankedPlayerIds = useMemo(
+    () => (players ?? []).filter((player) => compositeRankings.has(player.player_id)).map((player) => player.player_id),
+    [compositeRankings, players],
+  )
   const { data: playersWithPoints, isLoading: pointsLoading, error: pointsError } = usePlayersWithPoints(
-    players?.map(p => p.player_id) || [],
+    rankedPlayerIds,
     currentSeason,
     currentWeek,
     selectedProfile?.profile_id || ''
@@ -83,12 +124,16 @@ const DraftRoomContent: React.FC = () => {
   
   // Combine player data with calculated points
   const enrichedPlayers: Player[] = useMemo(() => {
-    if (!players || !playersWithPoints) return []
+    if (!players) return []
     
     return players.map((player: BackendPlayer) => {
-      const pointsData = playersWithPoints[player.player_id]
+      const pointsData = playersWithPoints?.[player.player_id]
       const fantasyPoints = pointsData?.points || 0
       const yahooPoints = 0 // TODO: Implement Yahoo points calculation
+      const composite = compositeRankings.get(player.player_id)
+      const fantasyPros = composite?.fantasyPros
+      const espn = composite?.espn
+      const ffc = composite?.ffc
       
       return {
         id: player.player_id,
@@ -100,26 +145,88 @@ const DraftRoomContent: React.FC = () => {
         delta: fantasyPoints - yahooPoints,
         vorp: 0, // TODO: Calculate VORP
         tier: 0, // TODO: Calculate tiers
-        adp: 0, // TODO: Get ADP data
+        adp: ffc?.ecr ?? 0,
         newsCount: 0, // TODO: Get news count
-        byeWeek: 0, // TODO: Get bye week
+        byeWeek: ffc?.bye ?? fantasyPros?.bye ?? 0,
+        rank: composite?.rank,
+        ecr: fantasyPros?.ecr ?? undefined,
+        espnRank: espn?.rank ?? undefined,
+        rankingSourceCount: composite?.sourceCount ?? 0,
+        projectedPoints: espn?.projected_points ?? undefined,
+        projectedPointsPerGame: espn?.projected_points_per_game ?? undefined,
+        status: player.status,
+        lastSeason: player.last_season,
+        headshot: player.headshot,
       }
     })
-  }, [players, playersWithPoints])
+  }, [compositeRankings, players, playersWithPoints])
+
+  const effectivePlayers = enrichedPlayers.length
+    ? enrichedPlayers
+    : draftPackage?.players ?? []
+  const hasProjectionData = effectivePlayers.some((player) => (player.fantasyPoints ?? 0) !== 0)
+
+  const draftedPlayerIds = useMemo(
+    () => new Set(session.picks.map((pick) => pick.playerId)),
+    [session.picks],
+  )
+  const availablePlayers = useMemo(
+    () => effectivePlayers.filter((player) => !draftedPlayerIds.has(player.id)),
+    [draftedPlayerIds, effectivePlayers],
+  )
+  const myPlayers = useMemo(() => {
+    const ids = new Set(session.picks.filter((pick) => pick.isMine).map((pick) => pick.playerId))
+    return effectivePlayers.filter((player) => ids.has(player.id))
+  }, [effectivePlayers, session.picks])
+  const rosterSlots = useMemo(() => {
+    const assignments = assignRosterSlots(myPlayers, rosterDefinitions)
+    return rosterDefinitions.map((slot) => ({
+      ...slot,
+      filled: assignments[slot.position]?.length ?? 0,
+      byeWeeks: (assignments[slot.position] ?? []).map((player) => player.byeWeek),
+    }))
+  }, [myPlayers, rosterDefinitions])
   
   // Set default scoring profile when data loads
   useEffect(() => {
     if (scoringProfiles && scoringProfiles.length > 0 && !scoringProfile) {
       setScoringProfile(scoringProfiles[0].name)
+    } else if (!scoringProfile && draftPackage) {
+      setScoringProfile(draftPackage.scoringProfile.name)
     }
-  }, [scoringProfiles, scoringProfile])
+  }, [draftPackage, scoringProfiles, scoringProfile])
+
+  useEffect(() => {
+    if (!enrichedPlayers.length || !selectedProfile) return
+    const prepared = createDraftPackage({
+      season: currentSeason,
+      scoringProfile: {
+        profileId: selectedProfile.profile_id,
+        name: selectedProfile.name,
+        rules: selectedProfile.rules.map((rule) => ({
+          statKey: rule.stat_key,
+          multiplier: rule.multiplier,
+          per: rule.per,
+        })),
+      },
+      league: session.config,
+      rosterSlots: rosterDefinitions.map(({ position, required }) => ({ position, required })),
+      players: enrichedPlayers,
+    })
+    setDraftPackage(prepared)
+    saveDraftPackage(prepared)
+  }, [enrichedPlayers, rosterDefinitions, selectedProfile, session.config])
 
   // Loading and error states
-  const isLoading = profilesLoading || playersLoading || pointsLoading
-  const hasError = !profilesLoading && !playersLoading && !pointsLoading && (!players || !scoringProfiles) || playersError || pointsError
+  const isLoading = (profilesLoading || playersLoading || pointsLoading) && !effectivePlayers.length
+  const hasError = !effectivePlayers.length && Boolean(
+    (!profilesLoading && !playersLoading && !pointsLoading && (!players || !scoringProfiles))
+    || playersError
+    || pointsError
+  )
 
   const handlePlayerSelect = (player: Player) => {
-    console.log('Player selected:', player)
+    setSelectedDetailPlayer(player)
   }
 
 
@@ -137,7 +244,7 @@ const DraftRoomContent: React.FC = () => {
   }
 
   const handleRemoveFromWatchlist = (playerId: string) => {
-    const player = enrichedPlayers.find(p => p.id === playerId)
+    const player = effectivePlayers.find(p => p.id === playerId)
     setWatchlist(prev => prev.filter(id => id !== playerId))
     if (player) {
       addToast({
@@ -202,13 +309,74 @@ const DraftRoomContent: React.FC = () => {
   }
 
   const handleLeagueImport = (leagueData: any) => {
+    const preparedLeague = leagueData.prepared_league
+    const importedConfig = preparedLeague?.draft_config
+      ? {
+          leagueSize: preparedLeague.draft_config.league_size || session.config.leagueSize,
+          draftSlot: Math.min(
+            session.config.draftSlot,
+            preparedLeague.draft_config.league_size || session.config.leagueSize,
+          ),
+          rounds: preparedLeague.draft_config.rounds || session.config.rounds,
+        }
+      : session.config
+    const importedSlots = (preparedLeague?.roster_slots ?? []).map((slot: any) => ({
+      position: slot.normalized_position || slot.position,
+      required: Number(slot.count) || 0,
+      filled: 0,
+      byeWeeks: [] as number[],
+      scarcity: rosterScarcity(slot.normalized_position || slot.position),
+    })).filter((slot: { required: number }) => slot.required > 0)
+    if (importedSlots.length) setRosterDefinitions(importedSlots)
+    configure(importedConfig)
+    if (leagueData.scoring_profile?.name) setScoringProfile(leagueData.scoring_profile.name)
+
+    if (effectivePlayers.length && leagueData.scoring_profile && preparedLeague?.rules?.length) {
+      const prepared = createDraftPackage({
+        season: leagueData.settings?.season || currentSeason,
+        scoringProfile: {
+          profileId: leagueData.scoring_profile.profile_id,
+          name: leagueData.scoring_profile.name,
+          rules: preparedLeague.rules.map((rule: any) => ({
+            statKey: rule.stat_key,
+            multiplier: rule.multiplier,
+            per: rule.per,
+          })),
+        },
+        league: importedConfig,
+        rosterSlots: (importedSlots.length ? importedSlots : rosterDefinitions).map(
+          ({ position, required }: { position: string, required: number }) => ({ position, required }),
+        ),
+        players: effectivePlayers,
+      })
+      setDraftPackage(prepared)
+      saveDraftPackage(prepared)
+    }
+    const unmappedCount = preparedLeague?.unmapped_stat_modifiers?.length ?? 0
     addToast({
-      type: 'success',
-      title: 'League Imported!',
-      message: `Successfully imported ${leagueData.teams_imported} teams`,
+      type: unmappedCount ? 'warning' : 'success',
+      title: unmappedCount ? 'League Imported — Review Scoring' : 'League Imported!',
+      message: unmappedCount
+        ? `${unmappedCount} Yahoo scoring categories need manual mapping; no values were guessed`
+        : `Imported ${leagueData.teams_imported} teams; ${leagueData.player_mapping?.matched ?? 0} Yahoo player IDs matched`,
       duration: 5000
     })
-    // Here you would update the local state with imported data
+  }
+
+  const handlePackageImport = (prepared: DraftPackageV1) => {
+    setDraftPackage(prepared)
+    saveDraftPackage(prepared)
+    setScoringProfile(prepared.scoringProfile.name)
+    configure(prepared.league)
+    setRosterDefinitions(prepared.rosterSlots.map((slot) => ({
+      ...slot, filled: 0, byeWeeks: [] as number[], scarcity: rosterScarcity(slot.position),
+    })))
+    addToast({
+      type: 'success',
+      title: 'Offline Package Loaded',
+      message: `${prepared.players.length} players are ready without the backend`,
+      duration: 5000,
+    })
   }
 
   const handleSlotClick = (position: string) => {
@@ -313,7 +481,7 @@ const DraftRoomContent: React.FC = () => {
         <h2 className="text-xl font-bold text-white text-center mb-4">Draft Overview</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 text-center">
-            <div className="text-3xl font-bold text-yellow-400 mb-1">{enrichedPlayers.length}</div>
+            <div className="text-3xl font-bold text-yellow-400 mb-1">{availablePlayers.length}</div>
             <div className="text-blue-200 text-sm font-medium">Players Available</div>
           </div>
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 text-center">
@@ -325,10 +493,40 @@ const DraftRoomContent: React.FC = () => {
             <div className="text-blue-200 text-sm font-medium">Roster Slots</div>
           </div>
         </div>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2" aria-label="Ranking data sources">
+          {rankingSources?.map((source) => (
+            <a
+              key={source.source}
+              href={source.attribution_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10"
+              title={`${source.purpose}. ${Math.round(source.match_rate * 100)}% canonical player match coverage.`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${source.available ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+              <span className="font-semibold">{source.label}</span>
+              <span className="text-slate-400">{source.snapshot_date ?? 'not loaded'}</span>
+            </a>
+          ))}
+        </div>
       </div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8">
+        <ManualDraftConsole
+          session={session}
+          players={effectivePlayers}
+          availablePlayers={availablePlayers}
+          onConfigure={configure}
+          onUndo={undo}
+          onRemovePick={removePick}
+          onReset={reset}
+          draftPackage={draftPackage}
+          onImportPackage={handlePackageImport}
+          onPackageError={(message) => addToast({
+            type: 'error', title: 'Package Import Failed', message, duration: 5000,
+          })}
+        />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Left Column - Tools & Analytics */}
           <div className="md:col-span-2 lg:col-span-1 border border-red-500/20 rounded-lg p-2">
@@ -345,13 +543,14 @@ const DraftRoomContent: React.FC = () => {
               </div>
               <div className="p-4">
                 <Watchlist
-                  watchlist={enrichedPlayers.filter(p => watchlist.includes(p.id))}
+                  watchlist={effectivePlayers.filter(p => watchlist.includes(p.id))}
                   onRemoveFromWatchlist={handleRemoveFromWatchlist}
                   onPlayerSelect={handlePlayerSelect}
                 />
               </div>
             </div>
 
+            {hasProjectionData ? <>
             {/* Tiering Tool */}
             <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
               <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3">
@@ -364,7 +563,7 @@ const DraftRoomContent: React.FC = () => {
               </div>
               <div className="p-4">
                 <Tiering
-                  players={enrichedPlayers}
+                  players={effectivePlayers}
                 />
               </div>
             </div>
@@ -381,11 +580,18 @@ const DraftRoomContent: React.FC = () => {
               </div>
               <div className="p-4">
                 <VORP
-                  players={enrichedPlayers}
+                  players={effectivePlayers}
                   onVorpChange={handleVorpChange}
                 />
               </div>
             </div>
+            </> : (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm md:col-span-2 lg:col-span-1">
+                <div className="text-xs font-bold uppercase tracking-wider text-blue-700">Projection analytics</div>
+                <h3 className="mt-1 text-lg font-black text-slate-950">Tiers and VORP are pending</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">The 2026 player pool and draft ranks are live. Tier and value-over-replacement analysis will appear after projection or weekly scoring data is loaded.</p>
+              </div>
+            )}
 
             {/* Roster Bar */}
             <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
@@ -400,7 +606,7 @@ const DraftRoomContent: React.FC = () => {
               <div className="p-4">
                 <RosterBar
                   rosterSlots={rosterSlots}
-                  selectedPlayers={enrichedPlayers.filter(p => watchlist.includes(p.id))}
+                  selectedPlayers={myPlayers}
                   onSlotClick={handleSlotClick}
                   scoringProfile={scoringProfile}
                 />
@@ -451,7 +657,7 @@ const DraftRoomContent: React.FC = () => {
               </div>
               <div className="p-4">
                 <PlayerBoard
-                  players={enrichedPlayers}
+                  players={availablePlayers}
                   selectedPosition={selectedPosition}
                   searchQuery={searchQuery}
                   onPlayerSelect={handlePlayerSelect}
@@ -469,12 +675,22 @@ const DraftRoomContent: React.FC = () => {
                   loading={loading}
                   error={error}
                   onRetry={handleRetry}
+                  onPositionChange={setSelectedPosition}
+                  onSearchChange={setSearchQuery}
+                  onDraftOther={(player) => draftPlayer(player.id, false)}
+                  onDraftMine={(player) => draftPlayer(player.id, true)}
                 />
               </div>
             </div>
           </div>
         </div>
       </div>
+      <PlayerDetailDrawer
+        player={selectedDetailPlayer}
+        season={currentSeason}
+        profileId={selectedProfile?.profile_id}
+        onClose={() => setSelectedDetailPlayer(null)}
+      />
     </div>
   )
 }

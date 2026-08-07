@@ -18,6 +18,8 @@ export const OAuthCallback: React.FC = () => {
     try {
       const code = searchParams.get('code')
       const error = searchParams.get('error')
+      const returnedState = searchParams.get('state')
+      const expectedState = sessionStorage.getItem('yahoo_oauth_state')
 
       if (error) {
         setStatus('error')
@@ -30,6 +32,13 @@ export const OAuthCallback: React.FC = () => {
         setError('No authorization code received')
         return
       }
+
+      if (!expectedState || returnedState !== expectedState) {
+        setStatus('error')
+        setError('OAuth security check failed. Please start the Yahoo connection again.')
+        return
+      }
+      sessionStorage.removeItem('yahoo_oauth_state')
 
       // Exchange code for tokens
       const response = await fetch('/api/yahoo/exchange-code', {
@@ -49,6 +58,7 @@ export const OAuthCallback: React.FC = () => {
       // Store tokens
       localStorage.setItem('yahoo_access_token', data.access_token)
       localStorage.setItem('yahoo_refresh_token', data.refresh_token)
+      localStorage.setItem('yahoo_expires_at', String(Date.now() + data.expires_in * 1000))
 
       setStatus('success')
       
@@ -61,7 +71,7 @@ export const OAuthCallback: React.FC = () => {
 
       // Redirect back to draft room after a short delay
       setTimeout(() => {
-        navigate('/draft', { replace: true })
+        navigate('/draft-room', { replace: true })
       }, 2000)
 
     } catch (err) {
@@ -78,7 +88,7 @@ export const OAuthCallback: React.FC = () => {
   }
 
   const handleBackToDraft = () => {
-    navigate('/draft', { replace: true })
+    navigate('/draft-room', { replace: true })
   }
 
   if (status === 'processing') {

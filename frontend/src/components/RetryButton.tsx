@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { LoadingSpinner } from './LoadingSpinner'
 
 interface RetryButtonProps {
@@ -27,6 +27,13 @@ export const RetryButton: React.FC<RetryButtonProps> = ({
   const [loading, setLoading] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mounted = useRef(true)
+
+  useEffect(() => () => {
+    mounted.current = false
+    if (retryTimer.current) clearTimeout(retryTimer.current)
+  }, [])
 
   const getVariantClasses = () => {
     const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2'
@@ -58,30 +65,33 @@ export const RetryButton: React.FC<RetryButtonProps> = ({
     }
   }
 
-  const handleRetry = async () => {
-    if (loading || retryCount >= maxRetries) return
-
-    setLoading(true)
-    setError(null)
+  const runRetry = async (attempt: number) => {
+    if (attempt >= maxRetries) return
+    if (mounted.current) {
+      setLoading(true)
+      setError(null)
+    }
 
     try {
       await onRetry()
-      // Reset retry count on success
-      setRetryCount(0)
+      if (mounted.current) setRetryCount(0)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred'
-      setError(errorMessage)
-      setRetryCount(prev => prev + 1)
-      
-      // Auto-retry after delay if retries remaining
-      if (retryCount + 1 < maxRetries) {
-        setTimeout(() => {
-          handleRetry()
-        }, retryDelay)
+      const nextAttempt = attempt + 1
+      if (mounted.current) {
+        setError(errorMessage)
+        setRetryCount(nextAttempt)
+      }
+      if (nextAttempt < maxRetries && mounted.current) {
+        retryTimer.current = setTimeout(() => runRetry(nextAttempt), retryDelay)
       }
     } finally {
-      setLoading(false)
+      if (mounted.current) setLoading(false)
     }
+  }
+
+  const handleRetry = () => {
+    if (!loading && retryCount < maxRetries) void runRetry(retryCount)
   }
 
   const isMaxRetriesReached = retryCount >= maxRetries
@@ -208,36 +218,46 @@ export const ExponentialBackoffRetryButton: React.FC<{
   const [loading, setLoading] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mounted = useRef(true)
+
+  useEffect(() => () => {
+    mounted.current = false
+    if (retryTimer.current) clearTimeout(retryTimer.current)
+  }, [])
 
   const calculateDelay = (attempt: number) => {
     const delay = baseDelay * Math.pow(2, attempt)
     return Math.min(delay, maxDelay)
   }
 
-  const handleRetry = async () => {
-    if (loading || retryCount >= maxRetries) return
-
-    setLoading(true)
-    setError(null)
+  const runRetry = async (attempt: number) => {
+    if (attempt >= maxRetries) return
+    if (mounted.current) {
+      setLoading(true)
+      setError(null)
+    }
 
     try {
       await onRetry()
-      setRetryCount(0)
+      if (mounted.current) setRetryCount(0)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred'
-      setError(errorMessage)
-      setRetryCount(prev => prev + 1)
-      
-      // Auto-retry with exponential backoff if retries remaining
-      if (retryCount + 1 < maxRetries) {
-        const delay = calculateDelay(retryCount)
-        setTimeout(() => {
-          handleRetry()
-        }, delay)
+      const nextAttempt = attempt + 1
+      if (mounted.current) {
+        setError(errorMessage)
+        setRetryCount(nextAttempt)
+      }
+      if (nextAttempt < maxRetries && mounted.current) {
+        retryTimer.current = setTimeout(() => runRetry(nextAttempt), calculateDelay(attempt))
       }
     } finally {
-      setLoading(false)
+      if (mounted.current) setLoading(false)
     }
+  }
+
+  const handleRetry = () => {
+    if (!loading && retryCount < maxRetries) void runRetry(retryCount)
   }
 
   const isMaxRetriesReached = retryCount >= maxRetries

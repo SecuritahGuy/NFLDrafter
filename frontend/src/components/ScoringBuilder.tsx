@@ -92,7 +92,7 @@ export function ScoringBuilder() {
 
           <div className="space-y-4">
             {rules.map((rule, index) => (
-              <div key={index} className="grid grid-cols-7 gap-4 items-center p-4 border border-gray-200 rounded-lg">
+              <div key={index} className="grid grid-cols-1 items-end gap-3 rounded-lg border border-gray-200 p-4 md:grid-cols-2 xl:grid-cols-[minmax(190px,1.4fr)_repeat(5,minmax(110px,1fr))_auto]">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Stat</label>
                   <select

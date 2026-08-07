@@ -1,21 +1,40 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import httpx
 import os
+from urllib.parse import urlencode
 from datetime import datetime, timedelta
 import jwt
 from app.deps import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.yahoo_xml import (
+    parse_leagues,
+    parse_rosters,
+    parse_settings,
+    parse_stat_categories,
+    parse_teams,
+    parse_user,
+)
+from app.services.player_matching import map_yahoo_rosters
+from app.services.yahoo_scoring import (
+    persist_yahoo_scoring_profile,
+    translate_yahoo_settings,
+)
 
 router = APIRouter(prefix="/yahoo", tags=["yahoo"])
+callback_router = APIRouter(tags=["yahoo"])
 security = HTTPBearer()
 
 # OAuth configuration
 YAHOO_CLIENT_ID = os.getenv("YAHOO_CLIENT_ID")
 YAHOO_CLIENT_SECRET = os.getenv("YAHOO_CLIENT_SECRET")
 YAHOO_REDIRECT_URI = os.getenv("YAHOO_REDIRECT_URI", "http://localhost:5173/auth/callback")
+YAHOO_FRONTEND_CALLBACK_URI = os.getenv(
+    "YAHOO_FRONTEND_CALLBACK_URI", "http://localhost:5173/auth/callback"
+)
 
 # JWT secret for internal token management
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key")
@@ -60,12 +79,64 @@ class YahooRoster(BaseModel):
     team_id: str
     players: List[Dict[str, Any]]
 
+
+@callback_router.get("/auth/yahoo/callback")
+async def yahoo_oauth_callback(
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    error_description: Optional[str] = None,
+):
+    """Relay Yahoo's registered server callback to the browser application."""
+    params = {
+        key: value
+        for key, value in {
+            "code": code,
+            "state": state,
+            "error": error,
+            "error_description": error_description,
+        }.items()
+        if value is not None
+    }
+    separator = "&" if "?" in YAHOO_FRONTEND_CALLBACK_URI else "?"
+    return RedirectResponse(
+        f"{YAHOO_FRONTEND_CALLBACK_URI}{separator}{urlencode(params)}",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@router.get("/authorize-url")
+async def get_authorize_url(
+    state: str = Query(min_length=32, max_length=128),
+):
+    """Build the Yahoo authorization URL from the server's OAuth configuration."""
+    if not YAHOO_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Yahoo OAuth not configured",
+        )
+
+    query = urlencode({
+        "client_id": YAHOO_CLIENT_ID,
+        "redirect_uri": YAHOO_REDIRECT_URI,
+        "response_type": "code",
+        "state": state,
+    })
+    return {
+        "authorize_url": f"https://api.login.yahoo.com/oauth2/request_auth?{query}",
+        "redirect_uri": YAHOO_REDIRECT_URI,
+    }
+
 async def get_yahoo_client():
     """Get HTTP client for Yahoo API calls"""
     return httpx.AsyncClient(
         base_url="https://fantasysports.yahooapis.com/fantasy/v2",
         timeout=30.0
     )
+
+
+def _game_key(league_id: str) -> str:
+    return league_id.split(".", 1)[0]
 
 async def exchange_code_for_tokens(code: str) -> Dict[str, Any]:
     """Exchange authorization code for access and refresh tokens"""
@@ -219,16 +290,7 @@ async def get_user_info(
                     detail="Failed to fetch user info"
                 )
             
-            # Parse XML response (Yahoo API returns XML)
-            # For now, return mock data - in production, parse XML properly
-            user_data = {
-                "id": "yahoo_user_123",
-                "email": "user@example.com",
-                "name": "Fantasy Football User",
-                "leagues": []
-            }
-            
-            return user_data
+            return parse_user(user_response.text)
             
     except HTTPException:
         raise
@@ -260,30 +322,7 @@ async def get_leagues(
                     detail="Failed to fetch leagues"
                 )
             
-            # Parse XML response and extract league data
-            # For now, return mock data - in production, parse XML properly
-            leagues_data = {
-                "leagues": [
-                    {
-                        "id": "league_1",
-                        "name": "My Fantasy League",
-                        "season": 2024,
-                        "scoring_type": "PPR",
-                        "num_teams": 12,
-                        "is_public": False
-                    },
-                    {
-                        "id": "league_2",
-                        "name": "Work League",
-                        "season": 2024,
-                        "scoring_type": "Standard",
-                        "num_teams": 10,
-                        "is_public": False
-                    }
-                ]
-            }
-            
-            return leagues_data
+            return {"leagues": parse_leagues(leagues_response.text)}
             
     except HTTPException:
         raise
@@ -316,36 +355,7 @@ async def get_league_teams(
                     detail="Failed to fetch teams"
                 )
             
-            # Parse XML response and extract team data
-            # For now, return mock data - in production, parse XML properly
-            teams_data = {
-                "teams": [
-                    {
-                        "id": "team_1",
-                        "name": "Team Alpha",
-                        "owner": "John Doe",
-                        "rank": 1,
-                        "wins": 8,
-                        "losses": 4,
-                        "ties": 0,
-                        "points_for": 1250.5,
-                        "points_against": 1180.2
-                    },
-                    {
-                        "id": "team_2",
-                        "name": "Team Beta",
-                        "owner": "Jane Smith",
-                        "rank": 2,
-                        "wins": 7,
-                        "losses": 5,
-                        "ties": 0,
-                        "points_for": 1200.8,
-                        "points_against": 1190.1
-                    }
-                ]
-            }
-            
-            return teams_data
+            return {"teams": parse_teams(teams_response.text)}
             
     except HTTPException:
         raise
@@ -354,6 +364,33 @@ async def get_league_teams(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch teams: {str(e)}"
         )
+
+@router.get("/leagues/{league_id}/settings")
+async def get_league_settings(
+    league_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get scoring and roster settings for a Yahoo league."""
+    del db
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://fantasysports.yahooapis.com/fantasy/v2/league/{league_id}/settings",
+            headers={"Authorization": f"Bearer {credentials.credentials}"},
+        )
+        categories_response = await client.get(
+            f"https://fantasysports.yahooapis.com/fantasy/v2/game/{_game_key(league_id)}/stat_categories",
+            headers={"Authorization": f"Bearer {credentials.credentials}"},
+        )
+    if response.status_code != 200:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to fetch league settings")
+    settings = parse_settings(response.text)
+    categories = (
+        parse_stat_categories(categories_response.text)
+        if categories_response.status_code == 200
+        else []
+    )
+    return {**settings, "translation": translate_yahoo_settings(settings, categories)}
 
 @router.get("/leagues/{league_id}/rosters")
 async def get_league_rosters(
@@ -378,28 +415,7 @@ async def get_league_rosters(
                     detail="Failed to fetch rosters"
                 )
             
-            # Parse XML response and extract roster data
-            # For now, return mock data - in production, parse XML properly
-            rosters_data = {
-                "rosters": [
-                    {
-                        "team_id": "team_1",
-                        "players": [
-                            {"id": "player_1", "name": "Patrick Mahomes", "position": "QB"},
-                            {"id": "player_2", "name": "Christian McCaffrey", "position": "RB"}
-                        ]
-                    },
-                    {
-                        "team_id": "team_2",
-                        "players": [
-                            {"id": "player_3", "name": "Tyreek Hill", "position": "WR"},
-                            {"id": "player_4", "name": "Travis Kelce", "position": "TE"}
-                        ]
-                    }
-                ]
-            }
-            
-            return rosters_data
+            return {"rosters": parse_rosters(rosters_response.text)}
             
     except HTTPException:
         raise
@@ -427,28 +443,68 @@ async def import_league(
                 detail="Invalid or expired token"
             )
         
-        # Import league data
-        # This would involve:
-        # 1. Fetching league settings
-        # 2. Fetching team rosters
-        # 3. Fetching player data
-        # 4. Storing in local database
-        
-        # For now, return success response
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with httpx.AsyncClient() as client:
+            settings_response = await client.get(
+                f"https://fantasysports.yahooapis.com/fantasy/v2/league/{request.league_id}/settings",
+                headers=headers,
+            )
+            teams_response = await client.get(
+                f"https://fantasysports.yahooapis.com/fantasy/v2/league/{request.league_id}/teams",
+                headers=headers,
+            )
+            categories_response = await client.get(
+                f"https://fantasysports.yahooapis.com/fantasy/v2/game/{_game_key(request.league_id)}/stat_categories",
+                headers=headers,
+            )
+            rosters_response = None
+            if request.include_rosters:
+                rosters_response = await client.get(
+                    f"https://fantasysports.yahooapis.com/fantasy/v2/league/{request.league_id}/teams/roster",
+                    headers=headers,
+                )
+        if settings_response.status_code != 200 or teams_response.status_code != 200 or (
+            rosters_response is not None and rosters_response.status_code != 200
+        ):
+            raise HTTPException(status_code=502, detail="Yahoo returned an error while importing league data")
+
+        settings = parse_settings(settings_response.text)
+        teams = parse_teams(teams_response.text)
+        rosters = parse_rosters(rosters_response.text) if rosters_response is not None else []
+        categories = (
+            parse_stat_categories(categories_response.text)
+            if categories_response.status_code == 200
+            else []
+        )
+        translation = translate_yahoo_settings(settings, categories)
+        scoring_profile = await persist_yahoo_scoring_profile(db, settings, translation)
+        player_mapping = await map_yahoo_rosters(
+            db, rosters, settings.get("season") or datetime.utcnow().year
+        )
+        await db.commit()
         import_result = {
             "league_id": request.league_id,
             "imported_at": datetime.utcnow().isoformat(),
-            "teams_imported": 12,
-            "players_imported": 144,
-            "rosters_imported": 12,
-            "status": "success"
+            "teams_imported": len(teams),
+            "players_imported": sum(len(roster["players"]) for roster in rosters),
+            "rosters_imported": len(rosters),
+            "settings": settings,
+            "prepared_league": translation,
+            "scoring_profile": scoring_profile,
+            "player_mapping": player_mapping,
+            "stat_categories_imported": len(categories),
+            "teams": teams,
+            "rosters": rosters,
+            "status": "success",
         }
         
         return import_result
         
     except HTTPException:
+        await db.rollback()
         raise
     except Exception as e:
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to import league: {str(e)}"

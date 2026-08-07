@@ -8,11 +8,7 @@ import {
   WifiIcon
 } from '@heroicons/react/24/outline'
 
-interface NavigationProps {
-  onPageChange: (page: string) => void
-}
-
-export const Navigation: React.FC<NavigationProps> = ({ onPageChange }) => {
+export const Navigation: React.FC = () => {
   const location = useLocation()
 
   const navItems = [
@@ -22,16 +18,12 @@ export const Navigation: React.FC<NavigationProps> = ({ onPageChange }) => {
     { path: '/player-explorer', label: 'Players', icon: MagnifyingGlassIcon },
   ]
 
-  const handleNavClick = (page: string) => {
-    onPageChange(page)
-  }
-
   return (
     <nav className="not-prose bg-slate-900 border-b border-slate-700 shadow-md">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 lg:px-6">
         <div className="flex items-center justify-between h-12">
           {/* Brand/Logo */}
-          <Link to="/" className="flex items-center space-x-3" onClick={() => handleNavClick('home')}>
+          <Link to="/" className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-5 h-5 bg-gradient-to-br from-orange-500 to-red-600 rounded-md shadow-sm">
               <span className="text-white text-xs font-bold">🏈</span>
             </div>
@@ -55,7 +47,6 @@ export const Navigation: React.FC<NavigationProps> = ({ onPageChange }) => {
                       ? 'bg-blue-600 text-white shadow-md' 
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
-                  onClick={() => handleNavClick(item.path.slice(1).replace('-', '_') || 'home')}
                 >
                   <IconComponent 
                     className="!h-4 !w-4 flex-none" 
@@ -84,6 +75,28 @@ export const Navigation: React.FC<NavigationProps> = ({ onPageChange }) => {
               <span className="text-xs font-medium">Online</span>
             </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1 border-t border-slate-800 py-2 md:hidden">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path
+            const IconComponent = item.icon
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[10px] font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <IconComponent className="h-4 w-4" aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            )
+          })}
         </div>
       </div>
     </nav>

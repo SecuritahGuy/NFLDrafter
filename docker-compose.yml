@@ -1,0 +1,21 @@
+services:
+  api:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: sh -c "pip install -e . && cd api && python cli.py init && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///./fantasy.db
+    ports:
+      - "8000:8000"
+  frontend:
+    image: node:22-slim
+    working_dir: /workspace/frontend
+    volumes:
+      - .:/workspace
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api

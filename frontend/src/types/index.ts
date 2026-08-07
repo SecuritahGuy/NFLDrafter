@@ -12,6 +12,14 @@ export interface Player {
   newsCount: number
   byeWeek: number
   rank?: number
+  ecr?: number
+  espnRank?: number
+  rankingSourceCount?: number
+  projectedPoints?: number
+  projectedPointsPerGame?: number
+  status?: string
+  lastSeason?: number
+  headshot?: string
   notes?: string
 }
 

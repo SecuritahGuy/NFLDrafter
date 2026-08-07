@@ -21,6 +21,10 @@ export const endpoints = {
   profiles: '/fantasy/profiles',
   bulkPoints: '/fantasy/points/batch',
   leaderboard: '/fantasy/points/leaderboard',
+
+  // External rankings
+  rankings: '/rankings/',
+  rankingSources: '/rankings/sources',
   
   // Health check
   health: '/health',
@@ -35,6 +39,10 @@ export interface BackendPlayer {
   nflverse_id?: string;
   yahoo_id?: string;
   sleeper_id?: string;
+  espn_id?: string;
+  last_season?: number;
+  status?: string;
+  headshot?: string;
 }
 
 export interface Player {
@@ -91,6 +99,78 @@ export interface PlayerSearchParams {
   position?: string;
   team?: string;
   limit?: number;
+  current_only?: boolean;
+  season?: number;
+}
+
+export interface PlayerSummary {
+  player: BackendPlayer;
+  season: number;
+  season_stats: Record<string, { total: number; avg: number; high: number; games: number }>;
+  weekly_sparkline: Array<{ week: number; stats: Record<string, number>; fantasy_points: number | null }>;
+  fantasy_points: number | null;
+  position_ranking: number | null;
+  total_games: number;
+}
+
+export interface PlayerContext {
+  player_id: string;
+  season: number;
+  projection: {
+    source: string;
+    scoring: string | null;
+    points: number | null;
+    points_per_game: number | null;
+    projection_season: number | null;
+    snapshot_date: string | null;
+    stats: Record<string, number>;
+    weekly: Array<{
+      week: number;
+      points: number | null;
+      stats: Record<string, number>;
+    }>;
+    season_outlook: string | null;
+    ownership: {
+      percent_owned?: number | null;
+      percent_started?: number | null;
+      average_draft_position?: number | null;
+      auction_value_average?: number | null;
+      updated_at?: number | null;
+    };
+  };
+  schedule_strength: {
+    available: boolean;
+    season: number;
+    basis_season: number;
+    position?: string;
+    schedule_rank?: number | null;
+    average_opponent_ease_rank?: number | null;
+    label?: string;
+    method?: string;
+    reason?: string;
+    matchups?: Array<{
+      week: number;
+      opponent: string;
+      location: 'home' | 'away';
+      ease_rank: number | null;
+      points_allowed_per_game: number | null;
+    }>;
+  };
+  injuries: Array<{
+    season: number;
+    week: number;
+    report_status: string | null;
+    primary_injury: string | null;
+    practice_status: string | null;
+  }>;
+  news: Array<{
+    title: string;
+    url: string;
+    source: string;
+    published_at: number;
+    summary: string | null;
+    relevance: number | null;
+  }>;
 }
 
 export interface BulkPointsRequest {
@@ -106,6 +186,49 @@ export interface LeaderboardParams {
   profile_id: string;
   position?: string;
   limit?: number;
+}
+
+export type RankingSourceId = 'fantasypros-ecr' | 'espn-draft-rank' | 'ffc-adp';
+
+export interface RankingRow {
+  rank: number | null;
+  pos_rank: number | null;
+  player_id: string | null;
+  full_name: string;
+  position: string | null;
+  team: string | null;
+  ecr: number | null;
+  tier: number | null;
+  sd: number | null;
+  best: number | null;
+  worst: number | null;
+  rank_delta: number | null;
+  bye: number | null;
+  projected_points: number | null;
+  projected_points_per_game: number | null;
+  projection_season: number | null;
+}
+
+export interface RankingsResponse {
+  source: RankingSourceId;
+  snapshot_date: string | null;
+  count: number;
+  rankings: RankingRow[];
+}
+
+export interface RankingSourceStatus {
+  source: RankingSourceId;
+  label: string;
+  kind: string;
+  purpose: string;
+  attribution_url: string;
+  available: boolean;
+  snapshot_date: string | null;
+  season: number | null;
+  scoring: string[];
+  records: number;
+  matched: number;
+  match_rate: number;
 }
 
 // API functions
@@ -130,6 +253,24 @@ export const playersAPI = {
   ): Promise<PlayerWeekStat> {
     const response = await api.get(`${endpoints.players}/${playerId}/stats`, {
       params: { season, week }
+    });
+    return response.data;
+  },
+
+  async getPlayerSummary(
+    playerId: string,
+    season: number,
+    profileId?: string
+  ): Promise<PlayerSummary> {
+    const response = await api.get(`${endpoints.players}/${playerId}/summary`, {
+      params: { season, profile_id: profileId || undefined }
+    });
+    return response.data;
+  },
+
+  async getPlayerContext(playerId: string, season: number): Promise<PlayerContext> {
+    const response = await api.get(`${endpoints.players}/${playerId}/context`, {
+      params: { season }
     });
     return response.data;
   },
@@ -238,6 +379,20 @@ export const fantasyAPI = {
   // Delete scoring profile
   async deleteProfile(profileId: string): Promise<void> {
     await api.delete(`${endpoints.profiles}/${profileId}`);
+  },
+};
+
+export const rankingsAPI = {
+  async getRankings(source: RankingSourceId, limit = 500): Promise<RankingsResponse> {
+    const response = await api.get(endpoints.rankings, {
+      params: { source, rank_type: 'preseason', scoring: 'PPR', limit },
+    });
+    return response.data;
+  },
+
+  async getSources(): Promise<RankingSourceStatus[]> {
+    const response = await api.get(endpoints.rankingSources);
+    return response.data.sources || [];
   },
 };
 

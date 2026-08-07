@@ -53,6 +53,19 @@ async def init_db():
         
         # Create FTS5 virtual table for news search if using SQLite
         if "sqlite" in DATABASE_URL:
+            player_columns = {
+                row[1]
+                for row in (await conn.execute(text("PRAGMA table_info(players)"))).all()
+            }
+            for column, definition in {
+                "espn_id": "VARCHAR",
+                "last_season": "INTEGER",
+                "status": "VARCHAR(8)",
+                "headshot": "VARCHAR",
+            }.items():
+                if column not in player_columns:
+                    await conn.execute(text(f"ALTER TABLE players ADD COLUMN {column} {definition}"))
+
             await conn.execute(text("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS news_items_fts 
                 USING fts5(title, summary, content='news_items', content_rowid='rowid');

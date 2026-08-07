@@ -102,7 +102,7 @@ describe('CheatSheetExport', () => {
       await user.click(exportButton)
       
       // Close modal - find the close button by its icon
-      const closeButton = screen.getByRole('button', { name: '' })
+      const closeButton = screen.getByRole('button', { name: 'Close export dialog' })
       await user.click(closeButton)
       
       expect(screen.queryByText('Export Cheat Sheet')).not.toBeInTheDocument()
@@ -300,7 +300,7 @@ describe('CheatSheetExport', () => {
       expect(screen.getByText('Export Cheat Sheet')).toBeInTheDocument()
       
       // Test that the modal can be closed by clicking the close button instead
-      const closeButton = screen.getByRole('button', { name: '' })
+      const closeButton = screen.getByRole('button', { name: 'Close export dialog' })
       await user.click(closeButton)
       expect(screen.queryByText('Export Cheat Sheet')).not.toBeInTheDocument()
     })

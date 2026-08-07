@@ -9,12 +9,15 @@ import {
   MinusIcon,
   ChartBarIcon,
   UserIcon,
+  UserMinusIcon,
   FireIcon
 } from '@heroicons/react/24/outline'
 import { CheatSheetExport } from './CheatSheetExport'
 import { LoadingState } from './LoadingState'
 import { ErrorDisplay } from './ErrorDisplay'
 import type { Player } from '../types'
+
+const INITIAL_VISIBLE_PLAYERS = 75
 
 export interface PlayerBoardProps {
   players: Player[]
@@ -35,9 +38,13 @@ export interface PlayerBoardProps {
   loading?: boolean
   error?: Error | null
   onRetry?: () => void
+  onPositionChange?: (position: string) => void
+  onSearchChange?: (query: string) => void
+  onDraftOther?: (player: Player) => void
+  onDraftMine?: (player: Player) => void
 }
 
-type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp' | 'valueVsADP'
+type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'rank' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp' | 'valueVsADP'
 type SortDirection = 'asc' | 'desc'
 
 export const PlayerBoard: React.FC<PlayerBoardProps> = ({
@@ -59,15 +66,19 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   loading = false,
   error = null,
   onRetry,
+  onPositionChange,
+  onSearchChange,
+  onDraftOther,
+  onDraftMine,
 }) => {
-  const [sortField, setSortField] = useState<SortField>('fantasyPoints')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [sortField, setSortField] = useState<SortField>('rank')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null)
-  const [selectedRowIndex, setSelectedRowIndex] = useState<number>(0)
-  const [scrollTop, setScrollTop] = useState<number>(0)
+  const [selectedRowIndex, setSelectedRowIndex] = useState<number>(-1)
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_PLAYERS)
   const [showADPImport, setShowADPImport] = useState<boolean>(false)
-  
-  const tableRef = useRef<HTMLDivElement>(null)
+  const hasProjectionData = players.some((player) => (player.fantasyPoints ?? 0) !== 0)
+
   const selectedRowRef = useRef<HTMLTableRowElement>(null)
 
   // Calculate Value vs ADP for each player
@@ -118,6 +129,11 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     filtered.sort((a, b) => {
       let aValue: any = a[sortField]
       let bValue: any = b[sortField]
+
+      if (sortField === 'rank') {
+        aValue = a.rank ?? Number.MAX_SAFE_INTEGER
+        bValue = b.rank ?? Number.MAX_SAFE_INTEGER
+      }
       
       // Handle Value vs ADP sorting
       if (sortField === 'valueVsADP') {
@@ -132,6 +148,16 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
 
     return filtered
   }, [playersWithValueVsADP, selectedPosition, searchQuery, sortField, sortDirection])
+
+  const visiblePlayers = useMemo(
+    () => filteredAndSortedPlayers.slice(0, visibleCount),
+    [filteredAndSortedPlayers, visibleCount],
+  )
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE_PLAYERS)
+    setSelectedRowIndex(-1)
+  }, [searchQuery, selectedPosition, sortDirection, sortField])
 
   // Handle sort
   const handleSort = (field: SortField) => {
@@ -154,11 +180,6 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     setExpandedPlayer(expandedPlayer === playerId ? null : playerId)
   }
 
-  // Handle scroll
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop)
-  }
-
   // Enhanced keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -178,7 +199,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
         case 'ArrowDown':
           e.preventDefault()
           setSelectedRowIndex(prev => 
-            prev < filteredAndSortedPlayers.length - 1 ? prev + 1 : prev
+            prev < visiblePlayers.length - 1 ? prev + 1 : prev
           )
           break
         case 'ArrowUp':
@@ -187,8 +208,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
           break
         case 'Enter':
           e.preventDefault()
-          if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
-            const player = filteredAndSortedPlayers[selectedRowIndex]
+          if (selectedRowIndex >= 0 && selectedRowIndex < visiblePlayers.length) {
+            const player = visiblePlayers[selectedRowIndex]
             onPlayerSelect(player)
           }
           break
@@ -196,8 +217,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
         case 'A':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault()
-            if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
-              const player = filteredAndSortedPlayers[selectedRowIndex]
+            if (selectedRowIndex >= 0 && selectedRowIndex < visiblePlayers.length) {
+              const player = visiblePlayers[selectedRowIndex]
               onAddToWatchlist(player)
             }
           }
@@ -206,8 +227,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
         case 'R':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault()
-            if (selectedRowIndex >= 0 && selectedRowIndex < filteredAndSortedPlayers.length) {
-              const player = filteredAndSortedPlayers[selectedRowIndex]
+            if (selectedRowIndex >= 0 && selectedRowIndex < visiblePlayers.length) {
+              const player = visiblePlayers[selectedRowIndex]
               onRemoveFromWatchlist(player.id)
             }
           }
@@ -262,7 +283,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [filteredAndSortedPlayers, selectedRowIndex, watchlist, onAddToWatchlist, onRemoveFromWatchlist, onPlayerSelect])
+  }, [visiblePlayers, selectedRowIndex, watchlist, onAddToWatchlist, onRemoveFromWatchlist, onPlayerSelect])
 
   // Scroll to selected row
   useEffect(() => {
@@ -403,8 +424,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-primary-100 rounded-md">
                 <ChartBarIcon 
@@ -429,9 +450,9 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Position Filter */}
-            <div className="relative">
+            <div className="relative min-w-[12rem] flex-1 sm:flex-none">
                               <FunnelIcon 
                   className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" 
                   style={{ width: '0.875rem', height: '0.875rem', flexShrink: 0 }}
@@ -440,11 +461,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                 title="Position Filter"
                 className="pl-8 pr-6 py-2 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white font-medium min-w-[120px]"
                 value={selectedPosition}
-                onChange={(e) => {
-                  // This would need to be handled by the parent component
-                  // For now, we'll just log the position change
-                  console.log('Position filter:', e.target.value)
-                }}
+                onChange={(e) => onPositionChange?.(e.target.value)}
               >
                 <option value="ALL">All Positions</option>
                 <option value="QB">Quarterbacks</option>
@@ -465,13 +482,9 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
               <input
                 type="text"
                 placeholder="Search players..."
-                className="pl-8 pr-3 py-2 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-60 bg-white font-medium"
+                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:w-60 bg-white font-medium"
                 value={searchQuery}
-                onChange={(e) => {
-                  // This would need to be handled by the parent component
-                  // For now, we'll just log the search query
-                  console.log('Search query:', e.target.value)
-                }}
+                onChange={(e) => onSearchChange?.(e.target.value)}
               />
             </div>
 
@@ -551,9 +564,9 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
 
       {/* Professional Player Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="max-h-[72vh] overflow-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
+            <thead className="sticky top-0 z-10 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200 shadow-sm">
               <tr>
                 <th className="px-6 py-4 text-left">
                   <SortHeader field="name">
@@ -590,6 +603,15 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                   style={{ width: '1rem', height: '1rem', flexShrink: 0 }}
                 />
                       <span>My Pts</span>
+                    </div>
+                  </SortHeader>
+                </th>
+
+                <th className="px-4 py-4 text-center">
+                  <SortHeader field="rank">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-4 w-4 rounded bg-blue-500 text-[9px] font-bold leading-4 text-white">3×</div>
+                      <span>Blend</span>
                     </div>
                   </SortHeader>
                 </th>
@@ -633,7 +655,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
             <tbody className="divide-y divide-gray-200">
               {filteredAndSortedPlayers.length === 0 ? (
                 <tr>
-                                      <td colSpan={8} className="px-4 py-8 text-center">
+                    <td colSpan={9} className="px-4 py-8 text-center">
                     <div className="max-w-md mx-auto">
                               <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
                           <MagnifyingGlassIcon 
@@ -654,7 +676,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedPlayers.map((player, index) => {
+                visiblePlayers.map((player, index) => {
                   const isSelected = index === selectedRowIndex
                   const isExpanded = expandedPlayer === player.id
                   const isInWatchlist = watchlist.includes(player.id)
@@ -708,31 +730,25 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         {/* My Points */}
                         <td className="px-4 py-4 text-center">
                           <div className="font-bold text-gray-900 text-lg">
-                            {player.fantasyPoints?.toFixed(1) || '0.0'}
+                            {hasProjectionData ? (player.fantasyPoints?.toFixed(1) || '0.0') : '—'}
                           </div>
                           <div className="text-xs text-gray-500 font-medium">points</div>
                         </td>
 
-                        {/* Yahoo Points */}
+                        {/* Multi-source draft rank */}
                         <td className="px-4 py-4 text-center">
-                          <div className="font-semibold text-gray-700 text-base">
-                            {player.yahooPoints?.toFixed(1) || '0.0'}
+                          <div className="font-bold text-blue-700 text-lg">
+                            {player.rank ? `#${player.rank}` : '—'}
                           </div>
-                          <div className="text-xs text-gray-500 font-medium">points</div>
-                        </td>
-
-                        {/* Delta */}
-                        <td className="px-4 py-4 text-center">
-                          <div className={`font-semibold ${getDeltaColor(player.delta)}`}>
-                            {player.delta > 0 ? '+' : ''}{player.delta?.toFixed(1) || '0.0'}
+                          <div className="whitespace-nowrap text-[10px] font-medium text-gray-500">
+                            {player.ecr ? `FP ${Math.round(player.ecr)}` : 'FP —'} · {player.espnRank ? `ESPN ${player.espnRank}` : 'ESPN —'}
                           </div>
-                          <div className="text-xs text-gray-500">diff</div>
                         </td>
 
                         {/* VORP */}
                         <td className="px-4 py-4 text-center">
                           <div className={`font-semibold ${getVorpColor(player.vorp)}`}>
-                            {player.vorp?.toFixed(1) || '0.0'}
+                            {hasProjectionData ? (player.vorp?.toFixed(1) || '0.0') : '—'}
                           </div>
                           <div className="text-xs text-gray-500">vorp</div>
                         </td>
@@ -740,13 +756,13 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         {/* Tier */}
                         <td className="px-4 py-4 text-center">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getTierColor(player.tier)}`}>
-                            T{player.tier}
+                            {hasProjectionData ? `T${player.tier}` : '—'}
                           </span>
                         </td>
 
                         {/* ADP */}
                         <td className="px-4 py-4 text-center">
-                          <div className="font-medium text-gray-700">{player.effectiveADP}</div>
+                          <div className="font-medium text-gray-700">{player.effectiveADP || '—'}</div>
                           <div className="text-xs text-gray-500">adp</div>
                         </td>
 
@@ -755,6 +771,34 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         {/* Actions */}
                         <td className="px-4 py-4 text-center">
                           <div className="flex items-center justify-center gap-2">
+                            {onDraftOther && (
+                              <button
+                                type="button"
+                                aria-label={`Mark ${player.name} drafted by opponent`}
+                                title="Drafted by opponent"
+                                className="rounded-md bg-slate-700 p-2 text-white hover:bg-slate-800"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onDraftOther(player)
+                                }}
+                              >
+                                <UserMinusIcon className="h-4 w-4" />
+                              </button>
+                            )}
+                            {onDraftMine && (
+                              <button
+                                type="button"
+                                aria-label={`Draft ${player.name} to my roster`}
+                                title="Draft to my roster"
+                                className="rounded-md bg-green-600 p-2 text-white hover:bg-green-700"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onDraftMine(player)
+                                }}
+                              >
+                                <PlusIcon className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -805,7 +849,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                       {/* Expanded Row */}
                       {isExpanded && (
                         <tr>
-                          <td colSpan={8} className="px-4 py-4 bg-gray-50">
+                          <td colSpan={9} className="px-4 py-4 bg-gray-50">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                               {/* Player Stats */}
                               <div className="space-y-3">
@@ -900,12 +944,20 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
       )}
 
       {/* Footer */}
-      <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <div className="flex items-center gap-4">
-            <span>Showing {filteredAndSortedPlayers.length} of {players.length} players</span>
-            <span>•</span>
-            <span>Press ↑↓ to navigate, Enter to select, A to add to watchlist</span>
+      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 sm:px-6">
+        <div className="flex flex-col gap-3 text-sm text-gray-600 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>Showing {visiblePlayers.length} of {filteredAndSortedPlayers.length} matching players</span>
+            {visiblePlayers.length < filteredAndSortedPlayers.length && (
+              <button
+                type="button"
+                className="font-semibold text-primary-700 hover:text-primary-900"
+                onClick={() => setVisibleCount((count) => count + INITIAL_VISIBLE_PLAYERS)}
+              >
+                Show {Math.min(INITIAL_VISIBLE_PLAYERS, filteredAndSortedPlayers.length - visiblePlayers.length)} more
+              </button>
+            )}
+            <span className="hidden text-gray-400 xl:inline">Press ↑↓ to navigate, Enter to select, Ctrl+A to add to watchlist</span>
           </div>
           <div className="flex items-center gap-2">
             <span>Sort by: {sortField}</span>

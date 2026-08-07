@@ -16,7 +16,7 @@
     "test:coverage:backend": "cd api && python -m pytest --cov=app --cov-report=html",
     "test:coverage:frontend": "cd frontend && npm run test:coverage",
     "build": "npm run build:backend && npm run build:frontend",
-    "build:backend": "cd api && python -m uvicorn app.main:app --port 8000",
+    "build:backend": "python -m compileall -q api/app",
     "build:frontend": "cd frontend && npm run build",
     "clean": "npm run clean:backend && npm run clean:frontend",
     "clean:backend": "cd api && rm -rf __pycache__ .pytest_cache .coverage htmlcov",
@@ -44,7 +44,7 @@
     "url": "https://github.com/yourusername/nfldrafter.git"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=22.12.0",
+    "npm": ">=10.0.0"
   }
 }

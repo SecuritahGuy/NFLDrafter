@@ -242,16 +242,15 @@ describe('PlayerBoard', () => {
   })
 
   describe('Sorting Functionality', () => {
-    it('sorts by fantasy points by default (descending)', () => {
+    it('defaults to blended rank and preserves input order when ranks are unavailable', () => {
       render(<PlayerBoard {...defaultProps} />)
       
       const rows = screen.getAllByRole('row').slice(1) // Skip header row
       const firstPlayerName = rows[0]?.querySelector('td:first-child')?.textContent
       const secondPlayerName = rows[1]?.querySelector('td:first-child')?.textContent
       
-      // McCaffrey should be first (28.3 points), then Mahomes (25.5)
-      expect(firstPlayerName).toContain('Christian McCaffrey')
-      expect(secondPlayerName).toContain('Patrick Mahomes')
+      expect(firstPlayerName).toContain('Patrick Mahomes')
+      expect(secondPlayerName).toContain('Tyreek Hill')
     })
 
     it('changes sort direction when clicking same column', async () => {
@@ -283,9 +282,8 @@ describe('PlayerBoard', () => {
       const sortIndicators = screen.getAllByTestId(/chevron-(up|down)-icon/)
       expect(sortIndicators.length).toBeGreaterThan(0)
       
-      // The default sort field (fantasyPoints) should show an indicator
-      const fantasyPointsHeader = screen.getByText('My Pts')
-      expect(fantasyPointsHeader).toBeInTheDocument()
+      // The default sort field is the multi-source blended rank.
+      expect(screen.getByText('Blend')).toBeInTheDocument()
     })
   })
 
@@ -330,13 +328,12 @@ describe('PlayerBoard', () => {
       await user.click(expandButton)
       
       await waitFor(() => {
-        expect(screen.getByText('25.5')).toBeInTheDocument()
-        expect(screen.getByText('24.8')).toBeInTheDocument()
-        expect(screen.getByText('8.2')).toBeInTheDocument()
+        expect(screen.getAllByText('25.5').length).toBeGreaterThan(0)
+        expect(screen.getAllByText('8.2').length).toBeGreaterThan(0)
         // Use getAllByText since there are multiple T1 elements
         const tier1Elements = screen.getAllByText('T1')
         expect(tier1Elements.length).toBeGreaterThan(0)
-        expect(screen.getByText('12')).toBeInTheDocument()
+        expect(screen.getAllByText('12').length).toBeGreaterThan(0)
       })
     })
 
@@ -445,12 +442,13 @@ describe('PlayerBoard', () => {
       expect(screen.getByText('28.3')).toBeInTheDocument()
     })
 
-    it('formats delta with plus sign for positive values', () => {
-      render(<PlayerBoard {...defaultProps} />)
-      
-      expect(screen.getByText('+0.7')).toBeInTheDocument()
-      expect(screen.getByText('+0.2')).toBeInTheDocument()
-      expect(screen.getByText('+0.8')).toBeInTheDocument()
+    it('formats blended rank with source provenance', () => {
+      render(<PlayerBoard {...defaultProps} players={[{
+        ...mockPlayers[0], rank: 7, ecr: 6.2, espnRank: 9,
+      }]} />)
+
+      expect(screen.getByText('#7')).toBeInTheDocument()
+      expect(screen.getByText('FP 6 · ESPN 9')).toBeInTheDocument()
     })
 
     it('formats ADP values correctly', () => {
@@ -461,7 +459,7 @@ describe('PlayerBoard', () => {
       expect(screen.getByText('8')).toBeInTheDocument()
     })
 
-    it('shows zero for undefined values', () => {
+    it('shows an unavailable marker when projection data is absent', () => {
       const playersWithUndefinedValues: Player[] = [
         {
           id: '5',
@@ -481,9 +479,8 @@ describe('PlayerBoard', () => {
       
       render(<PlayerBoard {...defaultProps} players={playersWithUndefinedValues} />)
       
-      // Component shows "0.0" for zero values
-      const zeroElements = screen.getAllByText('0.0')
-      expect(zeroElements.length).toBeGreaterThan(0)
+      const unavailableElements = screen.getAllByText('—')
+      expect(unavailableElements.length).toBeGreaterThan(0)
     })
   })
 
@@ -507,12 +504,12 @@ describe('PlayerBoard', () => {
       expect(vorpElements.some(el => el.classList.contains('text-blue-600')))
     })
 
-    it('applies correct delta colors', () => {
-      render(<PlayerBoard {...defaultProps} />)
-      
-      // Delta +0.7 should be blue and semibold (< 1)
-      const deltaElements = screen.getAllByText('+0.7')
-      expect(deltaElements.some(el => el.classList.contains('text-blue-600')))
+    it('uses emphasis color for the blended rank', () => {
+      render(<PlayerBoard {...defaultProps} players={[{
+        ...mockPlayers[0], rank: 7, ecr: 6.2, espnRank: 9,
+      }]} />)
+
+      expect(screen.getByText('#7')).toHaveClass('text-blue-700')
     })
   })
 
@@ -564,10 +561,8 @@ describe('PlayerBoard', () => {
       render(<PlayerBoard {...defaultProps} players={incompletePlayers} />)
       
       expect(screen.getByText('Incomplete Player')).toBeInTheDocument()
-      // Component shows "0.0" for zero values, which is correct behavior
-      // Use getAllByText since there are multiple "0.0" elements
-      const zeroElements = screen.getAllByText('0.0')
-      expect(zeroElements.length).toBeGreaterThan(0)
+      const unavailableElements = screen.getAllByText('—')
+      expect(unavailableElements.length).toBeGreaterThan(0)
     })
 
     it('handles very long player names', () => {
