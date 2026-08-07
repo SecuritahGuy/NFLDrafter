@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { MagnifyingGlassIcon, UserCircleIcon } from '@heroicons/react/24/outline'
 import { useScoringProfiles } from '../hooks/useScoringProfiles'
 import { usePlayers } from '../hooks/usePlayers'
-import { useRankings } from '../hooks/useRankings'
+import { useProjectionAnalytics, useRankings } from '../hooks/useRankings'
 import { buildCompositeRankings } from '../services/compositeRankings'
 import { PlayerDetailDrawer } from './PlayerDetailDrawer'
 import type { Player } from '../types'
@@ -27,9 +27,13 @@ export function PlayerExplorer() {
   const { data: fantasyPros } = useRankings('fantasypros-ecr')
   const { data: espn } = useRankings('espn-draft-rank')
   const { data: ffc } = useRankings('ffc-adp')
+  const { data: projectionAnalytics } = useProjectionAnalytics(selectedProfile, selectedSeason)
 
   const players = useMemo(() => {
     const rows = backendPlayers ?? []
+    const analytics = new Map(
+      (projectionAnalytics?.players ?? []).map((row) => [row.player_id, row]),
+    )
     const composite = buildCompositeRankings(
       rows,
       fantasyPros?.rankings ?? [],
@@ -38,16 +42,18 @@ export function PlayerExplorer() {
     )
     return rows.map((player): Player => {
       const ranking = composite.get(player.player_id)
+      const projection = analytics.get(player.player_id)
       return {
         id: player.player_id,
         name: player.full_name,
         position: player.position === 'PK' ? 'K' : player.position,
         team: player.team,
-        fantasyPoints: 0,
+        fantasyPoints: projection?.analytics_points ?? 0,
         yahooPoints: 0,
-        delta: 0,
-        vorp: 0,
-        tier: 0,
+        delta: projection?.profile_points != null && projection.espn_points != null
+          ? projection.profile_points - projection.espn_points : 0,
+        vorp: projection?.vorp ?? 0,
+        tier: projection?.tier ?? 0,
         adp: ranking?.ffc?.ecr ?? 0,
         newsCount: 0,
         byeWeek: ranking?.ffc?.bye ?? ranking?.fantasyPros?.bye ?? 0,
@@ -57,12 +63,16 @@ export function PlayerExplorer() {
         rankingSourceCount: ranking?.sourceCount ?? 0,
         projectedPoints: ranking?.espn?.projected_points ?? undefined,
         projectedPointsPerGame: ranking?.espn?.projected_points_per_game ?? undefined,
+        projectionScoringBasis: projection?.scoring_basis,
+        replacementRank: projection?.replacement_rank,
+        replacementPoints: projection?.replacement_points,
+        positionProjectionRank: projection?.position_rank,
         status: player.status,
         lastSeason: player.last_season,
         headshot: player.headshot,
       }
     })
-  }, [backendPlayers, espn, fantasyPros, ffc])
+  }, [backendPlayers, espn, fantasyPros, ffc, projectionAnalytics])
 
   const filteredPlayers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -115,13 +125,13 @@ export function PlayerExplorer() {
         </div>
 
         <div className="max-h-[68vh] overflow-auto">
-          <table className="w-full min-w-[760px]">
+          <table className="w-full min-w-[980px]">
             <thead className="sticky top-0 z-10 bg-white text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-sm">
-              <tr><th className="px-5 py-3">Player</th><th>Pos</th><th>Team</th><th>Consensus</th><th>FantasyPros</th><th>ESPN</th><th>ADP</th><th className="pr-5 text-right">Details</th></tr>
+              <tr><th className="px-5 py-3">Player</th><th>Pos</th><th>Team</th><th>Consensus</th><th>Profile proj.</th><th>Tier</th><th>VORP</th><th>FantasyPros</th><th>ESPN</th><th>ADP</th><th className="pr-5 text-right">Details</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
-                <tr><td colSpan={8} className="p-10 text-center text-slate-500">Loading the current player universe…</td></tr>
+                <tr><td colSpan={11} className="p-10 text-center text-slate-500">Loading the current player universe…</td></tr>
               ) : filteredPlayers.slice(0, visibleCount).map((player) => (
                 <tr key={player.id} className="cursor-pointer hover:bg-blue-50" onClick={() => setSelectedPlayer(player)}>
                   <td className="px-5 py-3"><div className="flex items-center gap-3">
@@ -130,6 +140,9 @@ export function PlayerExplorer() {
                   </div></td>
                   <td className="font-semibold text-slate-700">{player.position}</td><td className="text-slate-700">{player.team}</td>
                   <td className="font-black text-blue-800">{player.rank ? `#${player.rank}` : '—'}</td>
+                  <td className="font-bold text-violet-800">{player.fantasyPoints ? player.fantasyPoints.toFixed(1) : '—'}</td>
+                  <td>{player.tier ? `T${player.tier}` : '—'}</td>
+                  <td className={player.vorp > 0 ? 'font-bold text-emerald-700' : 'text-slate-500'}>{player.tier ? player.vorp.toFixed(1) : '—'}</td>
                   <td>{player.ecr ? `#${Math.round(player.ecr)}` : '—'}</td><td>{player.espnRank ? `#${player.espnRank}` : '—'}</td><td>{player.adp ? player.adp.toFixed(1) : '—'}</td>
                   <td className="pr-5 text-right"><button className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800" onClick={(event) => { event.stopPropagation(); setSelectedPlayer(player) }}>View profile</button></td>
                 </tr>

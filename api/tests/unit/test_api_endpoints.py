@@ -46,6 +46,19 @@ class TestFantasyEndpoints:
         assert query["state"] == [state_value]
         assert "scope" not in query
 
+    def test_yahoo_readiness_does_not_expose_credentials(self, client, monkeypatch):
+        monkeypatch.setattr(yahoo, "YAHOO_CLIENT_ID", "test-client-id")
+        monkeypatch.setattr(yahoo, "YAHOO_CLIENT_SECRET", "test-client-secret")
+
+        response = client.get("/yahoo/readiness")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["configured"] is True
+        assert response.json()["client_id_configured"] is True
+        assert response.json()["client_secret_configured"] is True
+        assert "test-client-id" not in response.text
+        assert "test-client-secret" not in response.text
+
     def test_yahoo_callback_relays_to_frontend(self, client, monkeypatch):
         monkeypatch.setattr(
             yahoo, "YAHOO_FRONTEND_CALLBACK_URI", "http://localhost:5173/auth/callback"
@@ -70,6 +83,7 @@ class TestFantasyEndpoints:
         data = response.json()
         assert "profiles" in data
         assert len(data["profiles"]) > 0
+        assert data["profiles"][0]["rules"][0]["stat_key"] == "receptions"
         
         # Check profile structure
         profile = data["profiles"][0]
@@ -218,6 +232,18 @@ class TestPlayerEndpoints:
         data = response.json()
         assert "detail" in data
         assert "not found" in data["detail"].lower()
+
+    def test_projection_analytics_uses_profile_and_league_baseline(self, client):
+        response = client.get(
+            "/rankings/projection-analytics",
+            params={"profile_id": "fixture-ppr", "season": 2026, "league_size": 2},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["profile"]["name"] == "Fixture PPR"
+        assert data["methodology"]["replacement_ranks"]["WR"] == 5
+        assert data["players"][0]["profile_points"] == 100
+        assert data["players"][0]["scoring_basis"] == "profile"
 
 
 class TestErrorHandling:

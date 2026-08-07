@@ -12,8 +12,8 @@ export const playerKeys = {
   stats: () => [...playerKeys.all, 'stats'] as const,
   stat: (playerId: string, season: number, week: number) => 
     [...playerKeys.stats(), playerId, season, week] as const,
-  context: (playerId: string, season: number) =>
-    [...playerKeys.detail(playerId), 'context', season] as const,
+  context: (playerId: string, season: number, profileId?: string) =>
+    [...playerKeys.detail(playerId), 'context', season, profileId] as const,
   positions: () => [...playerKeys.all, 'positions'] as const,
   teams: () => [...playerKeys.all, 'teams'] as const,
 };
@@ -59,10 +59,10 @@ export const usePlayerSummary = (playerId: string, season: number, profileId?: s
   });
 };
 
-export const usePlayerContext = (playerId: string, season: number) => {
+export const usePlayerContext = (playerId: string, season: number, profileId?: string) => {
   return useQuery({
-    queryKey: playerKeys.context(playerId, season),
-    queryFn: () => playersAPI.getPlayerContext(playerId, season),
+    queryKey: playerKeys.context(playerId, season, profileId),
+    queryFn: () => playersAPI.getPlayerContext(playerId, season, profileId),
     enabled: !!playerId && !!season,
     staleTime: 30 * 60 * 1000,
   });

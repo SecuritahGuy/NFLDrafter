@@ -11,9 +11,9 @@ A local-first fantasy football draft assistant with custom scoring profiles, pla
 | Manual snake draft, undo/correction, persistence, CSV export | Implemented |
 | Current/next-pick calculation and roster-aware recommendations | Implemented; recommendation weights are an initial baseline |
 | Custom scoring, player board, watchlist, and shared player detail | Implemented |
-| Projection-scored tiers and VORP | Planned; the UI does not present placeholders as live analytics |
+| Profile-scored FantasyPros/ESPN projections, position tiers, and VORP | Implemented with a persistent seven-day API cache, league/roster-aware replacement baselines, and labeled provider fallback |
 | `nflreadpy` data-provider boundary | Implemented; live 2026 import requires network access |
-| Yahoo OAuth token exchange | Implemented but requires your Yahoo app credentials |
+| Yahoo OAuth token exchange | Implemented with a non-secret server-readiness check and automatic refresh; live callback registration still requires Yahoo console setup |
 | Yahoo league/settings/team/roster XML parsing | Implemented and fixture-tested |
 | Yahoo scoring-profile persistence and season-aware player-ID matching | Implemented and fixture-tested; live Yahoo verification pending |
 | Automated Yahoo live-pick synchronization | Not implemented; manual mode remains the reliable draft path |
@@ -32,7 +32,9 @@ Yahoo is optional: after player data has loaded, the draft room prepares and cac
 - **Modern UI**: React frontend with Tailwind CSS and responsive design
 - **API-First Architecture**: FastAPI backend with automatic documentation
 - **Multi-Source Draft Rank**: FantasyPros expert consensus, ESPN platform rank, and human mock-draft ADP remain visible as separate inputs
-- **Rich Player Profiles**: Last-season production, position-specific advanced usage, ESPN season/weekly projections and ownership context, modeled schedule strength, official injury reports, and player-linked news
+- **Rich Player Profiles**: Last-season production, position-specific advanced usage, ESPN season/weekly projections, projection-derived team role and opportunity shares, ownership context, modeled schedule strength, official injury reports, and player-linked news
+- **Projection Analytics**: Score cached FantasyPros projected stat lines through the selected profile with ESPN fallback, derive position tiers and VORP from league settings, and feed those values into draft recommendations
+- **Yahoo Import Verification**: Preview teams, roster slots, draft rounds, and mapped scoring rules before import, then report player-ID coverage and unresolved matches
 
 The current fantasy-relevant player pool contains 1,002 selectable players, including all 32 defenses. The August 2026 browser QA covered missing-player searches, position filters, board ordering, and player details opened from both the Draft Room and Player Explorer. See the [QA evidence](docs/QA.md) for the scenarios and captured screenshots.
 
@@ -43,12 +45,17 @@ NFLDrafter assigns each feed a specific role instead of treating every number as
 | Source | Signal | Used for |
 | --- | --- | --- |
 | [FantasyPros ECR](https://www.fantasypros.com/nfl/rankings/consensus-cheatsheets.php) via `nflreadpy` | Expert consensus | Expert conviction, uncertainty range, and 50% of the initial blended draft rank |
+| [FantasyPros API](https://www.fantasypros.com/api-data/) | Consensus projected stat lines | Cache-first preseason projections, custom-profile scoring, and team-relative opportunity shares |
 | [ESPN Fantasy](https://www.espn.com/fantasy/football/) public player endpoint | Platform draft rank | Draft-room ordering and 20% of the initial blend |
 | [Fantasy Football Calculator ADP](https://fantasyfootballcalculator.com/adp/ppr) REST API | Human mock-draft ADP | Expected acquisition cost, next-pick urgency, and 30% of the initial blend |
 
 The weights are an explainable starting baseline, not an accuracy claim. Missing sources are reweighted automatically. `GET /rankings/sources` reports snapshot dates and canonical-player match coverage, while `GET /rankings/?source=...` returns a specific feed. Fantasy Football Calculator permits API use and requests attribution; the product UI and this README provide it.
 
 ![Live Draft Room player board with source ranks](docs/images/nfldrafter-draft-room-live.jpg)
+
+Manual mode is designed as the dependable fallback when a platform connection is unavailable. The tracker follows the configured snake order, changes the board action between `Mine` and `Taken`, removes recorded players from the available pool, keeps a searchable correction ledger, and persists the session in the browser.
+
+![Manual Draft Room tracker with automatic turn ownership and draft ledger](docs/images/manual-draft-tracker.png)
 
 ## Tech Stack
 
@@ -109,6 +116,13 @@ This creates `.venv`, installs locked frontend dependencies, initializes SQLite 
    # Edit .env with your configuration
    ```
 
+   For official FantasyPros projections, set `FANTASYPROS_API_KEY` in `.env`.
+   NFLDrafter caches each endpoint/query response in SQLite for seven days and
+   serves stale cached data if the provider or daily quota is unavailable.
+   The weekly projection importer makes at most six calls (one per position),
+   while UI and API reads are cache-only. Use `--force` only when intentionally
+   spending another six calls.
+
 4. **Initialize the database**
    ```bash
    cd api
@@ -164,19 +178,22 @@ This creates `.venv`, installs locked frontend dependencies, initializes SQLite 
 1. Navigate to the Player Explorer page
 2. Select a season, position, and scoring profile
 3. Search the complete fantasy-relevant player pool or sort its source-aware board
-4. Select any player to open last-season production, advanced usage, ESPN projections, schedule strength, injury reports, and linked news
+4. Select any player to open last-season production, advanced usage, cached FantasyPros projections with ESPN fallback, schedule strength, injury reports, and linked news
 5. Open the same detail view from the Draft Room while making picks
 
 ### API Endpoints
 
 - **GET** `/fantasy/points` - Calculate fantasy points
 - **GET** `/players/{id}/stats` - Get weekly player statistics
-- **GET** `/players/{id}/summary` - Get last-season totals, advanced usage, and ESPN projection context
-- **GET** `/players/{id}/context` - Get schedule strength, injury, and news context
+- **GET** `/players/{id}/summary` - Get last-season totals and advanced usage
+- **GET** `/players/{id}/context` - Get cached projection, schedule strength, injury, and news context
 - **GET** `/fantasy/profiles` - List scoring profiles
 - **GET** `/rankings/sources` - List ranking feeds, freshness, and player-ID coverage
 - **GET** `/rankings/?source=fantasypros-ecr` - Query a specific ranking snapshot
 - **GET** `/rankings/{player_id}/history` - Get source-rank movement for one player
+- **GET** `/rankings/projection-analytics` - Score projections and derive tiers/VORP for a profile and league configuration
+- **GET** `/rankings/fantasypros/cache-status` - Inspect cache freshness and locally tracked daily-call usage without exposing the key
+- **GET** `/yahoo/readiness` - Confirm OAuth credentials and callback configuration without exposing secrets
 - **GET** `/news/players/{player_id}/features` - Get player-linked news features and headlines
 - **GET** `/health` - Health check
 
@@ -196,6 +213,9 @@ python cli.py load-stats 2024,2025,2026
 
 # Refresh FantasyPros, ESPN, and FFC draft snapshots
 python cli.py load-draft-sources --season 2026 --scoring PPR --teams 12
+
+# Import official FantasyPros projection samples (six cache-first position reads)
+python cli.py load-fantasypros-projections --season 2026
 
 # Load official weekly injury reports and ESPN NFL news
 python cli.py load-injuries 2025
@@ -257,10 +277,12 @@ The project uses SQLAlchemy with automatic table creation. For production deploy
 - `DATABASE_URL`: Database connection string
 - `YAHOO_CLIENT_ID`: Yahoo OAuth client ID
 - `YAHOO_CLIENT_SECRET`: Yahoo OAuth client secret
-- `YAHOO_REDIRECT_URI`: Exact callback registered in Yahoo; locally use `http://localhost:8000/auth/yahoo/callback`
+- `YAHOO_REDIRECT_URI`: Exact HTTPS callback registered in Yahoo; for local development, point an HTTPS tunnel at port 8000 and append `/auth/yahoo/callback`
 - `YAHOO_FRONTEND_CALLBACK_URI`: Browser handoff after Yahoo returns; locally use `http://localhost:5173/auth/callback`
 - `DEBUG`: Enable debug mode
 - `ALLOWED_ORIGINS`: CORS allowed origins
+
+The redirect URI is an exact-match HTTPS setting in Yahoo. In the Yahoo developer application, register the same value used by `YAHOO_REDIRECT_URI`—including scheme, host, port, path, and trailing-slash choice. For local development, `cloudflared tunnel --url http://localhost:8000` provides a temporary HTTPS host; append `/auth/yahoo/callback` and use that complete value in both Yahoo and `.env`. NFLDrafter then relays the result to the local frontend callback. An OAuth page reporting `invalid redirect uri` means these values differ.
 
 ### Database Configuration
 
@@ -270,7 +292,8 @@ The project uses SQLAlchemy with automatic table creation. For production deploy
 
 ## Data notes
 
-- ESPN projected fantasy points use conventional PPR scoring applied to ESPN's projected box-score fields. Custom-profile projection scoring is the next analytics milestone.
+- ESPN's native projected fantasy points remain available for comparison. NFLDrafter also scores the projected box-score fields through the selected profile; when no profile rule matches an available kicker or defense projection, the response labels its ESPN PPR fallback.
+- VORP uses the selected league size and starter counts. FLEX is allocated evenly across RB, WR, and TE; SUPERFLEX is allocated to QB. The API returns the exact replacement ranks and tier thresholds used.
 - Schedule strength is modeled from the previous season's PPR points allowed by position. Rank 1 means the easiest modeled schedule; it is context, not a forecast.
 - Injury data comes from weekly official injury-report data available through `nflreadpy`; news is fetched from ESPN's public NFL news endpoint and linked to players by relevance scoring.
 - Draft-source rows retain their snapshot date and attribution. Missing sources are reweighted instead of silently treated as zero.
@@ -289,7 +312,7 @@ The project uses SQLAlchemy with automatic table creation. For production deploy
 - [x] Generate a versioned offline draft package with checksum validation and browser recovery
 - [x] Add a complete fantasy-relevant player universe and shared detail from both draft surfaces
 - [x] Add 2025 production, ESPN projections, schedule strength, injuries, and player-linked news
-- [ ] Score projected box stats through the selected profile, then activate transparent tiers and VORP
+- [x] Score projected box stats through the selected profile, then activate transparent tiers and VORP
 - [ ] Complete a credentialed Yahoo league-import dress rehearsal
 - [ ] Add Playwright coverage for refresh, undo, correction, and export
 - [ ] Add rank-confidence, ADP-urgency, and expected-availability calibration
@@ -307,6 +330,22 @@ The checked-in QA captures are reusable in issues, release notes, and project do
 | Schedule, injuries, and news | Scoring builder |
 | --- | --- |
 | ![Player schedule and news context](docs/images/nfldrafter-player-detail-context.jpg) | ![Scoring profile builder](docs/images/nfldrafter-scoring-builder.png) |
+
+| Profile-scored detail | League-aware tiers and VORP |
+| --- | --- |
+| ![PPR-scored player projection](docs/images/nfldrafter-profile-scored-projections.png) | ![Projection analytics panel](docs/images/nfldrafter-projection-analytics-panel.png) |
+
+| Projection-derived team role |
+| --- |
+| ![Projection-derived team role and opportunity shares](docs/images/nfldrafter-projected-team-role.png) |
+
+| Cached FantasyPros projections |
+| --- |
+| ![Official FantasyPros projected stat line](docs/images/nfldrafter-fantasypros-projections.png) |
+
+| Yahoo OAuth readiness |
+| --- |
+| ![Yahoo OAuth readiness and exact callback](docs/images/nfldrafter-yahoo-readiness.jpg) |
 
 `docs/index.html` is a dependency-free product page. The `GitHub Pages` workflow publishes that directory after Pages is configured to use **GitHub Actions** in the repository settings.
 

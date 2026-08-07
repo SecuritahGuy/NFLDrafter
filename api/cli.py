@@ -158,6 +158,24 @@ def load_draft_sources(
 
 
 @cli.command()
+def load_fantasypros_projections(
+    season: int = typer.Option(2026, help="Season year"),
+    force: bool = typer.Option(False, help="Bypass the seven-day cache (spends up to six API calls)"),
+):
+    """Load official FantasyPros projection samples through the persistent cache."""
+    from app.services.fantasypros_projections import ingest_fantasypros_projections
+
+    result = asyncio.run(
+        ingest_fantasypros_projections(season=season, force_refresh=force)
+    )
+    typer.echo(
+        f"FantasyPros projections: {result['loaded']} rows, {result['matched']} matched; "
+        f"{result['network_calls']} network calls; cache={','.join(result['cache_statuses'])}; "
+        f"tier={result['tier']} limited={result['limited']}"
+    )
+
+
+@cli.command()
 def load_injuries(
     seasons: str = typer.Argument("", help="Comma-separated seasons to load (default: latest)")
 ):
@@ -198,6 +216,23 @@ def load_news(
         f"Stored {result.get('loaded', 0)} news items "
         f"({result.get('skipped_duplicate', 0)} dupes skipped) · "
         f"{result.get('player_mentions', 0)} player mentions scored"
+    )
+
+
+@cli.command()
+def seed_sleeper_ids():
+    """Backfill Sleeper player ids onto canonical players (free, no-auth API)."""
+    from app.services.sleeper import backfill_sleeper_ids
+
+    async def _load():
+        return await backfill_sleeper_ids()
+
+    typer.echo("Backfilling Sleeper player ids...")
+    result = asyncio.run(_load())
+    typer.echo(
+        f"Sleeper: {result.get('loaded', 0)} player records · "
+        f"{result.get('matched', 0)} matched · "
+        f"{result.get('ambiguous', 0)} ambiguous · season {result.get('season')}"
     )
 
 

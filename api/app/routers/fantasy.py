@@ -661,6 +661,17 @@ async def list_scoring_profiles(
     query = select(ScoringProfile).where(ScoringProfile.is_public == True)
     result = await db.execute(query)
     profiles = result.scalars().all()
+    profile_ids = [profile.profile_id for profile in profiles]
+    rules = (
+        await db.execute(
+            select(ScoringRule)
+            .where(ScoringRule.profile_id.in_(profile_ids))
+            .order_by(ScoringRule.profile_id, ScoringRule.stat_key)
+        )
+    ).scalars().all() if profile_ids else []
+    rules_by_profile: Dict[str, List[ScoringRule]] = {}
+    for rule in rules:
+        rules_by_profile.setdefault(rule.profile_id, []).append(rule)
     
     return {
         "profiles": [
@@ -668,7 +679,21 @@ async def list_scoring_profiles(
                 "profile_id": profile.profile_id,
                 "name": profile.name,
                 "description": profile.description,
-                "created_at": profile.created_at
+                "is_public": profile.is_public,
+                "created_at": profile.created_at,
+                "rules": [
+                    {
+                        "rule_id": rule.rule_id,
+                        "stat_key": rule.stat_key,
+                        "multiplier": rule.multiplier,
+                        "per": rule.per,
+                        "bonus_min": rule.bonus_min,
+                        "bonus_max": rule.bonus_max,
+                        "bonus_points": rule.bonus_points,
+                        "cap": rule.cap,
+                    }
+                    for rule in rules_by_profile.get(profile.profile_id, [])
+                ],
             }
             for profile in profiles
         ]

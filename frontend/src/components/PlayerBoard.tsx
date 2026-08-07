@@ -776,13 +776,14 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                                 type="button"
                                 aria-label={`Mark ${player.name} drafted by opponent`}
                                 title="Drafted by opponent"
-                                className="rounded-md bg-slate-700 p-2 text-white hover:bg-slate-800"
+                                className="inline-flex items-center gap-1.5 rounded-md bg-slate-700 px-2.5 py-2 text-xs font-bold text-white hover:bg-slate-800"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   onDraftOther(player)
                                 }}
                               >
                                 <UserMinusIcon className="h-4 w-4" />
+                                <span>Taken</span>
                               </button>
                             )}
                             {onDraftMine && (
@@ -790,13 +791,14 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                                 type="button"
                                 aria-label={`Draft ${player.name} to my roster`}
                                 title="Draft to my roster"
-                                className="rounded-md bg-green-600 p-2 text-white hover:bg-green-700"
+                                className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-2.5 py-2 text-xs font-bold text-white hover:bg-green-700"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   onDraftMine(player)
                                 }}
                               >
                                 <PlusIcon className="h-4 w-4" />
+                                <span>Mine</span>
                               </button>
                             )}
                             <button

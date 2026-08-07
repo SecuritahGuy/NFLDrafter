@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .db import init_db
-from .routers import fantasy, news, players, rankings, yahoo
+from .routers import fantasy, news, players, rankings, sleeper, yahoo
 
 
 @asynccontextmanager
@@ -58,6 +58,7 @@ app.include_router(yahoo.callback_router)
 app.include_router(rankings.router)
 app.include_router(rankings.injury_router)
 app.include_router(news.router)
+app.include_router(sleeper.router)
 
 # Health check endpoint
 @app.get("/health")

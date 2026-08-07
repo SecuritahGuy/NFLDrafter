@@ -121,12 +121,17 @@ export interface PlayerContext {
     scoring: string | null;
     points: number | null;
     points_per_game: number | null;
+    profile_id: string | null;
+    profile_name: string | null;
+    profile_points: number | null;
+    profile_points_per_game: number | null;
     projection_season: number | null;
     snapshot_date: string | null;
     stats: Record<string, number>;
     weekly: Array<{
       week: number;
       points: number | null;
+      profile_points: number | null;
       stats: Record<string, number>;
     }>;
     season_outlook: string | null;
@@ -137,6 +142,19 @@ export interface PlayerContext {
       auction_value_average?: number | null;
       updated_at?: number | null;
     };
+    opportunity: {
+      team: string;
+      role_share_estimate: number | null;
+      teammates_ranked: number;
+      exact_shares: Record<string, {
+        share: number;
+        player_value: number;
+        team_total: number;
+        players_covered: number;
+      }>;
+      method: string;
+      exact_share_method: string;
+    } | null;
   };
   schedule_strength: {
     available: boolean;
@@ -188,7 +206,7 @@ export interface LeaderboardParams {
   limit?: number;
 }
 
-export type RankingSourceId = 'fantasypros-ecr' | 'espn-draft-rank' | 'ffc-adp';
+export type RankingSourceId = 'fantasypros-ecr' | 'fantasypros-projection' | 'espn-draft-rank' | 'ffc-adp';
 
 export interface RankingRow {
   rank: number | null;
@@ -197,6 +215,7 @@ export interface RankingRow {
   full_name: string;
   position: string | null;
   team: string | null;
+  projection_source: 'FantasyPros' | 'ESPN';
   ecr: number | null;
   tier: number | null;
   sd: number | null;
@@ -229,6 +248,52 @@ export interface RankingSourceStatus {
   records: number;
   matched: number;
   match_rate: number;
+}
+
+export interface ProjectionAnalyticsRow {
+  player_id: string;
+  full_name: string;
+  position: string;
+  team: string | null;
+  espn_points: number | null;
+  profile_points: number | null;
+  analytics_points: number;
+  points_per_game: number;
+  scoring_basis: 'profile' | 'source_fallback';
+  position_rank: number;
+  replacement_rank: number;
+  replacement_points: number;
+  vorp: number;
+  tier: number;
+  weekly: Array<{ week: number; espn_points: number | null; profile_points: number | null }>;
+}
+
+export interface ProjectionAnalyticsResponse {
+  season: number;
+  snapshot_date: string | null;
+  snapshot_dates?: Record<string, string | null>;
+  profile: { profile_id: string; name: string };
+  methodology: {
+    league_size?: number;
+    replacement_ranks?: Record<string, number>;
+    tier_thresholds?: Record<string, number>;
+    tier_method?: string;
+    flex_allocation?: string;
+    fallback?: string;
+  };
+  players: ProjectionAnalyticsRow[];
+}
+
+export interface ProjectionLeagueConfig {
+  league_size?: number;
+  qb?: number;
+  rb?: number;
+  wr?: number;
+  te?: number;
+  flex?: number;
+  superflex?: number;
+  k?: number;
+  defense?: number;
 }
 
 // API functions
@@ -268,9 +333,9 @@ export const playersAPI = {
     return response.data;
   },
 
-  async getPlayerContext(playerId: string, season: number): Promise<PlayerContext> {
+  async getPlayerContext(playerId: string, season: number, profileId?: string): Promise<PlayerContext> {
     const response = await api.get(`${endpoints.players}/${playerId}/context`, {
-      params: { season }
+      params: { season, profile_id: profileId || undefined }
     });
     return response.data;
   },
@@ -352,9 +417,9 @@ export const fantasyAPI = {
       profile_id: profile.profile_id,
       name: profile.name,
       description: profile.description,
-      is_public: true, // Backend only returns public profiles
+      is_public: profile.is_public,
       created_at: profile.created_at,
-      rules: [], // TODO: Backend doesn't return rules in list endpoint
+      rules: profile.rules || [],
     }));
   },
 
@@ -393,6 +458,17 @@ export const rankingsAPI = {
   async getSources(): Promise<RankingSourceStatus[]> {
     const response = await api.get(endpoints.rankingSources);
     return response.data.sources || [];
+  },
+
+  async getProjectionAnalytics(
+    profileId: string,
+    season: number,
+    config: ProjectionLeagueConfig = {},
+  ): Promise<ProjectionAnalyticsResponse> {
+    const response = await api.get(`${endpoints.rankings}projection-analytics`, {
+      params: { profile_id: profileId, season, ...config },
+    });
+    return response.data;
   },
 };
 

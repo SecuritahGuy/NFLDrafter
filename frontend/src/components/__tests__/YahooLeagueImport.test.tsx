@@ -24,6 +24,16 @@ describe('YahooLeagueImport', () => {
   const mockAccessToken = 'mock-access-token'
   const mockOnLeagueSelect = vi.fn()
   const mockOnImportComplete = vi.fn()
+  const mockSettings = {
+    roster_positions: [{ position: 'QB', count: 1 }],
+    translation: {
+      rules: [{ stat_key: 'passing_yards', multiplier: 0.04, source_name: 'Passing Yards' }],
+      unmapped_stat_modifiers: [],
+      roster_slots: [{ position: 'QB', normalized_position: 'QB', count: 1 }],
+      draft_config: { league_size: 12, rounds: 1 },
+      complete: true
+    }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -208,6 +218,10 @@ describe('YahooLeagueImport', () => {
         ok: true,
         json: async () => mockRosters
       })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSettings
+      })
 
     render(
       <ToastProvider>
@@ -270,6 +284,15 @@ describe('YahooLeagueImport', () => {
       teams_imported: 12,
       players_imported: 144,
       rosters_imported: 12,
+      prepared_league: mockSettings.translation,
+      scoring_profile: { name: 'Yahoo — My Fantasy League', rule_count: 1, complete: true },
+      player_mapping: {
+        total: 144,
+        matched: 140,
+        ambiguous: 1,
+        unmatched: 3,
+        results: []
+      },
       status: 'success'
     }
 
@@ -285,6 +308,10 @@ describe('YahooLeagueImport', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ rosters: [] })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSettings
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -333,9 +360,10 @@ describe('YahooLeagueImport', () => {
     expect(mockAddToast).toHaveBeenCalledWith({
       type: 'success',
       title: 'League Imported!',
-      message: 'Successfully imported My Fantasy League with 1 teams',
+      message: 'Imported 12 teams and matched 140 players',
       duration: 5000
     })
+    expect(screen.getByTestId('yahoo-import-report')).toHaveTextContent('97%')
   })
 
   it('shows error when import fails', async () => {
@@ -380,6 +408,10 @@ describe('YahooLeagueImport', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ rosters: [] })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSettings
       })
       .mockResolvedValueOnce({
         ok: false

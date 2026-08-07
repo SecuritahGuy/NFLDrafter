@@ -54,18 +54,35 @@ describe('draftEngine', () => {
     expect(recommendations[0].reason).toContain('roster need')
   })
 
+  it('uses profile-scored VORP and tiers in recommendation order and explanation', () => {
+    const highValue = player('profile-value', 'RB', 42, 30, 1)
+    const marketFavorite = { ...player('market-rank', 'RB', 4, 3, 4), rank: 1 }
+    const recommendations = recommendPlayers(
+      [marketFavorite, highValue],
+      [],
+      [marketFavorite, highValue],
+      1,
+      24,
+    )
+
+    expect(recommendations[0].player.id).toBe('profile-value')
+    expect(recommendations[0].reason).toContain('42.0 VORP')
+  })
+
   it('assigns dedicated starters before flex and bench slots', () => {
     const players = [
       player('rb1', 'RB', 1, 1), player('rb2', 'RB', 1, 2), player('rb3', 'RB', 1, 3),
-      player('wr1', 'WR', 1, 4), player('qb1', 'QB', 1, 5),
+      player('wr1', 'WR', 1, 4), player('qb1', 'QB', 1, 5), player('qb2', 'QB', 1, 6),
     ]
     const assigned = assignRosterSlots(players, [
       { position: 'QB', required: 1 }, { position: 'RB', required: 2 },
       { position: 'WR', required: 1 }, { position: 'FLEX', required: 1 },
+      { position: 'SUPERFLEX', required: 1 },
       { position: 'BN', required: 2 },
     ])
     expect(assigned.RB.map(({ id }) => id)).toEqual(['rb1', 'rb2'])
     expect(assigned.FLEX.map(({ id }) => id)).toEqual(['rb3'])
+    expect(assigned.SUPERFLEX.map(({ id }) => id)).toEqual(['qb2'])
     expect(assigned.BN).toHaveLength(0)
   })
 })

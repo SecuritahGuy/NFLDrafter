@@ -5,7 +5,8 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..deps import get_db_session
-from ..models import PlayerInjury, PlayerRanking
+from ..models import PlayerInjury, PlayerRanking, ScoringProfile, ScoringRule
+from ..services.projection_analytics import build_projection_analytics
 
 router = APIRouter(prefix="/rankings", tags=["rankings"])
 injury_router = APIRouter(prefix="/injuries", tags=["injuries"])
@@ -28,6 +29,12 @@ RANKING_SOURCES = {
         "kind": "market_adp",
         "purpose": "Human mock-draft cost and next-pick urgency",
         "attribution_url": "https://fantasyfootballcalculator.com/adp/ppr",
+    },
+    "fantasypros-projection": {
+        "label": "FantasyPros Projections",
+        "kind": "projection",
+        "purpose": "Consensus projected stat lines and team opportunity",
+        "attribution_url": "https://www.fantasypros.com/nfl/projections/",
     },
 }
 
@@ -280,6 +287,130 @@ async def get_movement(
         "to_snapshot": current_date,
         "count": len(rows),
         "movement": rows[:limit],
+    }
+
+
+@router.get("/projection-analytics")
+async def get_projection_analytics(
+    profile_id: str = Query(..., description="Scoring profile used for projected points"),
+    season: int = Query(2026, ge=2000, le=2030),
+    league_size: int = Query(12, ge=2, le=32),
+    qb: int = Query(1, ge=0, le=4),
+    rb: int = Query(2, ge=0, le=8),
+    wr: int = Query(2, ge=0, le=8),
+    te: int = Query(1, ge=0, le=4),
+    flex: int = Query(1, ge=0, le=4),
+    superflex: int = Query(0, ge=0, le=4),
+    k: int = Query(1, ge=0, le=2),
+    defense: int = Query(1, ge=0, le=2),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Score cached FantasyPros projections with ESPN fallback, deriving tiers and VORP."""
+    profile = (
+        await db.execute(select(ScoringProfile).where(ScoringProfile.profile_id == profile_id))
+    ).scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Scoring profile not found")
+    rules = (
+        await db.execute(select(ScoringRule).where(ScoringRule.profile_id == profile_id))
+    ).scalars().all()
+    if not rules:
+        raise HTTPException(status_code=422, detail="Scoring profile has no rules")
+
+    snapshot_dates = {}
+    for source in ("fantasypros-projection", "espn-draft-rank"):
+        snapshot_dates[source] = (
+            await db.execute(
+                select(PlayerRanking.snapshot_date)
+                .where(
+                    PlayerRanking.source == source,
+                    PlayerRanking.rank_type == "preseason",
+                    PlayerRanking.season == season,
+                    PlayerRanking.scoring == "PPR",
+                )
+                .order_by(PlayerRanking.snapshot_date.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+    if not any(snapshot_dates.values()):
+        return {
+            "season": season, "snapshot_date": None,
+            "profile": {"profile_id": profile.profile_id, "name": profile.name},
+            "methodology": {}, "players": [],
+        }
+
+    records = []
+    seen_player_ids = set()
+    for source in ("fantasypros-projection", "espn-draft-rank"):
+        snapshot_date = snapshot_dates[source]
+        if not snapshot_date:
+            continue
+        source_records = (
+            await db.execute(
+                select(PlayerRanking).where(
+                    PlayerRanking.source == source,
+                    PlayerRanking.rank_type == "preseason",
+                    PlayerRanking.season == season,
+                    PlayerRanking.scoring == "PPR",
+                    PlayerRanking.snapshot_date == snapshot_date,
+                    PlayerRanking.player_id.is_not(None),
+                )
+            )
+        ).scalars().all()
+        for record in source_records:
+            if record.player_id in seen_player_ids:
+                continue
+            seen_player_ids.add(record.player_id)
+            records.append(record)
+    players, methodology = build_projection_analytics(
+        records,
+        rules,
+        league_size=league_size,
+        starters={"QB": qb, "RB": rb, "WR": wr, "TE": te, "K": k, "DEF": defense},
+        flex_slots=flex,
+        superflex_slots=superflex,
+    )
+    return {
+        "season": season,
+        "snapshot_date": max(date for date in snapshot_dates.values() if date),
+        "snapshot_dates": snapshot_dates,
+        "profile": {"profile_id": profile.profile_id, "name": profile.name},
+        "methodology": methodology,
+        "players": players,
+    }
+
+
+@router.get("/fantasypros/cache-status")
+async def get_fantasypros_cache_status():
+    """Report cache and credential readiness without exposing the API key."""
+    from ..services.fantasypros_api import cache_status
+
+    return await cache_status()
+
+
+@router.get("/fantasypros/projections")
+async def get_fantasypros_projections(
+    season: int = Query(2026, ge=2000, le=2030),
+    position: Optional[str] = Query(None),
+    week: Optional[int] = Query(None, ge=0, le=18),
+):
+    """Return a cache-first FantasyPros projection response."""
+    from ..services.fantasypros_api import FantasyProsAPIError, FantasyProsClient
+
+    try:
+        result = await FantasyProsClient().projections(
+            season, position=position, week=week, cache_only=True
+        )
+    except FantasyProsAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "cache": {
+            "status": result.cache_status,
+            "fetched_at": result.fetched_at,
+            "expires_at": result.expires_at,
+            "rate_limit": result.response_headers,
+        },
+        "data": result.data,
     }
 
 
