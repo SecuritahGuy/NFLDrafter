@@ -247,6 +247,97 @@ async def ingest_weekly_stats(
         raise ImportError("nflreadpy not installed. Install with: pip install nflreadpy")
 
 
+def build_usage_stat_records(
+    season: int,
+    snap_records: list[dict],
+    opportunity_records: list[dict],
+    player_records: list[dict],
+) -> list[dict]:
+    """Normalize nflverse snap and expected-opportunity rows to weekly stat keys."""
+    pfr_to_gsis = {
+        str(row.get("pfr_id")): str(row.get("gsis_id"))
+        for row in player_records
+        if row.get("pfr_id") and row.get("gsis_id")
+    }
+    normalized: dict[tuple[str, int, str], dict] = {}
+
+    def add(player_id: str | None, week: object, stat_key: str, value: object) -> None:
+        if not player_id or value is None:
+            return
+        try:
+            week_number = int(float(week))
+            number = float(value)
+        except (TypeError, ValueError):
+            return
+        if not 1 <= week_number <= 18:
+            return
+        normalized[(player_id, week_number, stat_key)] = {
+            "player_id": player_id,
+            "season": season,
+            "week": week_number,
+            "stat_key": stat_key,
+            "stat_value": number,
+        }
+
+    for row in snap_records:
+        if int(row.get("season") or 0) != season or row.get("game_type") != "REG":
+            continue
+        player_id = pfr_to_gsis.get(str(row.get("pfr_player_id")))
+        add(player_id, row.get("week"), "offense_snaps", row.get("offense_snaps"))
+        add(player_id, row.get("week"), "offense_snap_share", row.get("offense_pct"))
+
+    for row in opportunity_records:
+        if int(float(row.get("season") or 0)) != season:
+            continue
+        player_id = str(row.get("player_id")) if row.get("player_id") else None
+        rush_attempts = float(row.get("rush_attempt") or 0)
+        team_rush_attempts = float(row.get("rush_attempt_team") or 0)
+        if team_rush_attempts > 0:
+            add(player_id, row.get("week"), "rushing_attempt_share", rush_attempts / team_rush_attempts)
+        add(player_id, row.get("week"), "expected_fantasy_points", row.get("total_fantasy_points_exp"))
+        add(player_id, row.get("week"), "receiving_expected_fantasy_points", row.get("rec_fantasy_points_exp"))
+        add(player_id, row.get("week"), "rushing_expected_fantasy_points", row.get("rush_fantasy_points_exp"))
+
+    return list(normalized.values())
+
+
+async def ingest_usage_stats(
+    seasons: List[int], provider: NFLDataProvider | None = None
+) -> dict[int, int]:
+    """Persist historical snap share and expected-opportunity metrics by week."""
+    data_provider = provider or get_nfl_data_provider()
+    player_records = data_provider.load_players()
+    snap_records = data_provider.load_snap_counts(seasons)
+    opportunity_records = data_provider.load_opportunity(seasons)
+    results: dict[int, int] = {}
+
+    for season in seasons:
+        records = build_usage_stat_records(
+            season, snap_records, opportunity_records, player_records
+        )
+        async with SessionLocal() as session:
+            existing_rows = await session.execute(
+                select(
+                    PlayerWeekStat.player_id,
+                    PlayerWeekStat.week,
+                    PlayerWeekStat.stat_key,
+                ).where(PlayerWeekStat.season == season)
+            )
+            existing_keys = set(existing_rows.all())
+            count = 0
+            for record in records:
+                key = (record["player_id"], record["week"], record["stat_key"])
+                if key in existing_keys:
+                    continue
+                session.add(PlayerWeekStat(**record))
+                existing_keys.add(key)
+                count += 1
+            await session.commit()
+            results[season] = count
+
+    return results
+
+
 async def get_player_stats(
     player_id: str, 
     season: int, 

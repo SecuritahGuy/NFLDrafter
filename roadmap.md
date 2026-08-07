@@ -11,10 +11,11 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 - Manual snake draft with undo, correction, roster constraints, persistence, and CSV export
 - A current 1,002-player fantasy pool covering QB, RB, WR, TE, K, and all 32 D/ST units
 - FantasyPros ECR, ESPN draft rank, and Fantasy Football Calculator ADP stored as distinct, timestamped signals
+- Isolated daily FantasyPros, ESPN, and FFC snapshot refreshes plus player-level rank-movement charts and source freshness
 - Sleeper identity enrichment through the free, no-auth public API (backfills `sleeper_id` + season `PlayerIdentifier` records, matched via ESPN id first)
 - Weighted composite draft rank with source attribution and missing-source reweighting
 - Shared player detail from the Player Explorer and Draft Room
-- Last-season totals and position-specific usage, official FantasyPros preseason projections with a persistent seven-day cache and ESPN fallback, projection-derived team role/opportunity shares, modeled strength of schedule, official injury reports, and player-linked ESPN news
+- Last-season totals, snap/target/rushing shares, expected-opportunity results, official FantasyPros preseason projections with a persistent seven-day cache and ESPN fallback, projection-derived team role/opportunity shares, modeled strength of schedule, official injury reports, and player-linked ESPN news
 - Profile-scored season/weekly projections, league-aware replacement baselines, position tiers, VORP, and recommendation integration
 - Draft confidence from source coverage/disagreement and FantasyPros ranges, plus directional next-pick availability from FFC ADP variance
 - Yahoo OAuth exchange, league/settings/team/roster parsing, scoring-profile import, and season-aware player matching covered by fixtures
@@ -36,15 +37,16 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 - Exercise token refresh and document the recovery path
 - Keep live-pick synchronization deferred until the imported preparation workflow is trustworthy
 
-### 2. Add opportunity context
+### 2. Expand opportunity coverage
 
-- Incorporate snap share, route participation, target share, rushing share, and depth-chart role where reliable sources permit
+- Snap share, target share, rushing share, and expected fantasy points now load from nflverse through `load-usage`
+- Add route participation and official current depth-chart role only when a licensed or reliably structured source supports them directly
 - Separate historical production, projected opportunity, market cost, and news signals in both the API and UI
 - Surface missing or stale data explicitly
 
 ### 3. Calibrate decision confidence
 
-- Accumulate and chart ranking movement across scheduled snapshots
+- Backtest whether rank movement improves draft recommendations once enough daily history has accumulated
 - Backtest the directional availability model against mock-draft outcomes
 - Add tier-run alerts and calibrate recommendation weights through offline draft simulations
 

@@ -10,6 +10,7 @@ import {
 import { usePlayerContext, usePlayerSummary } from '../hooks/usePlayers'
 import type { Player } from '../types'
 import { DraftConfidenceBadge } from './DraftConfidenceBadge'
+import { RankingMovementPanel } from './RankingMovementPanel'
 
 interface PlayerDetailDrawerProps {
   player: Player | null
@@ -128,6 +129,18 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
     points: week.fantasy_points ?? week.stats.fantasy_points_ppr ?? 0,
   })).filter((week) => week.points > 0)
   const maxWeeklyPoints = Math.max(...weeklyPoints.map((week) => week.points), 1)
+  const historicalUsage = [
+    ['Snap share', lastSummary?.season_stats.offense_snap_share, 'percent'],
+    ['Target share', lastSummary?.season_stats.target_share, 'percent'],
+    ['Rush share', lastSummary?.season_stats.rushing_attempt_share, 'percent'],
+    ['Expected PPR', lastSummary?.season_stats.expected_fantasy_points, 'total'],
+  ] as const
+  const historicalUsageRows = historicalUsage.flatMap(([label, stat, format]) => stat ? [{
+    label,
+    value: format === 'percent' ? `${(stat.avg * 100).toFixed(1)}%` : stat.total.toFixed(1),
+  }] : [])
+  const expectedPpr = lastSummary?.season_stats.expected_fantasy_points?.total
+  const opportunityDelta = pprPoints != null && expectedPpr != null ? pprPoints - expectedPpr : null
   const injuries = (context?.injuries ?? []).filter((row) => row.primary_injury || row.report_status || row.practice_status)
   const schedule = context?.schedule_strength
   const projectedStatRows = (projectionStatSets[player.position] ?? []).flatMap(([key, label]) => {
@@ -202,6 +215,7 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
               </div>
               <p className="mt-3 text-xs text-slate-500">{player.draftConfidence.evidence}. Confidence falls when feeds are missing or disagree; it does not mean a player is safer from injury or role changes.</p>
             </div>}
+            <RankingMovementPanel playerId={player.id} />
             {projectedStatRows.length > 0 && <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h4 className="font-bold text-slate-900">{projectionSource} projected stat line</h4><p className="text-xs text-slate-500">Season-long forecast · {projection?.scoring ?? 'PPR'} scoring</p></div>
@@ -224,6 +238,14 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
 
           <section>
             <div className="mb-3 flex items-center gap-2"><ChartBarIcon className="h-5 w-5 text-blue-700" /><h3 className="font-bold text-slate-900">{lastSeason} production and advanced usage</h3></div>
+            {historicalUsageRows.length > 0 && <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><h4 className="font-bold text-slate-900">Historical opportunity</h4><p className="mt-1 text-xs text-slate-500">Regular-season nflverse participation and expected-opportunity context.</p></div>
+                {opportunityDelta != null && <div className={`rounded-xl px-3 py-2 text-right ${opportunityDelta >= 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}><div className="text-[10px] font-bold uppercase tracking-wide">PPR vs expected</div><div className="text-lg font-black">{opportunityDelta >= 0 ? '+' : ''}{opportunityDelta.toFixed(1)}</div></div>}
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{historicalUsageRows.map((item) => <div key={item.label} className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{item.label}</div><div className="mt-1 text-lg font-black text-slate-950">{item.value}</div></div>)}</div>
+              <p className="mt-3 text-xs leading-5 text-slate-500">Snap share comes from Pro Football Reference snap counts distributed by nflverse. Expected PPR uses nflverse play-level opportunity. Route participation and an official current depth rank are not supplied by these weekly summaries, so no proxy is shown.</p>
+            </div>}
             {isLoadingStats ? <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading last-season statistics…</div> : displayStats.length ? (
               <>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

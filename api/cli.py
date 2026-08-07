@@ -101,6 +101,24 @@ def load_stats(
 
 
 @cli.command()
+def load_usage(
+    seasons: str = typer.Argument("2025", help="Comma-separated seasons to load")
+):
+    """Load nflverse snap share and expected-opportunity history."""
+    try:
+        from app.services.nflverse import ingest_usage_stats
+
+        years = [int(year.strip()) for year in seasons.split(",")]
+        typer.echo(f"Loading usage context for seasons: {seasons}")
+        results = asyncio.run(ingest_usage_stats(years))
+        for season, count in results.items():
+            typer.echo(f"Loaded {count} usage records for {season}")
+    except ImportError:
+        typer.echo("nflreadpy not installed. Install with: pip install nflreadpy")
+        raise typer.Exit(1)
+
+
+@cli.command()
 def load_rankings(
     rank_type: str = typer.Argument(
         "preseason", help="Rankings type: 'preseason' (redraft ECR) or 'weekly' (in-season)"

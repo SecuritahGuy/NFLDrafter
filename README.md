@@ -19,7 +19,7 @@ A local-first fantasy football draft assistant with custom scoring profiles, pla
 | Yahoo scoring-profile persistence and season-aware player-ID matching | Implemented and fixture-tested; live Yahoo verification pending |
 | Automated Yahoo live-pick synchronization | Not implemented; manual mode remains the reliable draft path |
 | Versioned offline draft packages | Implemented with browser cache, JSON import/export, and checksum validation |
-| FantasyPros ECR, ESPN draft rank, and FFC ADP | Implemented with timestamped snapshots, canonical-ID coverage, source attribution, and a weighted draft rank |
+| FantasyPros ECR, ESPN draft rank, and FFC ADP | Implemented with daily timestamped snapshots, canonical-ID coverage, source attribution, a weighted draft rank, and player-level movement history |
 | Service worker / installable PWA shell | Not implemented |
 
 Yahoo is optional: after player data has loaded, the draft room prepares and caches a checksummed package containing the player board, scoring rules, league configuration, and roster slots. The board can reload that package without the backend, and packages can be moved between browsers as JSON.
@@ -33,9 +33,10 @@ Yahoo is optional: after player data has loaded, the draft room prepares and cac
 - **Modern UI**: React frontend with Tailwind CSS and responsive design
 - **API-First Architecture**: FastAPI backend with automatic documentation
 - **Multi-Source Draft Rank**: FantasyPros expert consensus, ESPN platform rank, and human mock-draft ADP remain visible as separate inputs
-- **Rich Player Profiles**: Last-season production, position-specific advanced usage, ESPN season/weekly projections, projection-derived team role and opportunity shares, ownership context, modeled schedule strength, official injury reports, and player-linked news
+- **Rich Player Profiles**: Last-season production, snap/target/rushing shares, expected-opportunity results, ESPN season/weekly projections, projection-derived team role, ownership context, modeled schedule strength, official injury reports, and player-linked news
 - **Projection Analytics**: Score cached FantasyPros projected stat lines through the selected profile with ESPN fallback, derive position tiers and VORP from league settings, and feed those values into draft recommendations
 - **Draft Confidence**: Explain source agreement and expert ranges, then estimate whether a player is likely to survive until the next user pick from FFC ADP variance
+- **Ranking Movement**: Compare dated FantasyPros, ESPN, and FFC snapshots in every player profile, with feed freshness and missing matches called out explicitly
 - **Yahoo Import Verification**: Preview teams, roster slots, draft rounds, and mapped scoring rules before import, then report player-ID coverage and unresolved matches
 
 The current fantasy-relevant player pool contains 1,002 selectable players, including all 32 defenses. The August 2026 browser QA covered missing-player searches, position filters, board ordering, and player details opened from both the Draft Room and Player Explorer. See the [QA evidence](docs/QA.md) for the scenarios and captured screenshots.
@@ -60,6 +61,8 @@ Manual mode is designed as the dependable fallback when a platform connection is
 ![Manual Draft Room tracker with automatic turn ownership and draft ledger](docs/images/manual-draft-tracker.png)
 
 ![Player draft confidence from source agreement and ADP variation](docs/images/nfldrafter-draft-confidence.png)
+
+![Player ranking movement across daily source snapshots](docs/images/nfldrafter-ranking-movement.png)
 
 ## Tech Stack
 
@@ -215,6 +218,9 @@ python cli.py seed-players
 # Load weekly stats for specific seasons
 python cli.py load-stats 2024,2025,2026
 
+# Add nflverse snap share and expected-opportunity history
+python cli.py load-usage 2025
+
 # Refresh FantasyPros, ESPN, and FFC draft snapshots
 python cli.py load-draft-sources --season 2026 --scoring PPR --teams 12
 
@@ -285,6 +291,9 @@ The project uses SQLAlchemy with automatic table creation. For production deploy
 - `YAHOO_FRONTEND_CALLBACK_URI`: Browser handoff after Yahoo returns; locally use `http://localhost:5173/auth/callback`
 - `DEBUG`: Enable debug mode
 - `ALLOWED_ORIGINS`: CORS allowed origins
+- `DRAFT_SOURCES_SCHEDULE_CRON`: Daily FantasyPros ECR, ESPN draft-rank, and FFC ADP snapshot schedule (default `15 11 * * *`, UTC)
+- `DRAFT_SCORING`: Scoring format requested by scheduled ESPN/FFC refreshes (default `PPR`)
+- `DRAFT_LEAGUE_SIZE`: League size requested by the scheduled FFC refresh (default `12`)
 
 The redirect URI is an exact-match HTTPS setting in Yahoo. In the Yahoo developer application, register the same value used by `YAHOO_REDIRECT_URI`—including scheme, host, port, path, and trailing-slash choice. For local development, `cloudflared tunnel --url http://localhost:8000` provides a temporary HTTPS host; append `/auth/yahoo/callback` and use that complete value in both Yahoo and `.env`. NFLDrafter then relays the result to the local frontend callback. An OAuth page reporting `invalid redirect uri` means these values differ.
 
@@ -300,7 +309,9 @@ The redirect URI is an exact-match HTTPS setting in Yahoo. In the Yahoo develope
 - VORP uses the selected league size and starter counts. FLEX is allocated evenly across RB, WR, and TE; SUPERFLEX is allocated to QB. The API returns the exact replacement ranks and tier thresholds used.
 - Schedule strength is modeled from the previous season's PPR points allowed by position. Rank 1 means the easiest modeled schedule; it is context, not a forecast.
 - Injury data comes from weekly official injury-report data available through `nflreadpy`; news is fetched from ESPN's public NFL news endpoint and linked to players by relevance scoring.
+- Historical opportunity combines Pro Football Reference snap counts distributed by nflverse with nflverse play-level expected fantasy points and rushing opportunity. Route participation and official current depth rank are left unavailable when the summarized source cannot support them directly.
 - Draft-source rows retain their snapshot date and attribution. Missing sources are reweighted instead of silently treated as zero.
+- The scheduler refreshes all three draft feeds daily and isolates failures, so an unavailable provider does not prevent the other snapshots from being retained. Player profiles chart the history returned by `GET /rankings/{player_id}/history`.
 - Draft confidence measures ranking evidence, not player safety. Next-pick availability is a directional normal-distribution model using FFC standard deviation when available and a labeled estimated spread otherwise.
 
 ## Performance
@@ -318,6 +329,8 @@ The redirect URI is an exact-match HTTPS setting in Yahoo. In the Yahoo develope
 - [x] Add a complete fantasy-relevant player universe and shared detail from both draft surfaces
 - [x] Add 2025 production, ESPN projections, schedule strength, injuries, and player-linked news
 - [x] Score projected box stats through the selected profile, then activate transparent tiers and VORP
+- [x] Schedule isolated daily draft-source snapshots and chart player-level ranking movement
+- [x] Add historical snap share, target/rushing share, and expected-opportunity context without inventing route or depth-chart proxies
 - [ ] Complete a credentialed Yahoo league-import dress rehearsal
 - [ ] Add Playwright coverage for refresh, undo, correction, and export
 - [ ] Add rank-confidence, ADP-urgency, and expected-availability calibration
@@ -351,6 +364,14 @@ The checked-in QA captures are reusable in issues, release notes, and project do
 | Yahoo OAuth readiness |
 | --- |
 | ![Yahoo OAuth readiness and exact callback](docs/images/nfldrafter-yahoo-readiness.jpg) |
+
+| Daily ranking movement |
+| --- |
+| ![Player ranking movement across FantasyPros, ESPN, and FFC](docs/images/nfldrafter-ranking-movement.png) |
+
+| Historical opportunity |
+| --- |
+| ![Historical snap share and expected opportunity](docs/images/nfldrafter-historical-opportunity.png) |
 
 `docs/index.html` is a dependency-free product page. The `GitHub Pages` workflow publishes that directory after Pages is configured to use **GitHub Actions** in the repository settings.
 

@@ -235,6 +235,22 @@ export interface RankingsResponse {
   rankings: RankingRow[];
 }
 
+export interface RankingHistoryPoint {
+  snapshot_date: string;
+  rank: number | null;
+  pos_rank: number | null;
+  ecr: number | null;
+  team: string | null;
+  rank_delta: number | null;
+}
+
+export interface RankingHistoryResponse {
+  source: RankingSourceId;
+  player_id: string;
+  full_name: string;
+  history: RankingHistoryPoint[];
+}
+
 export interface RankingSourceStatus {
   source: RankingSourceId;
   label: string;
@@ -458,6 +474,13 @@ export const rankingsAPI = {
   async getSources(): Promise<RankingSourceStatus[]> {
     const response = await api.get(endpoints.rankingSources);
     return response.data.sources || [];
+  },
+
+  async getHistory(playerId: string, source: RankingSourceId): Promise<RankingHistoryResponse> {
+    const response = await api.get(`${endpoints.rankings}${playerId}/history`, {
+      params: { source, rank_type: 'preseason' },
+    });
+    return response.data;
   },
 
   async getProjectionAnalytics(
