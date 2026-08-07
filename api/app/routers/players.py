@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from ..deps import get_db_session
-from ..models import Player, PlayerWeekStat
+from ..models import NewsItem, Player, PlayerInjury, PlayerRanking, PlayerWeekStat
 from ..services.nflverse import search_players, get_player_stats
 from ..schemas import Player as PlayerSchema
 
@@ -41,13 +41,22 @@ async def search_players_endpoint(
     q: str = Query("", description="Search query for player names"),
     position: Optional[str] = Query(None, description="Filter by position (QB, RB, WR, TE, etc.)"),
     team: Optional[str] = Query(None, description="Filter by team abbreviation"),
-    limit: int = Query(50, ge=1, le=100, description="Maximum number of results")
+    limit: int = Query(50, ge=1, le=1500, description="Maximum number of results"),
+    current_only: bool = Query(False, description="Only active fantasy-relevant players"),
+    season: Optional[int] = Query(None, ge=2000, le=2030),
 ):
     """
     Search players with optional filters.
     """
     try:
-        players = await search_players(query=q, position=position, team=team, limit=limit)
+        players = await search_players(
+            query=q,
+            position=position,
+            team=team,
+            limit=limit,
+            current_only=current_only,
+            season=season,
+        )
         return players
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
@@ -191,7 +200,8 @@ async def get_player_summary(
         ).where(
             and_(
                 PlayerWeekStat.player_id == player_id,
-                PlayerWeekStat.season == season
+                PlayerWeekStat.season == season,
+                PlayerWeekStat.week <= 18,
             )
         ).group_by(PlayerWeekStat.week).order_by(PlayerWeekStat.week)
         
@@ -208,7 +218,8 @@ async def get_player_summary(
         ).where(
             and_(
                 PlayerWeekStat.player_id == player_id,
-                PlayerWeekStat.season == season
+                PlayerWeekStat.season == season,
+                PlayerWeekStat.week <= 18,
             )
         ).group_by(PlayerWeekStat.stat_key)
         
@@ -222,7 +233,7 @@ async def get_player_summary(
         
         # Calculate fantasy points if profile provided
         fantasy_points = None
-        if profile_id:
+        if profile_id and season_stats:
             from ..models import ScoringProfile, ScoringRule
             from ..scoring import compute_points_from_dict
             
@@ -282,7 +293,8 @@ async def get_player_summary(
                     ).where(
                         and_(
                             PlayerWeekStat.player_id == pos_player.player_id,
-                            PlayerWeekStat.season == season
+                            PlayerWeekStat.season == season,
+                            PlayerWeekStat.week <= 18,
                         )
                     ).group_by(PlayerWeekStat.stat_key)
                     
@@ -319,7 +331,8 @@ async def get_player_summary(
                 and_(
                     PlayerWeekStat.player_id == player_id,
                     PlayerWeekStat.season == season,
-                    PlayerWeekStat.week == week_stat.week
+                    PlayerWeekStat.week == week_stat.week,
+                    PlayerWeekStat.week <= 18,
                 )
             )
             
@@ -354,3 +367,104 @@ async def get_player_summary(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get player summary: {str(e)}")
+
+
+@router.get("/{player_id}/context")
+async def get_player_context(
+    player_id: str,
+    season: int = Query(..., description="Upcoming NFL season", ge=2000, le=2030),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Return projections, schedule difficulty, injuries, and recent news."""
+    import asyncio
+
+    player = (
+        await db.execute(select(Player).where(Player.player_id == player_id))
+    ).scalar_one_or_none()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    projection_row = (
+        await db.execute(
+            select(PlayerRanking)
+            .where(
+                PlayerRanking.player_id == player_id,
+                PlayerRanking.source == "espn-draft-rank",
+                PlayerRanking.season == season,
+            )
+            .order_by(PlayerRanking.snapshot_date.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    projection_raw = projection_row.raw or {} if projection_row else {}
+
+    injury_rows = (
+        await db.execute(
+            select(PlayerInjury)
+            .where(PlayerInjury.player_id == player_id)
+            .order_by(PlayerInjury.season.desc(), PlayerInjury.week.desc())
+            .limit(5)
+        )
+    ).scalars().all()
+
+    news_rows = (
+        await db.execute(
+            select(NewsItem)
+            .where(NewsItem.players[player_id].as_float().is_not(None))
+            .order_by(NewsItem.published_at.desc())
+            .limit(5)
+        )
+    ).scalars().all()
+
+    try:
+        from ..services.schedule_strength import get_schedule_strength
+
+        schedule_strength = await asyncio.to_thread(
+            get_schedule_strength, player.team or "", player.position, season
+        )
+    except Exception as exc:
+        schedule_strength = {
+            "available": False,
+            "season": season,
+            "basis_season": season - 1,
+            "reason": f"Schedule context unavailable: {exc}",
+        }
+
+    return {
+        "player_id": player_id,
+        "season": season,
+        "projection": {
+            "source": "ESPN",
+            "scoring": projection_row.scoring if projection_row else None,
+            "points": projection_raw.get("projected_points"),
+            "points_per_game": projection_raw.get("projected_points_per_game"),
+            "projection_season": projection_raw.get("projection_season"),
+            "snapshot_date": projection_row.snapshot_date if projection_row else None,
+            "stats": projection_raw.get("projected_stats") or {},
+            "weekly": projection_raw.get("weekly_projections") or [],
+            "season_outlook": projection_raw.get("season_outlook"),
+            "ownership": projection_raw.get("ownership") or {},
+        },
+        "schedule_strength": schedule_strength,
+        "injuries": [
+            {
+                "season": row.season,
+                "week": row.week,
+                "report_status": row.report_status,
+                "primary_injury": row.report_primary_injury or row.practice_primary_injury,
+                "practice_status": row.practice_status,
+            }
+            for row in injury_rows
+        ],
+        "news": [
+            {
+                "title": row.title,
+                "url": row.url,
+                "source": row.source,
+                "published_at": row.published_at,
+                "summary": row.summary,
+                "relevance": (row.players or {}).get(player_id),
+            }
+            for row in news_rows
+        ],
+    }

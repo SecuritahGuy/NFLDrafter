@@ -29,8 +29,13 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
       // Check if we have stored tokens
       const accessToken = localStorage.getItem('yahoo_access_token')
       const refreshToken = localStorage.getItem('yahoo_refresh_token')
+      const expiresAt = Number(localStorage.getItem('yahoo_expires_at') || 0)
       
       if (accessToken && refreshToken) {
+        if (expiresAt && Date.now() >= expiresAt - 60_000) {
+          await refreshAccessToken(refreshToken)
+          return
+        }
         // Verify token is still valid
         const isValid = await verifyToken(accessToken)
         if (isValid) {
@@ -75,6 +80,7 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
         const data = await response.json()
         localStorage.setItem('yahoo_access_token', data.access_token)
         localStorage.setItem('yahoo_refresh_token', data.refresh_token)
+        localStorage.setItem('yahoo_expires_at', String(Date.now() + data.expires_in * 1000))
         setIsAuthenticated(true)
         await fetchUserInfo(data.access_token)
         onAuthSuccess?.(data.access_token, data.refresh_token)
@@ -87,6 +93,7 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
       localStorage.removeItem('yahoo_access_token')
       localStorage.removeItem('yahoo_refresh_token')
       setError('Authentication expired. Please sign in again.')
+      onAuthError?.('Authentication expired. Please sign in again.')
     }
   }
 
@@ -112,17 +119,20 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
     setError(null)
 
     try {
-      // Redirect to Yahoo OAuth
-      const clientId = import.meta.env.VITE_YAHOO_CLIENT_ID || 'your-client-id'
-      const redirectUri = encodeURIComponent(`${window.location.origin}/auth/callback`)
-      const scope = encodeURIComponent('fspt-r')
-      
-      const authUrl = `https://api.login.yahoo.com/oauth2/request_auth?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code`
-      
-      window.location.href = authUrl
+      const stateBytes = crypto.getRandomValues(new Uint8Array(24))
+      const oauthState = Array.from(stateBytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+      sessionStorage.setItem('yahoo_oauth_state', oauthState)
+
+      const response = await fetch(`/api/yahoo/authorize-url?state=${encodeURIComponent(oauthState)}`)
+      if (!response.ok) {
+        throw new Error('Yahoo OAuth is not configured on the server')
+      }
+      const { authorize_url: authorizeUrl } = await response.json()
+      window.location.href = authorizeUrl
     } catch (err) {
       console.error('Error initiating OAuth:', err)
       setError('Failed to start authentication process')
+      onAuthError?.('Failed to start authentication process')
       setIsAuthenticating(false)
     }
   }
@@ -130,6 +140,7 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
   const handleDisconnect = () => {
     localStorage.removeItem('yahoo_access_token')
     localStorage.removeItem('yahoo_refresh_token')
+    localStorage.removeItem('yahoo_expires_at')
     setIsAuthenticated(false)
     setUserInfo(null)
     setError(null)

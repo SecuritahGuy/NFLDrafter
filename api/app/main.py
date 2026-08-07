@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .db import init_db
-from .routers import fantasy, players, yahoo
+from .routers import fantasy, news, players, rankings, yahoo
 
 
 @asynccontextmanager
@@ -14,10 +14,21 @@ async def lifespan(app: FastAPI):
     print("Starting NFLDrafter API...")
     await init_db()
     print("Database initialized successfully")
+
+    # Start background ingestion scheduler (skipped when disabled via env)
+    scheduler = None
+    if os.getenv("DISABLE_SCHEDULER", "false").lower() != "true":
+        from .services.scheduler import create_scheduler
+        scheduler = create_scheduler()
+        scheduler.start()
+        print("Background ingestion scheduler started")
     
     yield
     
     # Shutdown
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
+        print("Background ingestion scheduler stopped")
     print("Shutting down NFLDrafter API...")
 
 
@@ -43,6 +54,10 @@ app.add_middleware(
 app.include_router(fantasy.router)
 app.include_router(players.router)
 app.include_router(yahoo.router)
+app.include_router(yahoo.callback_router)
+app.include_router(rankings.router)
+app.include_router(rankings.injury_router)
+app.include_router(news.router)
 
 # Health check endpoint
 @app.get("/health")

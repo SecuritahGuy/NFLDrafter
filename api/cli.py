@@ -60,10 +60,10 @@ def seed():
 
 @cli.command()
 def seed_players():
-    """Seed players from nfl_data_py (requires nfl_data_py to be installed)"""
+    """Seed players from nflreadpy."""
     try:
         from app.services.nflverse import seed_players_and_ids
-        typer.echo("Seeding players from nfl_data_py...")
+        typer.echo("Seeding players from nflreadpy...")
         
         async def _seed_players():
             count = await seed_players_and_ids()
@@ -73,7 +73,7 @@ def seed_players():
         typer.echo(f"Seeded {count} players")
         
     except ImportError:
-        typer.echo("nfl_data_py not installed. Install with: pip install nfl-data-py")
+        typer.echo("nflreadpy not installed. Install with: pip install nflreadpy")
         raise typer.Exit(1)
 
 
@@ -96,8 +96,109 @@ def load_stats(
             typer.echo(f"Loaded {count} stat records for {season}")
         
     except ImportError:
-        typer.echo("nfl_data_py not installed. Install with: pip install nfl-data-py")
+        typer.echo("nflreadpy not installed. Install with: pip install nflreadpy")
         raise typer.Exit(1)
+
+
+@cli.command()
+def load_rankings(
+    rank_type: str = typer.Argument(
+        "preseason", help="Rankings type: 'preseason' (redraft ECR) or 'weekly' (in-season)"
+    )
+):
+    """Load the latest expert consensus rankings snapshot."""
+    try:
+        from app.services.rankings import ingest_rankings
+        typer.echo(f"Loading {rank_type} ECR rankings...")
+
+        async def _load():
+            return await ingest_rankings(rank_type=rank_type)
+
+        result = asyncio.run(_load())
+        typer.echo(
+            f"Stored {result.get('loaded', 0)} rankings for snapshot "
+            f"{result.get('snapshot_date')} ({result.get('type')}); "
+            f"{result.get('moved', 0)} players moved vs previous snapshot"
+        )
+    except ImportError:
+        typer.echo("nflreadpy not installed. Install with: pip install nflreadpy")
+        raise typer.Exit(1)
+
+
+@cli.command()
+def load_draft_sources(
+    season: int = typer.Option(2026, help="Season year"),
+    scoring: str = typer.Option("PPR", help="STD, PPR, or SUPERFLEX"),
+    teams: int = typer.Option(12, help="League size for ADP"),
+):
+    """Refresh FantasyPros ECR, ESPN draft ranks, and FFC ADP."""
+    from app.services.espn_rankings import ingest_espn_rankings
+    from app.services.ffc_rankings import ingest_ffc_adp
+    from app.services.rankings import ingest_rankings
+
+    async def _load_all():
+        return {
+            "fantasypros-ecr": await ingest_rankings(rank_type="preseason"),
+            "espn-draft-rank": await ingest_espn_rankings(
+                season=season, scoring=scoring
+            ),
+            "ffc-adp": await ingest_ffc_adp(
+                season=season, scoring=scoring, teams=teams
+            ),
+        }
+
+    typer.echo(f"Refreshing {season} {scoring} draft sources...")
+    results = asyncio.run(_load_all())
+    for source, result in results.items():
+        typer.echo(
+            f"{source}: {result.get('loaded', 0)} rows · "
+            f"snapshot {result.get('snapshot_date')} · "
+            f"{result.get('moved', 0)} moved"
+        )
+
+
+@cli.command()
+def load_injuries(
+    seasons: str = typer.Argument("", help="Comma-separated seasons to load (default: latest)")
+):
+    """Load weekly injury reports."""
+    try:
+        from app.services.injuries import ingest_injuries
+        typer.echo("Loading injury reports...")
+
+        async def _load():
+            year_list = [int(y.strip()) for y in seasons.split(",") if y.strip()] if seasons else None
+            return await ingest_injuries(seasons=year_list)
+
+        result = asyncio.run(_load())
+        loaded = result.get("loaded", {})
+        for season, count in loaded.items():
+            typer.echo(f"Loaded {count} injury records for {season}")
+        if not loaded:
+            typer.echo("No injury records loaded")
+    except ImportError:
+        typer.echo("nflreadpy not installed. Install with: pip install nflreadpy")
+        raise typer.Exit(1)
+
+
+@cli.command()
+def load_news(
+    limit: int = typer.Option(50, help="Max ESPN articles to fetch (ESPN caps at 50)"),
+    replace: bool = typer.Option(False, help="Drop previously stored news before loading"),
+):
+    """Fetch the latest ESPN NFL news with player-relevance scoring."""
+    from app.services.news import ingest_news
+
+    async def _load():
+        return await ingest_news(limit=limit, delete_existing=replace)
+
+    typer.echo(f"Fetching up to {limit} ESPN news articles...")
+    result = asyncio.run(_load())
+    typer.echo(
+        f"Stored {result.get('loaded', 0)} news items "
+        f"({result.get('skipped_duplicate', 0)} dupes skipped) · "
+        f"{result.get('player_mentions', 0)} player mentions scored"
+    )
 
 
 @cli.command()

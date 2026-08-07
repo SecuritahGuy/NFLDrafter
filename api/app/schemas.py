@@ -19,6 +19,10 @@ class Player(PlayerBase):
     nflverse_id: Optional[str] = None
     yahoo_id: Optional[str] = None
     sleeper_id: Optional[str] = None
+    espn_id: Optional[str] = None
+    last_season: Optional[int] = None
+    status: Optional[str] = None
+    headshot: Optional[str] = None
 
     class Config:
         from_attributes = True

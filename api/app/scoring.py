@@ -161,7 +161,7 @@ def get_default_scoring_profiles() -> Dict[str, List[Dict[str, Any]]]:
         "Standard": [
             {"stat_key": "passing_yards", "multiplier": 0.04, "per": 1},
             {"stat_key": "passing_touchdowns", "multiplier": 4.0, "per": 1},
-            {"stat_key": "passing_interceptions", "multiplier": -2.0, "per": 1},
+            {"stat_key": "interceptions", "multiplier": -2.0, "per": 1},
             {"stat_key": "rushing_yards", "multiplier": 0.1, "per": 1},
             {"stat_key": "rushing_touchdowns", "multiplier": 6.0, "per": 1},
             {"stat_key": "receiving_yards", "multiplier": 0.1, "per": 1},
@@ -172,7 +172,7 @@ def get_default_scoring_profiles() -> Dict[str, List[Dict[str, Any]]]:
         "PPR": [
             {"stat_key": "passing_yards", "multiplier": 0.04, "per": 1},
             {"stat_key": "passing_touchdowns", "multiplier": 4.0, "per": 1},
-            {"stat_key": "passing_interceptions", "multiplier": -2.0, "per": 1},
+            {"stat_key": "interceptions", "multiplier": -2.0, "per": 1},
             {"stat_key": "rushing_yards", "multiplier": 0.1, "per": 1},
             {"stat_key": "rushing_touchdowns", "multiplier": 6.0, "per": 1},
             {"stat_key": "receiving_yards", "multiplier": 0.1, "per": 1},
@@ -183,7 +183,7 @@ def get_default_scoring_profiles() -> Dict[str, List[Dict[str, Any]]]:
         "Half PPR": [
             {"stat_key": "passing_yards", "multiplier": 0.04, "per": 1},
             {"stat_key": "passing_touchdowns", "multiplier": 4.0, "per": 1},
-            {"stat_key": "passing_interceptions", "multiplier": -2.0, "per": 1},
+            {"stat_key": "interceptions", "multiplier": -2.0, "per": 1},
             {"stat_key": "rushing_yards", "multiplier": 0.1, "per": 1},
             {"stat_key": "rushing_touchdowns", "multiplier": 6.0, "per": 1},
             {"stat_key": "receiving_yards", "multiplier": 0.1, "per": 1},

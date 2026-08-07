@@ -1,7 +1,9 @@
 import pytest
 from fastapi import status
 from sqlalchemy import insert
+from urllib.parse import parse_qs, urlparse
 from app.models import Player, ScoringProfile, ScoringRule
+from app.routers import yahoo
 
 
 class TestFantasyEndpoints:
@@ -24,6 +26,41 @@ class TestFantasyEndpoints:
         data = response.json()
         assert "message" in data
         assert "version" in data
+
+    def test_yahoo_authorize_url_uses_server_configuration(self, client, monkeypatch):
+        monkeypatch.setattr(yahoo, "YAHOO_CLIENT_ID", "test-client-id")
+        monkeypatch.setattr(
+            yahoo, "YAHOO_REDIRECT_URI", "http://localhost:8000/auth/yahoo/callback"
+        )
+        state_value = "0123456789abcdef0123456789abcdef"
+
+        response = client.get("/yahoo/authorize-url", params={"state": state_value})
+
+        assert response.status_code == status.HTTP_200_OK
+        authorize_url = urlparse(response.json()["authorize_url"])
+        query = parse_qs(authorize_url.query)
+        assert authorize_url.netloc == "api.login.yahoo.com"
+        assert query["client_id"] == ["test-client-id"]
+        assert query["redirect_uri"] == ["http://localhost:8000/auth/yahoo/callback"]
+        assert query["response_type"] == ["code"]
+        assert query["state"] == [state_value]
+        assert "scope" not in query
+
+    def test_yahoo_callback_relays_to_frontend(self, client, monkeypatch):
+        monkeypatch.setattr(
+            yahoo, "YAHOO_FRONTEND_CALLBACK_URI", "http://localhost:5173/auth/callback"
+        )
+
+        response = client.get(
+            "/auth/yahoo/callback",
+            params={"code": "test-code", "state": "test-state"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == status.HTTP_302_FOUND
+        assert response.headers["location"] == (
+            "http://localhost:5173/auth/callback?code=test-code&state=test-state"
+        )
     
     def test_scoring_profiles_endpoint(self, client, db_session):
         """Test the scoring profiles endpoint."""

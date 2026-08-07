@@ -120,7 +120,7 @@ export class QueryPersistenceAdapter {
   /**
    * Persist a single query to cache
    */
-  private async persistQuery(queryKey: any[], data: any): Promise<void> {
+  private async persistQuery(queryKey: readonly unknown[], data: unknown): Promise<void> {
     try {
       const key = this.serializeQueryKey(queryKey);
       
@@ -154,7 +154,7 @@ export class QueryPersistenceAdapter {
   private async restoreQueries(): Promise<void> {
     try {
       const keys = await offlineCache.getKeys();
-      const restoredCount = 0;
+      let restoredCount = 0;
       
       for (const key of keys) {
         try {
@@ -217,7 +217,7 @@ export class QueryPersistenceAdapter {
   /**
    * Invalidate related queries when mutations succeed
    */
-  private async invalidateRelatedQueries(mutationKey: any[] | undefined): Promise<void> {
+  private async invalidateRelatedQueries(mutationKey: readonly unknown[] | undefined): Promise<void> {
     if (!mutationKey) return;
 
     try {
@@ -264,7 +264,7 @@ export class QueryPersistenceAdapter {
   /**
    * Check if a query is related to a mutation
    */
-  private isRelatedQuery(queryKey: string, mutationKey: any[]): boolean {
+  private isRelatedQuery(queryKey: string, mutationKey: readonly unknown[]): boolean {
     const queryKeyStr = JSON.stringify(mutationKey);
     return queryKey.includes(queryKeyStr);
   }
@@ -272,7 +272,7 @@ export class QueryPersistenceAdapter {
   /**
    * Serialize a query key to a string for storage
    */
-  private serializeQueryKey(queryKey: any[]): string {
+  private serializeQueryKey(queryKey: readonly unknown[]): string {
     return JSON.stringify(queryKey);
   }
 
