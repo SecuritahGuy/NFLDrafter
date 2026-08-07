@@ -1,5 +1,6 @@
 from typing import List, Optional
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import SessionLocal
 from ..models import Player, PlayerWeekStat
@@ -285,6 +286,7 @@ async def search_players(
     limit: int = 50,
     current_only: bool = False,
     season: Optional[int] = None,
+    session: Optional[AsyncSession] = None,
 ) -> List[dict]:
     """
     Search players with filters.
@@ -298,16 +300,15 @@ async def search_players(
     Returns:
         List of player dictionaries
     """
-    async with SessionLocal() as session:
-        # Build query
+    async def _search(db: AsyncSession) -> List[dict]:
         stmt = select(Player)
-        
+
         if query:
             stmt = stmt.where(Player.full_name.ilike(f"%{query}%"))
-        
+
         if position:
             stmt = stmt.where(Player.position == position)
-            
+
         if team:
             stmt = stmt.where(Player.team == team)
 
@@ -320,12 +321,11 @@ async def search_players(
                 Player.position.in_(["QB", "RB", "WR", "TE", "K", "PK", "DEF"]),
                 Player.status.in_(["ACT", "RES"]),
             )
-        
+
         stmt = stmt.order_by(Player.position, Player.full_name).limit(limit)
-        
-        result = await session.execute(stmt)
+        result = await db.execute(stmt)
         players = result.scalars().all()
-        
+
         return [
             {
                 "player_id": p.player_id,
@@ -342,3 +342,9 @@ async def search_players(
             }
             for p in players
         ]
+
+    if session is not None:
+        return await _search(session)
+
+    async with SessionLocal() as managed_session:
+        return await _search(managed_session)

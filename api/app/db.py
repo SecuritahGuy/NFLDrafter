@@ -58,6 +58,7 @@ async def init_db():
                 for row in (await conn.execute(text("PRAGMA table_info(players)"))).all()
             }
             for column, definition in {
+                "espn_id": "VARCHAR",
                 "last_season": "INTEGER",
                 "status": "VARCHAR(8)",
                 "headshot": "VARCHAR",

@@ -44,6 +44,7 @@ async def search_players_endpoint(
     limit: int = Query(50, ge=1, le=1500, description="Maximum number of results"),
     current_only: bool = Query(False, description="Only active fantasy-relevant players"),
     season: Optional[int] = Query(None, ge=2000, le=2030),
+    db: AsyncSession = Depends(get_db_session),
 ):
     """
     Search players with optional filters.
@@ -56,6 +57,7 @@ async def search_players_endpoint(
             limit=limit,
             current_only=current_only,
             season=season,
+            session=db,
         )
         return players
     except Exception as e:

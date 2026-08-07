@@ -3,13 +3,12 @@ import pytest_asyncio
 import asyncio
 from typing import AsyncGenerator, Generator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 from app.main import app
-from app.db import get_db
-from app.models import Base
+from app.deps import get_db_session
+from app.models import Base, Player, ScoringProfile
 
 
 # Test database URL - use in-memory SQLite for testing
@@ -21,14 +20,6 @@ test_engine = create_async_engine(
     echo=False,
     future=True
 )
-
-# Create test session factory
-TestingSessionLocal = sessionmaker(
-    test_engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
-
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
@@ -43,6 +34,27 @@ async def test_db_setup():
     """Set up test database tables."""
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            Player.__table__.insert().values(
+                player_id="fixture-qb",
+                full_name="Fixture Quarterback",
+                position="QB",
+                team="KC",
+                nflverse_id="fixture-qb",
+                espn_id="1",
+                last_season=2026,
+                status="ACT",
+            )
+        )
+        await conn.execute(
+            ScoringProfile.__table__.insert().values(
+                profile_id="fixture-ppr",
+                name="Fixture PPR",
+                description="Test scoring profile",
+                is_public=True,
+                created_at=0,
+            )
+        )
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -51,12 +63,15 @@ async def test_db_setup():
 @pytest_asyncio.fixture
 async def db_session(test_db_setup) -> AsyncGenerator[AsyncSession, None]:
     """Create a fresh database session for each test."""
-    async with TestingSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.rollback()
-            await session.close()
+    async with test_engine.connect() as connection:
+        transaction = await connection.begin()
+        async with AsyncSession(bind=connection, expire_on_commit=False) as session:
+            try:
+                yield session
+            finally:
+                await session.close()
+                if transaction.is_active:
+                    await transaction.rollback()
 
 
 @pytest.fixture
@@ -71,7 +86,7 @@ def override_get_db(db_session: AsyncSession):
 @pytest.fixture
 def client(override_get_db) -> TestClient:
     """Create a test client with overridden dependencies."""
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_db_session] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -80,7 +95,7 @@ def client(override_get_db) -> TestClient:
 @pytest.fixture
 async def async_client(override_get_db) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client with overridden dependencies."""
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_db_session] = override_get_db
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
