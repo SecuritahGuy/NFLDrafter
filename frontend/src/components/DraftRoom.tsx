@@ -159,6 +159,7 @@ const DraftRoomContent: React.FC = () => {
         ecr: fantasyPros?.ecr ?? undefined,
         espnRank: espn?.rank ?? undefined,
         rankingSourceCount: composite?.sourceCount ?? 0,
+        draftConfidence: composite?.confidence,
         projectedPoints: espn?.projected_points ?? undefined,
         projectedPointsPerGame: espn?.projected_points_per_game ?? undefined,
         projectionScoringBasis: projection?.scoring_basis,

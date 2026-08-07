@@ -1,4 +1,5 @@
-import type { Player } from '../types'
+import type { Player, PlayerAvailability } from '../types'
+import { estimateAvailability } from './draftConfidence'
 
 export interface DraftConfig {
   leagueSize: number
@@ -151,6 +152,7 @@ export interface Recommendation {
   player: Player
   score: number
   reason: string
+  availability: PlayerAvailability | null
 }
 
 export const recommendPlayers = (
@@ -166,9 +168,16 @@ export const recommendPlayers = (
 
   return available
     .map((player) => {
-      const adpUrgency = player.adp > 0
-        ? Math.max(0, picksUntilTurn - Math.max(0, player.adp - currentPick)) * 0.35
-        : 0
+      const availability = estimateAvailability(
+        player.adp,
+        player.draftConfidence?.marketAdpDeviation,
+        nextUserPick,
+      )
+      const adpUrgency = availability
+        ? (1 - availability.probability) * Math.min(14, Math.max(5, picksUntilTurn * 0.7))
+        : player.adp > 0
+          ? Math.max(0, picksUntilTurn - Math.max(0, player.adp - currentPick)) * 0.35
+          : 0
       const tierDropoff = player.tier > 0 ? Math.max(0, 6 - player.tier) * 2 : 0
       const need = rosterNeed(player.position, counts)
       const sourceRankValue = player.rank
@@ -180,12 +189,14 @@ export const recommendPlayers = (
         player.vorp > 0 ? `${player.vorp.toFixed(1)} VORP` : null,
         need > 0 ? `fills a ${player.position} roster need` : null,
         adpUrgency > 2 ? 'unlikely to reach your next pick' : null,
+        player.draftConfidence?.level === 'high' ? 'high-confidence rank' : null,
         tierDropoff >= 6 ? `Tier ${player.tier} scarcity` : null,
       ].filter(Boolean)
       return {
         player,
         score,
         reason: reasons.slice(0, 2).join(' and ') || 'best available projection',
+        availability,
       }
     })
     .sort((a, b) => b.score - a.score)

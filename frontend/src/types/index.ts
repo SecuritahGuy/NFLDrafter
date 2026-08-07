@@ -15,6 +15,7 @@ export interface Player {
   ecr?: number
   espnRank?: number
   rankingSourceCount?: number
+  draftConfidence?: DraftConfidence
   projectedPoints?: number
   projectedPointsPerGame?: number
   projectionScoringBasis?: 'profile' | 'source_fallback'
@@ -25,6 +26,26 @@ export interface Player {
   lastSeason?: number
   headshot?: string
   notes?: string
+}
+
+export interface DraftConfidence {
+  level: 'high' | 'medium' | 'low' | 'limited'
+  score: number
+  sourceCount: number
+  sourceSpread: number | null
+  sourceDeviation: number | null
+  expertRange: { best: number; worst: number; spread: number } | null
+  marketRange: { best: number; worst: number; spread: number } | null
+  marketAdpDeviation: number | null
+  rankMovement: number | null
+  evidence: string
+}
+
+export interface PlayerAvailability {
+  targetPick: number
+  probability: number
+  label: 'likely' | 'coin_flip' | 'unlikely'
+  basis: 'ffc_distribution' | 'modeled_spread'
 }
 
 export interface PlayerNews {

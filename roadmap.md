@@ -16,6 +16,7 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 - Shared player detail from the Player Explorer and Draft Room
 - Last-season totals and position-specific usage, official FantasyPros preseason projections with a persistent seven-day cache and ESPN fallback, projection-derived team role/opportunity shares, modeled strength of schedule, official injury reports, and player-linked ESPN news
 - Profile-scored season/weekly projections, league-aware replacement baselines, position tiers, VORP, and recommendation integration
+- Draft confidence from source coverage/disagreement and FantasyPros ranges, plus directional next-pick availability from FFC ADP variance
 - Yahoo OAuth exchange, league/settings/team/roster parsing, scoring-profile import, and season-aware player matching covered by fixtures
 - Yahoo connection readiness, league-import preflight, and post-import player/scoring coverage report
 - GitHub Actions release checks, GitHub Pages documentation, and browser-QA screenshots
@@ -41,11 +42,11 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 - Separate historical production, projected opportunity, market cost, and news signals in both the API and UI
 - Surface missing or stale data explicitly
 
-### 3. Improve decision confidence
+### 3. Calibrate decision confidence
 
-- Retain and chart ranking movement across snapshots
-- Turn FantasyPros ranges and source disagreement into a visible confidence indicator
-- Estimate next-pick availability from ADP distributions without presenting it as certainty
+- Accumulate and chart ranking movement across scheduled snapshots
+- Backtest the directional availability model against mock-draft outcomes
+- Add tier-run alerts and calibrate recommendation weights through offline draft simulations
 
 ### 4. Automate browser regression coverage
 
