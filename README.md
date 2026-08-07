@@ -10,6 +10,7 @@ A local-first fantasy football draft assistant with custom scoring profiles, pla
 | --- | --- |
 | Manual snake draft, undo/correction, persistence, CSV export | Implemented |
 | Current/next-pick calculation and roster-aware recommendations | Implemented; recommendation weights are an initial baseline |
+| Draft confidence and next-pick availability | Implemented from source agreement, FantasyPros expert ranges, and FFC ADP variance; availability remains a directional model |
 | Custom scoring, player board, watchlist, and shared player detail | Implemented |
 | Profile-scored FantasyPros/ESPN projections, position tiers, and VORP | Implemented with a persistent seven-day API cache, league/roster-aware replacement baselines, and labeled provider fallback |
 | `nflreadpy` data-provider boundary | Implemented; live 2026 import requires network access |
@@ -34,6 +35,7 @@ Yahoo is optional: after player data has loaded, the draft room prepares and cac
 - **Multi-Source Draft Rank**: FantasyPros expert consensus, ESPN platform rank, and human mock-draft ADP remain visible as separate inputs
 - **Rich Player Profiles**: Last-season production, position-specific advanced usage, ESPN season/weekly projections, projection-derived team role and opportunity shares, ownership context, modeled schedule strength, official injury reports, and player-linked news
 - **Projection Analytics**: Score cached FantasyPros projected stat lines through the selected profile with ESPN fallback, derive position tiers and VORP from league settings, and feed those values into draft recommendations
+- **Draft Confidence**: Explain source agreement and expert ranges, then estimate whether a player is likely to survive until the next user pick from FFC ADP variance
 - **Yahoo Import Verification**: Preview teams, roster slots, draft rounds, and mapped scoring rules before import, then report player-ID coverage and unresolved matches
 
 The current fantasy-relevant player pool contains 1,002 selectable players, including all 32 defenses. The August 2026 browser QA covered missing-player searches, position filters, board ordering, and player details opened from both the Draft Room and Player Explorer. See the [QA evidence](docs/QA.md) for the scenarios and captured screenshots.
@@ -56,6 +58,8 @@ The weights are an explainable starting baseline, not an accuracy claim. Missing
 Manual mode is designed as the dependable fallback when a platform connection is unavailable. The tracker follows the configured snake order, changes the board action between `Mine` and `Taken`, removes recorded players from the available pool, keeps a searchable correction ledger, and persists the session in the browser.
 
 ![Manual Draft Room tracker with automatic turn ownership and draft ledger](docs/images/manual-draft-tracker.png)
+
+![Player draft confidence from source agreement and ADP variation](docs/images/nfldrafter-draft-confidence.png)
 
 ## Tech Stack
 
@@ -297,6 +301,7 @@ The redirect URI is an exact-match HTTPS setting in Yahoo. In the Yahoo develope
 - Schedule strength is modeled from the previous season's PPR points allowed by position. Rank 1 means the easiest modeled schedule; it is context, not a forecast.
 - Injury data comes from weekly official injury-report data available through `nflreadpy`; news is fetched from ESPN's public NFL news endpoint and linked to players by relevance scoring.
 - Draft-source rows retain their snapshot date and attribution. Missing sources are reweighted instead of silently treated as zero.
+- Draft confidence measures ranking evidence, not player safety. Next-pick availability is a directional normal-distribution model using FFC standard deviation when available and a labeled estimated spread otherwise.
 
 ## Performance
 

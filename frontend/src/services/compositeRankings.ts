@@ -1,4 +1,6 @@
 import type { BackendPlayer, RankingRow } from '../api'
+import type { DraftConfidence } from '../types'
+import { buildDraftConfidence } from './draftConfidence'
 
 export interface CompositeRanking {
   rank?: number
@@ -7,6 +9,7 @@ export interface CompositeRanking {
   espn?: RankingRow
   ffc?: RankingRow
   sourceCount: number
+  confidence: DraftConfidence
 }
 
 export function buildCompositeRankings(
@@ -41,6 +44,7 @@ export function buildCompositeRankings(
       fantasyPros: fp,
       espn: espnRow,
       ffc: ffcRow,
+      confidence: buildDraftConfidence(fp, espnRow, ffcRow),
     }]
   })
 
@@ -52,5 +56,6 @@ export function buildCompositeRankings(
     fantasyPros: item.fantasyPros,
     espn: item.espn,
     ffc: item.ffc,
+    confidence: item.confidence,
   }]))
 }

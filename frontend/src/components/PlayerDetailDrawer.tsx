@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { usePlayerContext, usePlayerSummary } from '../hooks/usePlayers'
 import type { Player } from '../types'
+import { DraftConfidenceBadge } from './DraftConfidenceBadge'
 
 interface PlayerDetailDrawerProps {
   player: Player | null
@@ -170,7 +171,7 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
         <div className="space-y-6 p-6">
           <section>
             <div className="mb-3 flex items-center gap-2"><ShieldCheckIcon className="h-5 w-5 text-blue-700" /><h3 className="font-bold text-slate-900">Draft outlook</h3></div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {[
                 ['Consensus', player.rank ? `#${player.rank}` : '—', 'Blended rank'],
                 [projectionLabel, projectedPoints ? projectedPoints.toFixed(1) : '—', projectedPpg ? `${projectedPpg.toFixed(1)} PPG` : 'Points unavailable'],
@@ -188,6 +189,19 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
             <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-950">
               Rankings use {player.rankingSourceCount ?? 0} sources{player.byeWeek ? ` · Bye week ${player.byeWeek}` : ''}. {profileProjectedPoints != null ? `${projectionLabel} scoring is applied to ${projectionSource}' projected stat line` : `${projectionSource} ${projection?.scoring ?? 'PPR'} is the fallback because the profile has no matching projected-stat rules`} from {projection?.snapshot_date ?? 'the latest snapshot'}.
             </div>
+            {player.draftConfidence && <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><h4 className="font-bold text-slate-900">Draft confidence</h4><p className="mt-1 text-xs text-slate-500">Agreement and range—not a projection of player performance.</p></div>
+                <DraftConfidenceBadge confidence={player.draftConfidence} />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sources</div><div className="mt-1 text-lg font-black text-slate-950">{player.draftConfidence.sourceCount}/3</div></div>
+                <div className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Disagreement</div><div className="mt-1 text-lg font-black text-slate-950">{player.draftConfidence.sourceSpread != null ? `${Math.round(player.draftConfidence.sourceSpread)} picks` : '—'}</div></div>
+                <div className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Expert range</div><div className="mt-1 text-lg font-black text-slate-950">{player.draftConfidence.expertRange ? `${Math.round(player.draftConfidence.expertRange.best)}–${Math.round(player.draftConfidence.expertRange.worst)}` : '—'}</div></div>
+                <div className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">ADP variation</div><div className="mt-1 text-lg font-black text-slate-950">{player.draftConfidence.marketAdpDeviation != null ? `±${player.draftConfidence.marketAdpDeviation.toFixed(1)}` : '—'}</div></div>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">{player.draftConfidence.evidence}. Confidence falls when feeds are missing or disagree; it does not mean a player is safer from injury or role changes.</p>
+            </div>}
             {projectedStatRows.length > 0 && <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h4 className="font-bold text-slate-900">{projectionSource} projected stat line</h4><p className="text-xs text-slate-500">Season-long forecast · {projection?.scoring ?? 'PPR'} scoring</p></div>

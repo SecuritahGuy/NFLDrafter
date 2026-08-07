@@ -69,6 +69,21 @@ describe('draftEngine', () => {
     expect(recommendations[0].reason).toContain('42.0 VORP')
   })
 
+  it('uses the ADP distribution to flag players unlikely to reach the next pick', () => {
+    const urgent = {
+      ...player('urgent', 'WR', 20, 8, 2),
+      draftConfidence: {
+        level: 'high' as const, score: 90, sourceCount: 3, sourceSpread: 3,
+        sourceDeviation: 1.5, expertRange: { best: 5, worst: 12, spread: 7 },
+        marketRange: { best: 4, worst: 15, spread: 11 }, marketAdpDeviation: 2,
+        rankMovement: 2, evidence: 'three sources agree',
+      },
+    }
+    const recommendation = recommendPlayers([urgent], [], [urgent], 1, 24)[0]
+    expect(recommendation.availability?.label).toBe('unlikely')
+    expect(recommendation.availability?.basis).toBe('ffc_distribution')
+  })
+
   it('assigns dedicated starters before flex and bench slots', () => {
     const players = [
       player('rb1', 'RB', 1, 1), player('rb2', 'RB', 1, 2), player('rb3', 'RB', 1, 3),

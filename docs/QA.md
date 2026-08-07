@@ -8,6 +8,7 @@ This record captures the August 2026 manual browser review used to validate the 
 | --- | --- | --- |
 | Draft Room loads its persisted manual session and source-aware board | Pass | [Draft Room](images/nfldrafter-draft-room-live.jpg) |
 | Manual tracker assigns snake-order ownership, removes drafted players from the board, records the full ledger, and restores players on undo | Pass | [Manual tracker](images/manual-draft-tracker.png) |
+| Draft confidence exposes source agreement, FantasyPros expert range, FFC ADP variation, and directional next-pick availability | Pass | [Draft confidence](images/nfldrafter-draft-confidence.png) |
 | Fantasy player universe exposes 1,002 players across QB, RB, WR, TE, K, and 32 D/ST units | Pass | [Player Explorer](images/nfldrafter-player-explorer-live.png) |
 | Search and position filters expose quarterbacks and defenses that were previously absent | Pass | [Draft Room](images/nfldrafter-draft-room-live.jpg) |
 | Selecting a player in the Draft Room opens the shared detail experience | Pass | [Draft Room detail](images/nfldrafter-draft-room-player-detail.png) |
@@ -36,6 +37,7 @@ Unexpectedly high players should be investigated through the visible source colu
 - ESPN native PPR points are retained for comparison. The selected profile is applied to projected box-score fields, and any ESPN fallback is explicitly counted and labeled.
 - Projected role share is a directional provider-rank estimate normalized among each team's ranked RB/WR/TE players; it is not labeled as snap or possession share. Exact stat shares show how many teammate projections are included because incomplete provider coverage can inflate the result.
 - The FantasyPros free API tier limits each response to 10 records. NFLDrafter makes one cached request per position, refreshes weekly, serves stale data on provider/quota failures, and keeps UI reads cache-only. ESPN remains the fallback outside the matched FantasyPros sample.
+- Draft confidence describes agreement among available ranking inputs; it is not an injury, role, or performance confidence score. Availability percentages model draft position from ADP variance and must remain labeled directional.
 - Strength-of-schedule rank is based on prior-season PPR points allowed by position. Rank 1 is easiest in the model and is descriptive context, not a forecast.
 - Injury and news panels can legitimately be empty when no current, player-relevant record is available.
 - Yahoo OAuth was exercised with the configured client ID on August 7, 2026. After the exact HTTPS callback was registered, sign-in returned to the Draft Room and rendered the connected state. A live league/settings import remains pending approved Yahoo Fantasy Sports API access; manual mode does not depend on that approval.

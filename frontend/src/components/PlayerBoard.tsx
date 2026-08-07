@@ -16,6 +16,7 @@ import { CheatSheetExport } from './CheatSheetExport'
 import { LoadingState } from './LoadingState'
 import { ErrorDisplay } from './ErrorDisplay'
 import type { Player } from '../types'
+import { DraftConfidenceBadge } from './DraftConfidenceBadge'
 
 const INITIAL_VISIBLE_PLAYERS = 75
 
@@ -743,6 +744,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                           <div className="whitespace-nowrap text-[10px] font-medium text-gray-500">
                             {player.ecr ? `FP ${Math.round(player.ecr)}` : 'FP —'} · {player.espnRank ? `ESPN ${player.espnRank}` : 'ESPN —'}
                           </div>
+                          <div className="mt-1"><DraftConfidenceBadge confidence={player.draftConfidence} compact /></div>
                         </td>
 
                         {/* VORP */}
