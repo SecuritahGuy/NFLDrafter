@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -411,6 +412,23 @@ async def get_fantasypros_projections(
             "rate_limit": result.response_headers,
         },
         "data": result.data,
+    }
+
+
+@router.post("/refresh-all")
+async def refresh_all_sources():
+    """Force-refresh every external feed used by the draft room."""
+    from ..services.scheduler import refresh_all_sources_job
+
+    started_at = datetime.now(timezone.utc)
+    results = await refresh_all_sources_job(force=True)
+    failed = [source for source, result in results.items() if result.get("error")]
+    return {
+        "started_at": started_at.isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "succeeded": len(results) - len(failed),
+        "failed": len(failed),
+        "results": results,
     }
 
 

@@ -25,6 +25,11 @@ export interface Player {
   status?: string
   lastSeason?: number
   headshot?: string
+  yahooAveragePick?: number
+  yahooAverageRound?: number
+  yahooPercentOwned?: number
+  yahooPercentDrafted?: number
+  yahooSeasonStats?: Record<string, number>
   notes?: string
 }
 

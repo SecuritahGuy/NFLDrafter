@@ -20,6 +20,15 @@ import { DraftConfidenceBadge } from './DraftConfidenceBadge'
 
 const INITIAL_VISIBLE_PLAYERS = 75
 
+export const estimateDraftRound = (adp: number | null | undefined, leagueSize: number) => {
+  if (!adp || adp <= 0 || leagueSize <= 0) return null
+  const overallPick = Math.max(1, Math.ceil(adp))
+  return {
+    round: Math.ceil(overallPick / leagueSize),
+    pickInRound: ((overallPick - 1) % leagueSize) + 1,
+  }
+}
+
 export interface PlayerBoardProps {
   players: Player[]
   selectedPosition: string
@@ -43,6 +52,7 @@ export interface PlayerBoardProps {
   onSearchChange?: (query: string) => void
   onDraftOther?: (player: Player) => void
   onDraftMine?: (player: Player) => void
+  leagueSize?: number
 }
 
 type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'rank' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp' | 'valueVsADP'
@@ -71,6 +81,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   onSearchChange,
   onDraftOther,
   onDraftMine,
+  leagueSize = 12,
 }) => {
   const [sortField, setSortField] = useState<SortField>('rank')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -679,7 +690,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
               ) : (
                 visiblePlayers.map((player, index) => {
                   const isSelected = index === selectedRowIndex
-                  const isExpanded = expandedPlayer === player.id
+                    const isExpanded = expandedPlayer === player.id
+                    const draftEstimate = estimateDraftRound(player.effectiveADP, leagueSize)
                   const isInWatchlist = watchlist.includes(player.id)
                   
                   return (
@@ -765,7 +777,10 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                         {/* ADP */}
                         <td className="px-4 py-4 text-center">
                           <div className="font-medium text-gray-700">{player.effectiveADP || '—'}</div>
-                          <div className="text-xs text-gray-500">adp</div>
+                          <div className="whitespace-nowrap text-xs font-semibold text-blue-700" title={`Estimated from ADP in a ${leagueSize}-team league`}>
+                            {draftEstimate ? `Likely Rd ${draftEstimate.round} · pick ${draftEstimate.pickInRound}` : 'Round unavailable'}
+                          </div>
+                          {player.yahooAveragePick ? <div className="text-[10px] text-gray-500">Yahoo ADP {player.yahooAveragePick.toFixed(1)}</div> : null}
                         </td>
 
 
@@ -881,6 +896,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                                     <div>
                                       <div className="text-gray-600">ADP</div>
                                       <div className="font-bold text-lg text-gray-900">{player.effectiveADP}</div>
+                                      {draftEstimate && <div className="text-xs font-semibold text-blue-700">Likely round {draftEstimate.round}, pick {draftEstimate.pickInRound}</div>}
                                     </div>
                                   </div>
                                 </div>

@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+import time
 from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..db import SessionLocal
+from ..models import ApiResponseCache
 
 
 _TEAM_ALIASES = {"LAR": "LA", "WSH": "WAS"}
@@ -14,8 +19,17 @@ def _team(value: str | None) -> str:
     return _TEAM_ALIASES.get(team, team)
 
 
-@lru_cache(maxsize=64)
-def get_schedule_strength(team: str, position: str, season: int) -> dict[str, Any]:
+def _cache_key(team: str, position: str, season: int) -> str:
+    return f"nflverse:schedule-strength:{season}:{_team(team)}:{position.upper()}"
+
+
+def _calculate_schedule_strength(
+    team: str,
+    position: str,
+    season: int,
+    stats: list[dict[str, Any]],
+    schedules: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Estimate matchup ease from prior-year PPR points allowed by position.
 
     Rank 1 is the easiest schedule and rank 32 is the hardest. This is a
@@ -30,12 +44,7 @@ def get_schedule_strength(team: str, position: str, season: int) -> dict[str, An
             "reason": "Schedule strength is not modeled for this position yet.",
         }
 
-    import nflreadpy as nfl
-
     basis_season = season - 1
-    stats = nfl.load_player_stats([basis_season], summary_level="week").to_dicts()
-    schedules = nfl.load_schedules([season]).to_dicts()
-
     totals: dict[str, float] = {}
     games: dict[str, set[str]] = {}
     for row in stats:
@@ -118,3 +127,77 @@ def get_schedule_strength(team: str, position: str, season: int) -> dict[str, An
         "method": f"{basis_season} PPR points allowed to {position}s; rank 1 is easiest",
         "matchups": matchups,
     }
+
+
+async def refresh_schedule_strength_cache(season: int) -> dict[str, Any]:
+    """Fetch schedule inputs once and persist every team/position result."""
+    import nflreadpy as nfl
+
+    basis_season = season - 1
+    stats = nfl.load_player_stats([basis_season], summary_level="week").to_dicts()
+    schedules = nfl.load_schedules([season]).to_dicts()
+    teams = sorted({
+        _team(row.get(side))
+        for row in schedules
+        for side in ("home_team", "away_team")
+        if row.get(side)
+    })
+    fetched_at = int(time.time())
+    stored = 0
+    async with SessionLocal() as session:
+        for team in teams:
+            for position in ("QB", "RB", "WR", "TE", "K"):
+                key = _cache_key(team, position, season)
+                response = _calculate_schedule_strength(
+                    team, position, season, stats, schedules
+                )
+                values = {
+                    "provider": "nflverse",
+                    "endpoint": "/schedule-strength",
+                    "query": {"team": team, "position": position, "season": season},
+                    "response": response,
+                    "fetched_at": fetched_at,
+                    "expires_at": 2_147_483_647,
+                    "last_accessed_at": fetched_at,
+                    "status_code": 200,
+                    "response_headers": {},
+                }
+                row = await session.get(ApiResponseCache, key)
+                if row:
+                    for field, value in values.items():
+                        setattr(row, field, value)
+                else:
+                    session.add(ApiResponseCache(cache_key=key, **values))
+                stored += 1
+        await session.commit()
+    return {
+        "loaded": stored,
+        "season": season,
+        "basis_season": basis_season,
+        "teams": len(teams),
+    }
+
+
+async def get_schedule_strength(
+    db: AsyncSession, team: str, position: str, season: int
+) -> dict[str, Any]:
+    """Read schedule context from the database without making web requests."""
+    position = position.upper()
+    if position not in {"QB", "RB", "WR", "TE", "K"}:
+        return {
+            "available": False,
+            "season": season,
+            "basis_season": season - 1,
+            "reason": "Schedule strength is not modeled for this position yet.",
+        }
+    cached = await db.get(ApiResponseCache, _cache_key(team, position, season))
+    if not cached:
+        return {
+            "available": False,
+            "season": season,
+            "basis_season": season - 1,
+            "reason": "Schedule context is not cached yet. Run Refresh all sources.",
+        }
+    cached.last_accessed_at = int(time.time())
+    await db.commit()
+    return cached.response

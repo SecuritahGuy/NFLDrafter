@@ -67,19 +67,37 @@ describe('YahooOAuth', () => {
 
     expect(screen.getByText('Connect Yahoo Account')).toBeInTheDocument()
     expect(screen.getByText('Connect Yahoo Fantasy Football')).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith('/api/yahoo/readiness', { cache: 'no-store' })
   })
 
-  it('shows loading state when authenticating', () => {
+  it('shows loading state when authenticating', async () => {
     render(
       <ToastProvider>
         <YahooOAuth />
       </ToastProvider>
     )
 
-    const connectButton = screen.getByText('Connect Yahoo Account')
+    const connectButton = await screen.findByText('Connect Yahoo Account')
+    await waitFor(() => expect(connectButton).toBeEnabled())
     fireEvent.click(connectButton)
 
     expect(screen.getByText('Connecting to Yahoo...')).toBeInTheDocument()
+  })
+
+  it('surfaces a readiness failure and disables authentication', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => { throw new SyntaxError('Unexpected token <') }
+    })
+
+    render(
+      <ToastProvider>
+        <YahooOAuth />
+      </ToastProvider>
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Yahoo authentication server unavailable')
+    expect(screen.getByText('Connect Yahoo Account')).toBeDisabled()
   })
 
   it('shows connected state when authenticated', async () => {

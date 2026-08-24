@@ -46,6 +46,38 @@ async def test_refresh_draft_sources_isolates_provider_failures(monkeypatch):
     ffc.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_refresh_all_sources_includes_projections_and_injuries(monkeypatch):
+    draft_sources = AsyncMock(return_value={"fantasypros-ecr": {"loaded": 300}})
+    projections = AsyncMock(return_value={"loaded": 60})
+    injuries = AsyncMock(return_value={"loaded": {"2025": 100}})
+    players = AsyncMock(return_value=1000)
+    weekly = AsyncMock(return_value={2025: 5000})
+    usage = AsyncMock(return_value={2025: 1000})
+    schedules = AsyncMock(return_value={"loaded": 160})
+    sleeper = AsyncMock(return_value={"loaded": 1000})
+    news = AsyncMock(return_value={"loaded": 20})
+    monkeypatch.setattr(scheduler_service, "refresh_draft_sources_job", draft_sources)
+    monkeypatch.setattr(scheduler_service, "ingest_fantasypros_projections", projections)
+    monkeypatch.setattr(scheduler_service.injuries_service, "ingest_injuries", injuries)
+    monkeypatch.setattr(scheduler_service, "seed_players_and_ids", players)
+    monkeypatch.setattr(scheduler_service, "ingest_weekly_stats", weekly)
+    monkeypatch.setattr(scheduler_service, "ingest_usage_stats", usage)
+    monkeypatch.setattr(scheduler_service, "refresh_schedule_strength_cache", schedules)
+    monkeypatch.setattr(scheduler_service, "backfill_sleeper_ids", sleeper)
+    monkeypatch.setattr(scheduler_service, "ingest_news", news)
+    monkeypatch.setenv("NFL_SEASON", "2026")
+
+    result = await scheduler_service.refresh_all_sources_job(force=True)
+
+    projections.assert_awaited_once_with(season=2026, force_refresh=True)
+    injuries.assert_awaited_once_with()
+    weekly.assert_awaited_once_with([2025])
+    usage.assert_awaited_once_with([2025])
+    assert result["fantasypros-projection"] == {"loaded": 60}
+    assert result["nflverse-injuries"] == {"loaded": {"2025": 100}}
+
+
 def test_scheduler_registers_daily_draft_source_job(monkeypatch):
     monkeypatch.setenv("DRAFT_SOURCES_SCHEDULE_CRON", "30 10 * * *")
 

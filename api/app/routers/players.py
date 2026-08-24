@@ -379,8 +379,6 @@ async def get_player_context(
     db: AsyncSession = Depends(get_db_session),
 ):
     """Return projections, schedule difficulty, injuries, and recent news."""
-    import asyncio
-
     player = (
         await db.execute(select(Player).where(Player.player_id == player_id))
     ).scalar_one_or_none()
@@ -464,8 +462,8 @@ async def get_player_context(
     try:
         from ..services.schedule_strength import get_schedule_strength
 
-        schedule_strength = await asyncio.to_thread(
-            get_schedule_strength, player.team or "", player.position, season
+        schedule_strength = await get_schedule_strength(
+            db, player.team or "", player.position, season
         )
     except Exception as exc:
         schedule_strength = {

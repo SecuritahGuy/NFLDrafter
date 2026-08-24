@@ -18,6 +18,10 @@ from . import rankings as rankings_service
 from .espn_rankings import ingest_espn_rankings
 from .ffc_rankings import ingest_ffc_adp
 from .fantasypros_projections import ingest_fantasypros_projections
+from .news import ingest_news
+from .nflverse import ingest_usage_stats, ingest_weekly_stats, seed_players_and_ids
+from .schedule_strength import refresh_schedule_strength_cache
+from .sleeper import backfill_sleeper_ids
 
 DEFAULT_CRON = "15 9 * * 3"  # 9:15am UTC Wednesdays (after injury report cycles)
 DEFAULT_DRAFT_SOURCES_CRON = "15 11 * * *"  # 11:15am UTC daily
@@ -46,6 +50,52 @@ async def refresh_draft_sources_job() -> dict[str, dict]:
             results[source] = {"error": str(exc)}
             print(f"{source} refresh failed: {exc}")
 
+    return results
+
+
+async def refresh_all_sources_job(*, force: bool = False) -> dict[str, dict]:
+    """Refresh every feed used by the draft-room player board.
+
+    Provider failures are isolated so one unavailable service still leaves the
+    other sources fresh. Manual refreshes force the FantasyPros projection
+    cache to make a network request; scheduled refreshes may reuse valid cache.
+    """
+    season = int(os.getenv("NFL_SEASON", "2026"))
+    baseline_season = int(os.getenv("STATS_BASELINE_SEASON", str(season - 1)))
+    results: dict[str, dict] = {}
+    foundation_jobs = (
+        ("nflverse-players", seed_players_and_ids),
+        ("nflverse-weekly-stats", lambda: ingest_weekly_stats([baseline_season])),
+        ("nflverse-usage", lambda: ingest_usage_stats([baseline_season])),
+        ("nflverse-schedule-strength", lambda: refresh_schedule_strength_cache(season)),
+        ("sleeper-player-ids", backfill_sleeper_ids),
+        (
+            "espn-news",
+            lambda: ingest_news(limit=int(os.getenv("NEWS_REFRESH_LIMIT", "20"))),
+        ),
+    )
+    for source, ingest in foundation_jobs:
+        try:
+            result = await ingest()
+            results[source] = result if isinstance(result, dict) else {"loaded": result}
+        except Exception as exc:  # pragma: no cover - provider failures vary
+            results[source] = {"error": str(exc)}
+            print(f"{source} refresh failed: {exc}")
+
+    results.update(await refresh_draft_sources_job())
+    jobs = (
+        (
+            "fantasypros-projection",
+            lambda: ingest_fantasypros_projections(season=season, force_refresh=force),
+        ),
+        ("nflverse-injuries", injuries_service.ingest_injuries),
+    )
+    for source, ingest in jobs:
+        try:
+            results[source] = await ingest()
+        except Exception as exc:  # pragma: no cover - provider failures vary
+            results[source] = {"error": str(exc)}
+            print(f"{source} refresh failed: {exc}")
     return results
 
 

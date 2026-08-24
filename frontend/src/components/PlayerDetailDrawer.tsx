@@ -161,6 +161,9 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
     receiving_yard_share: 'Projected rec. yards',
   }
   const exactOpportunityRows = Object.entries(opportunity?.exact_shares ?? {})
+  const yahooSeasonStatRows = Object.entries(player.yahooSeasonStats ?? {})
+    .filter(([, value]) => Number(value) !== 0)
+    .slice(0, 12)
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true" aria-label={`${player.name} details`}>
@@ -191,6 +194,7 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
                 ['Tier / VORP', player.tier ? `T${player.tier}` : '—', player.tier ? `${player.vorp.toFixed(1)} over ${player.position}${player.replacementRank ?? ''}` : 'Analytics unavailable'],
                 [`${lastSeason} PPR`, pprPoints ? pprPoints.toFixed(1) : '—', `${lastSummary?.total_games ?? 0} games`],
                 ['Market ADP', player.adp ? player.adp.toFixed(1) : '—', `FP ${player.ecr ? `#${Math.round(player.ecr)}` : '—'} · ESPN ${player.espnRank ? `#${player.espnRank}` : '—'}`],
+                ['Yahoo market', player.yahooAveragePick ? player.yahooAveragePick.toFixed(1) : '—', player.yahooPercentDrafted ? `${player.yahooPercentDrafted.toFixed(0)}% drafted · round ${player.yahooAverageRound?.toFixed(1) ?? '—'}` : 'No Yahoo draft analysis yet'],
               ].map(([label, value, note]) => (
                 <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
@@ -225,6 +229,11 @@ export function PlayerDetailDrawer({ player, season, profileId, onClose }: Playe
               {projectedWeeks.length > 0 && <div className="mt-4 border-t border-slate-100 pt-4"><div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Weekly projected · {projectionLabel}</span><span className="text-[10px] text-slate-400">Scored from {projectionSource} projected stats</span></div><div className="flex h-16 items-end gap-1">{projectedWeeks.map((week) => <div key={week.week} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`Week ${week.week}: ${week.displayPoints?.toFixed(1)} projected ${projectionLabel} points`}><div className="w-full rounded-t bg-violet-500 transition-colors group-hover:bg-violet-700" style={{ height: `${Math.max(((week.displayPoints ?? 0) / maxProjectedWeek) * 42, 3)}px` }} /><span className="text-[8px] text-slate-400">{week.week}</span></div>)}</div></div>}
               {projection?.season_outlook && <details className="mt-4 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-sm font-bold text-blue-800">Read ESPN season outlook excerpt</summary><p className="mt-2 text-sm leading-6 text-slate-600">{projection.season_outlook.slice(0, 600)}{projection.season_outlook.length > 600 ? '…' : ''}</p></details>}
             </div>}
+            {yahooSeasonStatRows.length > 0 && <details className="mt-3 rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
+              <summary className="cursor-pointer font-bold text-violet-950">Yahoo {lastSeason} season stat line</summary>
+              <p className="mt-1 text-xs text-violet-700">Cached from the linked league; updated only by Refresh all sources.</p>
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">{yahooSeasonStatRows.map(([label, value]) => <div key={label} className="rounded-xl bg-white p-3"><div className="text-[10px] font-bold uppercase tracking-wide text-violet-600">{label}</div><div className="mt-1 text-lg font-black text-violet-950">{Number(value).toLocaleString(undefined, { maximumFractionDigits: Number(value) < 100 ? 1 : 0 })}</div></div>)}</div>
+            </details>}
             {opportunity?.role_share_estimate != null && <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h4 className="font-bold text-slate-900">Projected team role</h4><p className="text-xs text-slate-500">Compared with {opportunity.teammates_ranked - 1} ranked {player.team} RB/WR/TE teammates</p></div>

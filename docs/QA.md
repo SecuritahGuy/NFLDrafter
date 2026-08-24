@@ -6,13 +6,14 @@ This record captures the August 2026 manual browser review used to validate the 
 
 | Scenario | Result | Evidence |
 | --- | --- | --- |
-| Draft Room loads its persisted manual session and source-aware board | Pass | [Draft Room](images/nfldrafter-draft-room-live.jpg) |
+| Draft Room loads its persisted manual session and source-aware board | Pass | [Current Draft Room](images/nfldrafter-draft-room-2026.png) |
+| ADP shows a likely round and pick within that round using the active league size | Pass | [Current Draft Room](images/nfldrafter-draft-room-2026.png) plus focused round-estimation tests |
 | Manual tracker assigns snake-order ownership, removes drafted players from the board, records the full ledger, and restores players on undo | Pass | [Manual tracker](images/manual-draft-tracker.png) |
 | Draft confidence exposes source agreement, FantasyPros expert range, FFC ADP variation, and directional next-pick availability | Pass | [Draft confidence](images/nfldrafter-draft-confidence.png) |
 | Player detail charts dated FantasyPros, ESPN, and FFC rank history, labels feed freshness, and preserves gaps for unmatched dates | Pass | [Ranking movement](images/nfldrafter-ranking-movement.png) |
 | Fantasy player universe exposes 1,002 players across QB, RB, WR, TE, K, and 32 D/ST units | Pass | [Player Explorer](images/nfldrafter-player-explorer-live.png) |
 | Search and position filters expose quarterbacks and defenses that were previously absent | Pass | [Draft Room](images/nfldrafter-draft-room-live.jpg) |
-| Selecting a player in the Draft Room opens the shared detail experience | Pass | [Draft Room detail](images/nfldrafter-draft-room-player-detail.png) |
+| Selecting a player in the Draft Room opens the shared detail experience | Pass | [Current player detail](images/nfldrafter-player-detail-2026.png) |
 | Selecting a player in the Player Explorer opens the same detailed profile | Pass | [Player detail](images/nfldrafter-player-detail.png) |
 | Detail includes last-season totals and position-specific advanced usage | Pass | [Analytics](images/nfldrafter-player-detail-analytics.jpg) |
 | Historical opportunity shows nflverse snap, target, and rushing shares plus actual PPR versus expected opportunity | Pass | [Historical opportunity](images/nfldrafter-historical-opportunity.png) |
@@ -25,8 +26,9 @@ This record captures the August 2026 manual browser review used to validate the 
 | Draft Room renders league-aware position tiers and VORP without grouping unprojected players into fake tiers | Pass | [Projection analytics panel](images/nfldrafter-projection-analytics-panel.png) |
 | Yahoo card confirms server credential readiness without exposing the client ID or secret | Pass | [Yahoo OAuth readiness](images/nfldrafter-yahoo-readiness.jpg) |
 | Yahoo authorization returns through the configured callback and the Draft Room renders the connected state | Pass | [Yahoo OAuth readiness](images/nfldrafter-yahoo-readiness.jpg) plus the August 7 live sign-in rehearsal |
-| Credentialed Yahoo league import against live Fantasy Sports data | Pending provider access | The OAuth handoff succeeds, but league/settings verification still requires approved Fantasy Sports API access for the application |
+| Credentialed Yahoo league import against live Fantasy Sports data | Pass | Live 2026 league snapshot: 57 successful read requests, zero failures, 300 available players, 262 players with non-zero 2025 stats, 108 stat categories, 12 teams, 20 transactions, and 6 scheduled matchups |
 | Yahoo fixture rehearsal previews teams, rosters, slots, and scoring rules, then reports match coverage | Pass | Frontend component tests plus backend XML/scoring/player-matching tests |
+| Yahoo settings preserve all live scoring modifiers and avoid guessing unsupported rules | Pass | 35 live modifiers parsed; 12 offensive rules mapped and 23 kicker/defense/special-case rules retained for review |
 
 ## Ranking review
 
@@ -44,7 +46,7 @@ Unexpectedly high players should be investigated through the visible source colu
 - Ranking movement treats a lower number as better, preserves source-specific dates, and does not connect missing matches. On August 7, the live QA showed three matched feeds for Jahmyr Gibbs: FantasyPros through July 31, FFC through August 6, and ESPN through August 7.
 - Strength-of-schedule rank is based on prior-season PPR points allowed by position. Rank 1 is easiest in the model and is descriptive context, not a forecast.
 - Injury and news panels can legitimately be empty when no current, player-relevant record is available.
-- Yahoo OAuth was exercised with the configured client ID on August 7, 2026. After the exact HTTPS callback was registered, sign-in returned to the Draft Room and rendered the connected state. A live league/settings import remains pending approved Yahoo Fantasy Sports API access; manual mode does not depend on that approval.
+- Yahoo OAuth and the supported read-only league resources were exercised against a credentialed 2026 league on August 24, 2026. The selected league and its snapshot persist locally; manual mode does not depend on Yahoo remaining available.
 
 ## Release checks
 

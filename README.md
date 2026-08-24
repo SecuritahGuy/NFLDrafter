@@ -2,7 +2,7 @@
 
 A local-first fantasy football draft assistant with custom scoring profiles, player analysis, and a browser-persistent manual draft console. Built with FastAPI, React, and SQLite.
 
-![NFLDrafter home screen](docs/images/nfldrafter-home.png)
+![NFLDrafter 2026 draft command center](docs/images/nfldrafter-draft-room-2026.png)
 
 ## Revival status (August 2026)
 
@@ -14,9 +14,9 @@ A local-first fantasy football draft assistant with custom scoring profiles, pla
 | Custom scoring, player board, watchlist, and shared player detail | Implemented |
 | Profile-scored FantasyPros/ESPN projections, position tiers, and VORP | Implemented with a persistent seven-day API cache, league/roster-aware replacement baselines, and labeled provider fallback |
 | `nflreadpy` data-provider boundary | Implemented; live 2026 import requires network access |
-| Yahoo OAuth token exchange | Implemented with a non-secret server-readiness check and automatic refresh; live callback registration still requires Yahoo console setup |
-| Yahoo league/settings/team/roster XML parsing | Implemented and fixture-tested |
-| Yahoo scoring-profile persistence and season-aware player-ID matching | Implemented and fixture-tested; live Yahoo verification pending |
+| Yahoo OAuth token exchange | Implemented and live-verified with automatic token refresh and a non-secret server-readiness check |
+| Yahoo read-only league snapshot | Implemented and live-verified for metadata, settings, teams, standings, rosters, draft results, transactions, scoreboard, available players, ownership, draft analysis, and season stats |
+| Yahoo scoring-profile persistence and season-aware player-ID matching | Implemented, fixture-tested, and exercised against a credentialed 2026 league |
 | Automated Yahoo live-pick synchronization | Not implemented; manual mode remains the reliable draft path |
 | Versioned offline draft packages | Implemented with browser cache, JSON import/export, and checksum validation |
 | FantasyPros ECR, ESPN draft rank, and FFC ADP | Implemented with daily timestamped snapshots, canonical-ID coverage, source attribution, a weighted draft rank, and player-level movement history |
@@ -36,10 +36,12 @@ Yahoo is optional: after player data has loaded, the draft room prepares and cac
 - **Rich Player Profiles**: Last-season production, snap/target/rushing shares, expected-opportunity results, ESPN season/weekly projections, projection-derived team role, ownership context, modeled schedule strength, official injury reports, and player-linked news
 - **Projection Analytics**: Score cached FantasyPros projected stat lines through the selected profile with ESPN fallback, derive position tiers and VORP from league settings, and feed those values into draft recommendations
 - **Draft Confidence**: Explain source agreement and expert ranges, then estimate whether a player is likely to survive until the next user pick from FFC ADP variance
+- **ADP Round Estimates**: Convert overall ADP into a likely round and pick within the round using the active league size
 - **Ranking Movement**: Compare dated FantasyPros, ESPN, and FFC snapshots in every player profile, with feed freshness and missing matches called out explicitly
 - **Yahoo Import Verification**: Preview teams, roster slots, draft rounds, and mapped scoring rules before import, then report player-ID coverage and unresolved matches
+- **Read-Only Yahoo Cache**: Persist useful league, market, transaction, matchup, and completed-season player data so ordinary frontend views remain database-only
 
-The current fantasy-relevant player pool contains 1,002 selectable players, including all 32 defenses. The August 2026 browser QA covered missing-player searches, position filters, board ordering, and player details opened from both the Draft Room and Player Explorer. See the [QA evidence](docs/QA.md) for the scenarios and captured screenshots.
+The current fantasy-relevant player pool contains 1,024 selectable players, including all 32 defenses. The August 2026 browser QA covered missing-player searches, position filters, board ordering, ADP round estimates, credentialed Yahoo reads, and player details opened from both the Draft Room and Player Explorer. See the [QA evidence](docs/QA.md) for the scenarios and captured screenshots.
 
 ## Ranking sources
 
@@ -50,11 +52,12 @@ NFLDrafter assigns each feed a specific role instead of treating every number as
 | [FantasyPros ECR](https://www.fantasypros.com/nfl/rankings/consensus-cheatsheets.php) via `nflreadpy` | Expert consensus | Expert conviction, uncertainty range, and 50% of the initial blended draft rank |
 | [FantasyPros API](https://www.fantasypros.com/api-data/) | Consensus projected stat lines | Cache-first preseason projections, custom-profile scoring, and team-relative opportunity shares |
 | [ESPN Fantasy](https://www.espn.com/fantasy/football/) public player endpoint | Platform draft rank | Draft-room ordering and 20% of the initial blend |
-| [Fantasy Football Calculator ADP](https://fantasyfootballcalculator.com/adp/ppr) REST API | Human mock-draft ADP | Expected acquisition cost, next-pick urgency, and 30% of the initial blend |
+| [Fantasy Football Calculator ADP](https://fantasyfootballcalculator.com/adp/ppr) REST API | Human mock-draft ADP | Expected acquisition cost, likely league-aware round, next-pick urgency, and 30% of the initial blend |
+| [Yahoo Fantasy Sports](https://developer.yahoo.com/fantasysports/guide/) | Linked league and platform market context | Read-only league configuration, standings, rosters, transactions, matchups, ownership, draft analysis, and completed-season statistics |
 
 The weights are an explainable starting baseline, not an accuracy claim. Missing sources are reweighted automatically. `GET /rankings/sources` reports snapshot dates and canonical-player match coverage, while `GET /rankings/?source=...` returns a specific feed. Fantasy Football Calculator permits API use and requests attribution; the product UI and this README provide it.
 
-![Live Draft Room player board with source ranks](docs/images/nfldrafter-draft-room-live.jpg)
+![2026 Draft Room with source refresh and league-aware ADP rounds](docs/images/nfldrafter-draft-room-2026.png)
 
 Manual mode is designed as the dependable fallback when a platform connection is unavailable. The tracker follows the configured snake order, changes the board action between `Mine` and `Taken`, removes recorded players from the available pool, keeps a searchable correction ledger, and persists the session in the browser.
 
@@ -201,6 +204,8 @@ This creates `.venv`, installs locked frontend dependencies, initializes SQLite 
 - **GET** `/rankings/projection-analytics` - Score projections and derive tiers/VORP for a profile and league configuration
 - **GET** `/rankings/fantasypros/cache-status` - Inspect cache freshness and locally tracked daily-call usage without exposing the key
 - **GET** `/yahoo/readiness` - Confirm OAuth credentials and callback configuration without exposing secrets
+- **GET** `/yahoo/leagues/{league_id}/snapshot` - Read the persisted frontend-ready Yahoo league snapshot without contacting Yahoo
+- **POST** `/yahoo/leagues/{league_id}/sync` - Refresh the linked league's supported read-only Yahoo resources and persist one snapshot
 - **GET** `/news/players/{player_id}/features` - Get player-linked news features and headlines
 - **GET** `/health` - Health check
 
@@ -291,9 +296,15 @@ The project uses SQLAlchemy with automatic table creation. For production deploy
 - `YAHOO_FRONTEND_CALLBACK_URI`: Browser handoff after Yahoo returns; locally use `http://localhost:5173/auth/callback`
 - `DEBUG`: Enable debug mode
 - `ALLOWED_ORIGINS`: CORS allowed origins
-- `DRAFT_SOURCES_SCHEDULE_CRON`: Daily FantasyPros ECR, ESPN draft-rank, and FFC ADP snapshot schedule (default `15 11 * * *`, UTC)
-- `DRAFT_SCORING`: Scoring format requested by scheduled ESPN/FFC refreshes (default `PPR`)
-- `DRAFT_LEAGUE_SIZE`: League size requested by the scheduled FFC refresh (default `12`)
+- `NFL_SEASON`: Upcoming draft season (default `2026`)
+- `STATS_BASELINE_SEASON`: Completed season persisted for player production and usage (default `NFL_SEASON - 1`)
+- `DRAFT_SCORING`: Scoring format requested by the manual ESPN/FFC refresh (default `PPR`)
+- `DRAFT_LEAGUE_SIZE`: League size requested by the manual FFC refresh (default `12`)
+- `NEWS_REFRESH_LIMIT`: ESPN articles cached during Refresh all sources (default `20`)
+- `ENABLE_BACKGROUND_REFRESH`: Opt into scheduled website refreshes (default `false`). Leave disabled for the local-first, manual-refresh contract.
+- `DRAFT_SOURCES_SCHEDULE_CRON`: Draft-source schedule used only when `ENABLE_BACKGROUND_REFRESH=true`
+- `YAHOO_AVAILABLE_PLAYER_LIMIT`: Maximum available Yahoo players cached per linked league (default `300`, capped at `300`)
+- `YAHOO_PLAYER_STATS_LIMIT`: Maximum Yahoo players included in completed-season stat batches (default `300`, capped at `500`)
 
 The redirect URI is an exact-match HTTPS setting in Yahoo. In the Yahoo developer application, register the same value used by `YAHOO_REDIRECT_URI`—including scheme, host, port, path, and trailing-slash choice. For local development, `cloudflared tunnel --url http://localhost:8000` provides a temporary HTTPS host; append `/auth/yahoo/callback` and use that complete value in both Yahoo and `.env`. NFLDrafter then relays the result to the local frontend callback. An OAuth page reporting `invalid redirect uri` means these values differ.
 
@@ -307,11 +318,12 @@ The redirect URI is an exact-match HTTPS setting in Yahoo. In the Yahoo develope
 
 - ESPN's native projected fantasy points remain available for comparison. NFLDrafter also scores the projected box-score fields through the selected profile; when no profile rule matches an available kicker or defense projection, the response labels its ESPN PPR fallback.
 - VORP uses the selected league size and starter counts. FLEX is allocated evenly across RB, WR, and TE; SUPERFLEX is allocated to QB. The API returns the exact replacement ranks and tier thresholds used.
-- Schedule strength is modeled from the previous season's PPR points allowed by position. Rank 1 means the easiest modeled schedule; it is context, not a forecast.
+- Schedule strength is modeled from the previous season's PPR points allowed by position. Its 160 team/position results are persisted during Refresh all sources, so player-detail reads do not contact nflverse. Rank 1 means the easiest modeled schedule; it is context, not a forecast.
 - Injury data comes from weekly official injury-report data available through `nflreadpy`; news is fetched from ESPN's public NFL news endpoint and linked to players by relevance scoring.
 - Historical opportunity combines Pro Football Reference snap counts distributed by nflverse with nflverse play-level expected fantasy points and rushing opportunity. Route participation and official current depth rank are left unavailable when the summarized source cannot support them directly.
 - Draft-source rows retain their snapshot date and attribution. Missing sources are reweighted instead of silently treated as zero.
-- The scheduler refreshes all three draft feeds daily and isolates failures, so an unavailable provider does not prevent the other snapshots from being retained. Player profiles chart the history returned by `GET /rankings/{player_id}/history`.
+- External data is database-first and does not refresh in the background by default. Refresh all sources persists the player directory, completed-season weekly stats and usage, schedule context, Sleeper IDs, ESPN news, rankings, projections, and injuries; provider failures remain isolated. Player profiles chart the history returned by `GET /rankings/{player_id}/history`.
+- The same Refresh all sources action independently refreshes the selected Yahoo league. A successful snapshot stores every supported read-only response needed by the UI; ordinary league views never spend Yahoo calls. Yahoo does not expose a dedicated projections resource in the documented Fantasy Sports API, so FantasyPros and ESPN remain the projection providers.
 - Draft confidence measures ranking evidence, not player safety. Next-pick availability is a directional normal-distribution model using FFC standard deviation when available and a labeled estimated spread otherwise.
 
 ## Performance
@@ -331,7 +343,7 @@ The redirect URI is an exact-match HTTPS setting in Yahoo. In the Yahoo develope
 - [x] Score projected box stats through the selected profile, then activate transparent tiers and VORP
 - [x] Schedule isolated daily draft-source snapshots and chart player-level ranking movement
 - [x] Add historical snap share, target/rushing share, and expected-opportunity context without inventing route or depth-chart proxies
-- [ ] Complete a credentialed Yahoo league-import dress rehearsal
+- [x] Complete a credentialed Yahoo league-import and read-only snapshot dress rehearsal
 - [ ] Add Playwright coverage for refresh, undo, correction, and export
 - [ ] Add rank-confidence, ADP-urgency, and expected-availability calibration
 
@@ -343,7 +355,7 @@ The checked-in QA captures are reusable in issues, release notes, and project do
 
 | Live player explorer | Player analytics |
 | --- | --- |
-| ![Live player explorer](docs/images/nfldrafter-player-explorer-live.png) | ![Player projection breakdown](docs/images/nfldrafter-player-projection-breakdown.jpg) |
+| ![2026 draft command center](docs/images/nfldrafter-draft-room-2026.png) | ![Current player decision drawer](docs/images/nfldrafter-player-detail-2026.png) |
 
 | Schedule, injuries, and news | Scoring builder |
 | --- | --- |
