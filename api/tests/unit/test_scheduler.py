@@ -56,7 +56,7 @@ async def test_refresh_all_sources_includes_projections_and_injuries(monkeypatch
     usage = AsyncMock(return_value={2025: 1000})
     schedules = AsyncMock(return_value={"loaded": 160})
     sleeper = AsyncMock(return_value={"loaded": 1000})
-    news = AsyncMock(return_value={"loaded": 20})
+    news = AsyncMock(return_value={"espn": {"loaded": 20}})
     monkeypatch.setattr(scheduler_service, "refresh_draft_sources_job", draft_sources)
     monkeypatch.setattr(scheduler_service, "ingest_fantasypros_projections", projections)
     monkeypatch.setattr(scheduler_service.injuries_service, "ingest_injuries", injuries)
@@ -65,7 +65,7 @@ async def test_refresh_all_sources_includes_projections_and_injuries(monkeypatch
     monkeypatch.setattr(scheduler_service, "ingest_usage_stats", usage)
     monkeypatch.setattr(scheduler_service, "refresh_schedule_strength_cache", schedules)
     monkeypatch.setattr(scheduler_service, "backfill_sleeper_ids", sleeper)
-    monkeypatch.setattr(scheduler_service, "ingest_news", news)
+    monkeypatch.setattr(scheduler_service, "ingest_all_news_sources", news)
     monkeypatch.setenv("NFL_SEASON", "2026")
 
     result = await scheduler_service.refresh_all_sources_job(force=True)
@@ -74,6 +74,8 @@ async def test_refresh_all_sources_includes_projections_and_injuries(monkeypatch
     injuries.assert_awaited_once_with()
     weekly.assert_awaited_once_with([2025])
     usage.assert_awaited_once_with([2025])
+    news.assert_awaited_once_with(limit=20, force_refresh=True)
+    assert result["news-sources"] == {"espn": {"loaded": 20}}
     assert result["fantasypros-projection"] == {"loaded": 60}
     assert result["nflverse-injuries"] == {"loaded": {"2025": 100}}
 

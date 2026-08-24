@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import type { Player } from '../types'
 import {
   nextPickForTeam,
+  openingDraftPlan,
   recommendPlayers,
   sessionToCsv,
   teamForPick,
@@ -53,6 +54,10 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
   const recommendations = useMemo(
     () => recommendPlayers(availablePlayers, session.picks, players, currentPick, recommendationTargetPick, 5),
     [availablePlayers, currentPick, recommendationTargetPick, players, session.picks],
+  )
+  const openingPlan = useMemo(
+    () => openingDraftPlan(session.picks, players, session.config),
+    [players, session.config, session.picks],
   )
   const playersById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players])
   const [draftSearch, setDraftSearch] = useState('')
@@ -209,6 +214,11 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
         </div>
 
         <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-3">
+          <div className="mb-3 rounded-lg border border-violet-400/20 bg-violet-500/10 p-3">
+            <div className="text-xs font-black text-violet-200">{openingPlan.label}</div>
+            <div className="mt-1 flex flex-wrap gap-1">{openingPlan.targets.map((target) => <span key={target} className="rounded bg-violet-300/15 px-2 py-1 text-[10px] font-bold text-violet-100">{target}</span>)}</div>
+            <p className="mt-2 text-[11px] leading-5 text-slate-300">{openingPlan.rationale}</p>
+          </div>
           <div className="flex items-center justify-between gap-2"><h3 className="text-xs font-bold uppercase tracking-[0.16em] text-slate-300">Recommended now</h3><span className="text-[10px] text-slate-500">for pick {currentPick}</span></div>
           <ol className="mt-2 space-y-1">
             {recommendations.slice(0, 5).map(({ player, score, reason, availability }, index) => (

@@ -18,7 +18,7 @@ from . import rankings as rankings_service
 from .espn_rankings import ingest_espn_rankings
 from .ffc_rankings import ingest_ffc_adp
 from .fantasypros_projections import ingest_fantasypros_projections
-from .news import ingest_news
+from .news import ingest_all_news_sources
 from .nflverse import ingest_usage_stats, ingest_weekly_stats, seed_players_and_ids
 from .schedule_strength import refresh_schedule_strength_cache
 from .sleeper import backfill_sleeper_ids
@@ -70,8 +70,11 @@ async def refresh_all_sources_job(*, force: bool = False) -> dict[str, dict]:
         ("nflverse-schedule-strength", lambda: refresh_schedule_strength_cache(season)),
         ("sleeper-player-ids", backfill_sleeper_ids),
         (
-            "espn-news",
-            lambda: ingest_news(limit=int(os.getenv("NEWS_REFRESH_LIMIT", "20"))),
+            "news-sources",
+            lambda: ingest_all_news_sources(
+                limit=int(os.getenv("NEWS_REFRESH_LIMIT", "20")),
+                force_refresh=force,
+            ),
         ),
     )
     for source, ingest in foundation_jobs:

@@ -155,6 +155,55 @@ export interface Recommendation {
   availability: PlayerAvailability | null
 }
 
+export interface OpeningDraftPlan {
+  label: string
+  targets: string[]
+  rationale: string
+}
+
+export const openingDraftPlan = (
+  picks: DraftPick[],
+  players: Player[],
+  config: DraftConfig,
+): OpeningDraftPlan => {
+  const playersById = new Map(players.map((player) => [player.id, player]))
+  const myPositions = picks
+    .filter((pick) => pick.isMine)
+    .map((pick) => playersById.get(pick.playerId)?.position)
+    .filter((position): position is string => Boolean(position))
+  const turn = config.draftSlot === 1
+    ? `${config.leagueSize * 2} / ${config.leagueSize * 2 + 1}`
+    : 'your next turn'
+  if (!myPositions.length) return {
+    label: 'Opening principle: elite value first',
+    targets: ['RB or WR'],
+    rationale: `At slot ${config.draftSlot}, take the last player in a true top tier; position rules begin after that pick.`,
+  }
+  if (myPositions[0] === 'RB' && myPositions.length === 1) return {
+    label: 'RB start: WR/WR is the default, not a lock',
+    targets: ['WR', 'WR'],
+    rationale: `At picks ${turn}, build receiving volume before the long wait. Break the plan only for a clear tier faller at RB, TE, or an elite-value QB.`,
+  }
+  if (myPositions[0] === 'WR' && myPositions.length === 1) return {
+    label: 'WR start: secure one RB at the turn',
+    targets: ['RB', 'WR or RB'],
+    rationale: `At picks ${turn}, leave the turn with at least one starting RB while preserving access to an elite second receiver.`,
+  }
+  const counts = myPositions.reduce<Record<string, number>>((result, position) => {
+    result[position] = (result[position] ?? 0) + 1
+    return result
+  }, {})
+  if ((counts.RB ?? 0) >= 2 && !(counts.WR ?? 0)) return {
+    label: 'Correct the roster toward receivers', targets: ['WR', 'WR'],
+    rationale: 'Two early backs create weekly stability, but the next priority is target volume before the WR tiers flatten.',
+  }
+  if ((counts.RB ?? 0) >= 1 && (counts.WR ?? 0) >= 1) return {
+    label: 'Balanced start: follow the tier break', targets: ['WR or RB', 'TE or QB value'],
+    rationale: 'With both core positions started, draft the strongest scarcity/value signal instead of forcing a preset sequence.',
+  }
+  return { label: 'Receiver-heavy start: watch RB scarcity', targets: ['RB', 'RB or WR'], rationale: 'Do not chase an RB solely for balance, but compare the last starter-tier backs against the next WR tier.' }
+}
+
 export const recommendPlayers = (
   available: Player[],
   myPicks: DraftPick[],

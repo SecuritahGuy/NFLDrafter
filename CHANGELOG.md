@@ -4,6 +4,14 @@ All notable changes to NFLDrafter are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Persistent news-source health records and normalized article correlations to players and NFL teams.
+- Explainable late-round watch candidates combining direct news evidence, recency decay, article breadth, injury/market-risk terms, and current FFC ADP.
+- A news-insights panel and a flexible opening-draft plan that adapts after the first roster pick.
+- Concurrent multi-source evidence ingestion for ESPN, structured FantasyPros player news, PFF RSS summaries, and attributed Sleeper add/drop momentum.
+- Provider-ID player correlation for FantasyPros and Sleeper, with isolated provider failures and serialized SQLite persistence.
+
 ## [2026-08-24]
 
 ### Added

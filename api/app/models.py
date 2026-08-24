@@ -233,3 +233,43 @@ class NewsItem(Base):
     players: Mapped[dict] = mapped_column(JSON)  # {player_id: score}
     dedupe_hash: Mapped[str] = mapped_column(String, unique=True)
     created_at: Mapped[int] = mapped_column(Integer, index=True)  # epoch timestamp
+
+
+class NewsSource(Base):
+    """Persistent provenance and ingestion health for a news publisher/feed."""
+
+    __tablename__ = "news_sources"
+
+    source_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    homepage_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    source_type: Mapped[str] = mapped_column(String(32), default="publisher")
+    reliability_tier: Mapped[str] = mapped_column(String(32), default="context")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    article_count: Mapped[int] = mapped_column(Integer, default=0)
+    first_published_at: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_published_at: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
+    last_ingested_at: Mapped[int] = mapped_column(Integer, index=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class NewsEntityLink(Base):
+    """Explainable article correlation to a player or NFL team."""
+
+    __tablename__ = "news_entity_links"
+
+    link_id: Mapped[str] = mapped_column(String, primary_key=True)
+    news_id: Mapped[str] = mapped_column(ForeignKey("news_items.news_id"), index=True)
+    entity_type: Mapped[str] = mapped_column(String(16), index=True)  # player | team
+    entity_id: Mapped[str] = mapped_column(String, index=True)
+    entity_name: Mapped[str] = mapped_column(String, index=True)
+    team: Mapped[Optional[str]] = mapped_column(String(5), index=True, nullable=True)
+    relevance_score: Mapped[float] = mapped_column(Float)
+    correlation_method: Mapped[str] = mapped_column(String(64))
+    signals: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[int] = mapped_column(Integer, index=True)
+
+    __table_args__ = (
+        UniqueConstraint("news_id", "entity_type", "entity_id", name="uq_news_entity_link"),
+        Index("ix_news_entity_team_type", "team", "entity_type"),
+    )

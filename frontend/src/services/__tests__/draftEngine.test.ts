@@ -5,6 +5,7 @@ import {
   assignRosterSlots,
   createDraftSession,
   nextPickForTeam,
+  openingDraftPlan,
   recommendPlayers,
   removeDraftPick,
   teamForPick,
@@ -99,5 +100,14 @@ describe('draftEngine', () => {
     expect(assigned.FLEX.map(({ id }) => id)).toEqual(['rb3'])
     expect(assigned.SUPERFLEX.map(({ id }) => id)).toEqual(['qb2'])
     expect(assigned.BN).toHaveLength(0)
+  })
+
+  it('treats WR/WR as the flexible default after an RB start from slot one', () => {
+    const rb = player('first-rb', 'RB', 50, 1)
+    const session = addDraftPick(createDraftSession(), rb.id, true)
+    const plan = openingDraftPlan(session.picks, [rb], session.config)
+    expect(plan.targets).toEqual(['WR', 'WR'])
+    expect(plan.label).toContain('default, not a lock')
+    expect(plan.rationale).toContain('picks 24 / 25')
   })
 })

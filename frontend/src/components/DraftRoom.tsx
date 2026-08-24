@@ -20,6 +20,7 @@ import { useProjectionAnalytics, useRankings, useRankingSources } from '../hooks
 import { assignRosterSlots, teamForPick } from '../services/draftEngine'
 import { buildCompositeRankings } from '../services/compositeRankings'
 import { PlayerDetailDrawer } from './PlayerDetailDrawer'
+import { NewsInsightsPanel } from './NewsInsightsPanel'
 import {
   createDraftPackage,
   loadDraftPackage,
@@ -709,7 +710,7 @@ const DraftRoomContent: React.FC = () => {
             </section>
 
             <button type="button" onClick={() => setActivePanel('insights')} className="flex w-full items-center justify-between rounded-2xl border border-violet-400/20 bg-gradient-to-r from-violet-600/20 to-blue-600/20 px-4 py-4 text-left hover:border-violet-300/40">
-              <span><span className="block text-[10px] font-bold uppercase tracking-wider text-violet-300">Decision support</span><span className="mt-1 block font-black">Tiers, VORP &amp; methodology</span></span>
+              <span><span className="block text-[10px] font-bold uppercase tracking-wider text-violet-300">Decision support</span><span className="mt-1 block font-black">Tiers, sleepers &amp; methodology</span></span>
               <span className="text-xl">→</span>
             </button>
           </aside>
@@ -768,7 +769,10 @@ const DraftRoomContent: React.FC = () => {
 
       {activePanel === 'insights' && (
         <WorkspaceModal title="Projection insights" eyebrow="Tiers, value over replacement, and assumptions" onClose={() => setActivePanel(null)}>
-          {hasProjectionData ? <ProjectionAnalyticsPanel players={effectivePlayers} profileName={projectionAnalytics?.profile.name ?? scoringProfile} snapshotDate={projectionAnalytics?.snapshot_date} methodology={projectionAnalytics?.methodology} /> : <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 text-slate-700"><h3 className="text-lg font-black text-slate-950">Tiers and VORP are pending</h3><p className="mt-2 text-sm">Draft ranks are live. Projection analytics will appear when projected or weekly scoring data is loaded.</p></div>}
+          <div className="space-y-5">
+            <NewsInsightsPanel season={currentSeason} leagueSize={session.config.leagueSize} />
+            {hasProjectionData ? <ProjectionAnalyticsPanel players={effectivePlayers} profileName={projectionAnalytics?.profile.name ?? scoringProfile} snapshotDate={projectionAnalytics?.snapshot_date} methodology={projectionAnalytics?.methodology} /> : <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 text-slate-700"><h3 className="text-lg font-black text-slate-950">Tiers and VORP are pending</h3><p className="mt-2 text-sm">Draft ranks are live. Projection analytics will appear when projected or weekly scoring data is loaded.</p></div>}
+          </div>
         </WorkspaceModal>
       )}
 

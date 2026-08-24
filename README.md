@@ -34,6 +34,7 @@ Yahoo is optional: after player data has loaded, the draft room prepares and cac
 - **API-First Architecture**: FastAPI backend with automatic documentation
 - **Multi-Source Draft Rank**: FantasyPros expert consensus, ESPN platform rank, and human mock-draft ADP remain visible as separate inputs
 - **Rich Player Profiles**: Last-season production, snap/target/rushing shares, expected-opportunity results, ESPN season/weekly projections, projection-derived team role, ownership context, modeled schedule strength, official injury reports, and player-linked news
+- **News Correlations**: Persist publisher freshness plus explainable article-to-player and article-to-team links, then surface evidence-weighted late-round watch candidates without treating news volume as a projection
 - **Projection Analytics**: Score cached FantasyPros projected stat lines through the selected profile with ESPN fallback, derive position tiers and VORP from league settings, and feed those values into draft recommendations
 - **Draft Confidence**: Explain source agreement and expert ranges, then estimate whether a player is likely to survive until the next user pick from FFC ADP variance
 - **ADP Round Estimates**: Convert overall ADP into a likely round and pick within the round using the active league size
@@ -56,6 +57,10 @@ NFLDrafter assigns each feed a specific role instead of treating every number as
 | [Yahoo Fantasy Sports](https://developer.yahoo.com/fantasysports/guide/) | Linked league and platform market context | Read-only league configuration, standings, rosters, transactions, matchups, ownership, draft analysis, and completed-season statistics |
 
 The weights are an explainable starting baseline, not an accuracy claim. Missing sources are reweighted automatically. `GET /rankings/sources` reports snapshot dates and canonical-player match coverage, while `GET /rankings/?source=...` returns a specific feed. Fantasy Football Calculator permits API use and requests attribution; the product UI and this README provide it.
+
+### News and market evidence
+
+Refresh all sources fetches the independent news providers concurrently, then serializes database writes so SQLite does not contend with itself. ESPN and PFF supply publisher context, FantasyPros supplies structured player/team news and fantasy impact through the configured API key, and Sleeper supplies attributed add/drop behavior as a smaller market-confirmation signal. PFF storage is limited to feed metadata and summaries; Sleeper trends are explicitly labeled as behavior rather than editorial news or projections. Provider failures are isolated and previously cached evidence remains available.
 
 ![2026 Draft Room with source refresh and league-aware ADP rounds](docs/images/nfldrafter-draft-room-2026.png)
 
@@ -207,6 +212,9 @@ This creates `.venv`, installs locked frontend dependencies, initializes SQLite 
 - **GET** `/yahoo/leagues/{league_id}/snapshot` - Read the persisted frontend-ready Yahoo league snapshot without contacting Yahoo
 - **POST** `/yahoo/leagues/{league_id}/sync` - Refresh the linked league's supported read-only Yahoo resources and persist one snapshot
 - **GET** `/news/players/{player_id}/features` - Get player-linked news features and headlines
+- **GET** `/news/sources` - Inspect persisted publishers, article counts, freshness, and player/team link coverage
+- **GET** `/news/teams/{team}/features` - Read direct and player-inferred news context for a team
+- **GET** `/news/insights/sleepers` - Get evidence-weighted late-round watch candidates using recent news and current FFC ADP
 - **GET** `/health` - Health check
 
 API documentation available at `http://localhost:8000/docs`
@@ -300,7 +308,7 @@ The project uses SQLAlchemy with automatic table creation. For production deploy
 - `STATS_BASELINE_SEASON`: Completed season persisted for player production and usage (default `NFL_SEASON - 1`)
 - `DRAFT_SCORING`: Scoring format requested by the manual ESPN/FFC refresh (default `PPR`)
 - `DRAFT_LEAGUE_SIZE`: League size requested by the manual FFC refresh (default `12`)
-- `NEWS_REFRESH_LIMIT`: ESPN articles cached during Refresh all sources (default `20`)
+- `NEWS_REFRESH_LIMIT`: Per-provider news/trend fetch target during Refresh all sources (default `20`; Sleeper fetches this many adds and drops)
 - `ENABLE_BACKGROUND_REFRESH`: Opt into scheduled website refreshes (default `false`). Leave disabled for the local-first, manual-refresh contract.
 - `DRAFT_SOURCES_SCHEDULE_CRON`: Draft-source schedule used only when `ENABLE_BACKGROUND_REFRESH=true`
 - `YAHOO_AVAILABLE_PLAYER_LIMIT`: Maximum available Yahoo players cached per linked league (default `300`, capped at `300`)
