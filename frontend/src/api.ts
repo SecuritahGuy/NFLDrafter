@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance with base configuration
 export const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -235,6 +235,22 @@ export interface RankingsResponse {
   rankings: RankingRow[];
 }
 
+export interface RankingHistoryPoint {
+  snapshot_date: string;
+  rank: number | null;
+  pos_rank: number | null;
+  ecr: number | null;
+  team: string | null;
+  rank_delta: number | null;
+}
+
+export interface RankingHistoryResponse {
+  source: RankingSourceId;
+  player_id: string;
+  full_name: string;
+  history: RankingHistoryPoint[];
+}
+
 export interface RankingSourceStatus {
   source: RankingSourceId;
   label: string;
@@ -248,6 +264,14 @@ export interface RankingSourceStatus {
   records: number;
   matched: number;
   match_rate: number;
+}
+
+export interface SourceRefreshResponse {
+  started_at: string;
+  completed_at: string;
+  succeeded: number;
+  failed: number;
+  results: Record<string, Record<string, unknown> & { error?: string }>;
 }
 
 export interface ProjectionAnalyticsRow {
@@ -458,6 +482,18 @@ export const rankingsAPI = {
   async getSources(): Promise<RankingSourceStatus[]> {
     const response = await api.get(endpoints.rankingSources);
     return response.data.sources || [];
+  },
+
+  async refreshAll(): Promise<SourceRefreshResponse> {
+    const response = await api.post(`${endpoints.rankings}refresh-all`);
+    return response.data;
+  },
+
+  async getHistory(playerId: string, source: RankingSourceId): Promise<RankingHistoryResponse> {
+    const response = await api.get(`${endpoints.rankings}${playerId}/history`, {
+      params: { source, rank_type: 'preseason' },
+    });
+    return response.data;
   },
 
   async getProjectionAnalytics(

@@ -14,12 +14,18 @@ PlayerRecord = dict[str, Any]
 WeeklyStatRecord = dict[str, Any]
 RankingRecord = dict[str, Any]
 InjuryRecord = dict[str, Any]
+SnapCountRecord = dict[str, Any]
+OpportunityRecord = dict[str, Any]
 
 
 class NFLDataProvider(Protocol):
     def load_players(self, season: int | None = None) -> list[PlayerRecord]: ...
 
     def load_weekly_stats(self, seasons: Sequence[int]) -> list[WeeklyStatRecord]: ...
+
+    def load_snap_counts(self, seasons: Sequence[int]) -> list[SnapCountRecord]: ...
+
+    def load_opportunity(self, seasons: Sequence[int]) -> list[OpportunityRecord]: ...
 
     def load_rankings(
         self, rank_type: str = "preseason"
@@ -49,6 +55,16 @@ class NFLReadPyProvider:
         import nflreadpy as nfl
 
         return self._records(nfl.load_player_stats(list(seasons), summary_level="week"))
+
+    def load_snap_counts(self, seasons: Sequence[int]) -> list[SnapCountRecord]:
+        import nflreadpy as nfl
+
+        return self._records(nfl.load_snap_counts(list(seasons)))
+
+    def load_opportunity(self, seasons: Sequence[int]) -> list[OpportunityRecord]:
+        import nflreadpy as nfl
+
+        return self._records(nfl.load_ff_opportunity(list(seasons)))
 
     def load_rankings(self, rank_type: str = "preseason") -> list[RankingRecord]:
         import nflreadpy as nfl

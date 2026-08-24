@@ -1,7 +1,9 @@
 import pytest
 from app.services.news import (
+    _classify_signals,
     _parse_news_record,
     _score_players,
+    _score_teams,
     _strip_html,
     ingest_news,
 )
@@ -57,6 +59,25 @@ def test_score_players_ignores_unmentioned_players():
     assert _score_players(rec, player_index) == {}
 
 
+def test_signal_and_team_classification_keep_evidence_terms():
+    from types import SimpleNamespace
+
+    signals = _classify_signals("The emerging starter impressed with more targets but is questionable")
+    assert signals["opportunity_score"] > 0
+    assert signals["performance_score"] > 0
+    assert signals["risk_score"] > 0
+    momentum = _classify_signals("A trending add after 2,000 roster adds in Sleeper")
+    fade = _classify_signals("A trending drop after 800 roster drops in Sleeper")
+    assert momentum["momentum_score"] > 0
+    assert fade["fade_score"] > 0
+    teams = _score_teams(SimpleNamespace(
+        title="Buccaneers position battle",
+        summary="Tampa Bay Buccaneers camp",
+        story="",
+    ))
+    assert teams["TB"] > 0
+
+
 class FakeProvider:
     def __init__(self):
         self.articles = [
@@ -85,7 +106,7 @@ class FakeProvider:
 def test_ingest_news_stores_scored_items_and_is_idempotent():
     import asyncio
 
-    from app.models import Base, NewsItem, Player
+    from app.models import Base, NewsEntityLink, NewsItem, NewsSource, Player
     from sqlalchemy import select
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -110,8 +131,13 @@ def test_ingest_news_stores_scored_items_and_is_idempotent():
             second = await ingest_news(provider=FakeProvider(), session=s)
 
             items = list((await s.execute(select(NewsItem))).scalars().all())
+            sources = list((await s.execute(select(NewsSource))).scalars().all())
+            links = list((await s.execute(select(NewsEntityLink))).scalars().all())
             assert len(items) == 1
             assert items[0].players == {"pid-1": pytest.approx(6.0)}
+            assert sources[0].source_id == "espn"
+            assert any(link.entity_type == "player" and link.entity_id == "pid-1" for link in links)
+            assert any(link.entity_type == "team" and link.entity_id == "TB" for link in links)
 
         await engine.dispose()
         return first, second

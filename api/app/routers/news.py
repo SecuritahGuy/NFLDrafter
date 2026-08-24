@@ -3,12 +3,14 @@ news features aggregated from the article ``players`` scoring."""
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import DATABASE_URL
 from ..deps import get_db_session
-from ..models import NewsItem, Player
+from ..models import NewsEntityLink, NewsItem, NewsSource, Player
+from ..services.news import rebuild_news_correlations
+from ..services.news_insights import build_sleeper_insights
 
 router = APIRouter(prefix="/news", tags=["news"])
 
@@ -23,6 +25,95 @@ def _news_dict(item: NewsItem) -> dict:
         "summary": item.summary,
         "players": item.players or {},
         "created_at": item.created_at,
+    }
+
+
+@router.get("/sources")
+async def list_news_sources(db: AsyncSession = Depends(get_db_session)):
+    """List persisted news providers and ingestion freshness."""
+    sources = list((await db.execute(
+        select(NewsSource).order_by(NewsSource.last_published_at.desc())
+    )).scalars().all())
+    link_counts = dict((await db.execute(
+        select(NewsEntityLink.entity_type, func.count(NewsEntityLink.link_id))
+        .group_by(NewsEntityLink.entity_type)
+    )).all())
+    return {
+        "sources": [{
+            "source_id": source.source_id,
+            "name": source.name,
+            "homepage_url": source.homepage_url,
+            "source_type": source.source_type,
+            "reliability_tier": source.reliability_tier,
+            "article_count": source.article_count,
+            "first_published_at": source.first_published_at,
+            "last_published_at": source.last_published_at,
+            "last_ingested_at": source.last_ingested_at,
+            "metadata": source.metadata_json,
+        } for source in sources],
+        "correlations": {
+            "player_links": link_counts.get("player", 0),
+            "team_links": link_counts.get("team", 0),
+        },
+    }
+
+
+@router.post("/correlations/rebuild")
+async def rebuild_correlations(db: AsyncSession = Depends(get_db_session)):
+    """Rebuild derived player/team links from locally stored articles."""
+    return await rebuild_news_correlations(db)
+
+
+@router.get("/insights/sleepers")
+async def sleeper_insights(
+    season: int = Query(2026, ge=2000, le=2100),
+    days: int = Query(30, ge=1, le=365),
+    min_adp: float = Query(72, ge=1, le=400),
+    limit: int = Query(12, ge=1, le=50),
+    league_size: int = Query(12, ge=4, le=32),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Return explainable late-round candidates from news plus current ADP."""
+    return await build_sleeper_insights(
+        db, season=season, days=days, min_adp=min_adp, limit=limit,
+        league_size=league_size,
+    )
+
+
+@router.get("/teams/{team}/features")
+async def team_news_features(
+    team: str,
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Recent directly mentioned and player-inferred news context for a team."""
+    team = team.upper()
+    cutoff_ms = (int(time.time()) - days * 86400) * 1000
+    rows = (await db.execute(
+        select(NewsEntityLink, NewsItem)
+        .join(NewsItem, NewsItem.news_id == NewsEntityLink.news_id)
+        .where(
+            NewsEntityLink.entity_type == "team",
+            NewsEntityLink.entity_id == team,
+            NewsItem.published_at >= cutoff_ms,
+        )
+        .order_by(NewsItem.published_at.desc())
+    )).all()
+    return {
+        "team": team,
+        "days": days,
+        "article_count": len(rows),
+        "direct_mentions": sum(link.correlation_method == "direct_team_mention" for link, _ in rows),
+        "articles": [{
+            "news_id": item.news_id,
+            "title": item.title,
+            "url": item.url,
+            "source": item.source,
+            "published_at": item.published_at,
+            "relevance": link.relevance_score,
+            "method": link.correlation_method,
+            "signals": link.signals,
+        } for link, item in rows[:30]],
     }
 
 

@@ -27,16 +27,22 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
   const [userInfo, setUserInfo] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [readiness, setReadiness] = useState<YahooReadiness | null>(null)
+  const [readinessLoading, setReadinessLoading] = useState(true)
+  const [readinessError, setReadinessError] = useState<string | null>(null)
 
   // Check if user is already authenticated on component mount
   useEffect(() => {
     const checkReadiness = async () => {
       try {
-        const response = await fetch('/api/yahoo/readiness')
+        const response = await fetch('/api/yahoo/readiness', { cache: 'no-store' })
         if (!response?.ok) throw new Error('Yahoo readiness check failed')
         setReadiness(await response.json())
+        setReadinessError(null)
       } catch {
         setReadiness(null)
+        setReadinessError('Cannot reach the NFLDrafter authentication server. Check the API URL and restart the frontend.')
+      } finally {
+        setReadinessLoading(false)
       }
     }
     checkReadiness()
@@ -251,6 +257,16 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
         </div>
       )}
 
+      {readinessError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+          <div className="flex items-center gap-2 font-semibold">
+            <ExclamationTriangleIcon className="h-5 w-5" />
+            Yahoo authentication server unavailable
+          </div>
+          <p className="mt-1 text-xs">{readinessError}</p>
+        </div>
+      )}
+
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center gap-2">
@@ -262,7 +278,7 @@ export const YahooOAuth: React.FC<YahooOAuthProps> = ({
 
       <button
         onClick={initiateOAuth}
-        disabled={isAuthenticating || readiness?.configured === false}
+        disabled={isAuthenticating || readinessLoading || !readiness?.configured}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
       >
         <CloudArrowUpIcon className="w-5 h-5" />

@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import { ArrowPathIcon } from '@heroicons/react/24/outline'
+import { useQueryClient } from '@tanstack/react-query'
 import { PlayerBoard } from './PlayerBoard'
 import { Watchlist } from './Watchlist'
 import { ProjectionAnalyticsPanel } from './ProjectionAnalyticsPanel'
@@ -11,13 +13,14 @@ import { ErrorDisplay } from './ErrorDisplay'
 import type { Player } from '../types'
 import { usePlayers } from '../hooks/usePlayers'
 import { useScoringProfiles } from '../hooks/useScoringProfiles'
-import type { BackendPlayer } from '../api'
+import { api, rankingsAPI, type BackendPlayer, type SourceRefreshResponse } from '../api'
 import { ManualDraftConsole } from './ManualDraftConsole'
 import { useDraftSession } from '../hooks/useDraftSession'
 import { useProjectionAnalytics, useRankings, useRankingSources } from '../hooks/useRankings'
 import { assignRosterSlots, teamForPick } from '../services/draftEngine'
 import { buildCompositeRankings } from '../services/compositeRankings'
 import { PlayerDetailDrawer } from './PlayerDetailDrawer'
+import { NewsInsightsPanel } from './NewsInsightsPanel'
 import {
   createDraftPackage,
   loadDraftPackage,
@@ -42,6 +45,56 @@ const rosterScarcity = (position: string): 'low' | 'medium' | 'high' => {
   return 'medium'
 }
 
+type WorkspacePanel = 'tracker' | 'yahoo' | 'roster' | 'insights' | null
+
+interface YahooSnapshotPlayer {
+  id: string
+  name: string
+  position: string
+  team: string
+  average_pick?: number
+  average_round?: number
+  percent_owned?: number
+  percent_drafted?: number
+  named_stats?: Record<string, number>
+}
+
+const WorkspaceModal: React.FC<{
+  title: string
+  eyebrow: string
+  onClose: () => void
+  children: React.ReactNode
+}> = ({ title, eyebrow, onClose, children }) => {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/80 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-label={title}>
+      <button type="button" className="fixed inset-0 cursor-default" aria-label={`Close ${title}`} onClick={onClose} />
+      <section className="relative z-10 my-auto w-full max-w-6xl overflow-hidden rounded-2xl border border-white/15 bg-slate-100 shadow-2xl">
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-slate-700 bg-slate-950 px-5 py-4 text-white">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-blue-300">{eyebrow}</div>
+            <h2 className="mt-1 text-xl font-black">{title}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-bold hover:bg-white/20">Close</button>
+        </header>
+        <div className="max-h-[calc(100vh-7rem)] overflow-y-auto p-4 sm:p-6">{children}</div>
+      </section>
+    </div>
+  )
+}
+
 export const DraftRoom: React.FC = () => {
   return (
     <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700">
@@ -54,6 +107,7 @@ export const DraftRoom: React.FC = () => {
 
 const DraftRoomContent: React.FC = () => {
   const { addToast } = useToast()
+  const queryClient = useQueryClient()
   const [selectedPosition, setSelectedPosition] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [watchlist, setWatchlist] = useState<string[]>([])
@@ -64,6 +118,9 @@ const DraftRoomContent: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<Error | null>(null)
   const [draftPackage, setDraftPackage] = useState<DraftPackageV1 | null>(loadDraftPackage)
+  const [activePanel, setActivePanel] = useState<WorkspacePanel>(null)
+  const [isRefreshingSources, setIsRefreshingSources] = useState(false)
+  const [sourceRefreshResult, setSourceRefreshResult] = useState<SourceRefreshResponse | null>(null)
   const [rosterDefinitions, setRosterDefinitions] = useState(() =>
     draftPackage?.rosterSlots.map((slot) => ({
       ...slot, filled: 0, byeWeeks: [] as number[], scarcity: rosterScarcity(slot.position),
@@ -76,12 +133,27 @@ const DraftRoomContent: React.FC = () => {
   const { data: rankingSources } = useRankingSources()
   
   // Yahoo OAuth state
-  const [yahooAccessToken, setYahooAccessToken] = useState<string | null>(null)
-  const [yahooRefreshToken, setYahooRefreshToken] = useState<string | null>(null)
-  const [selectedLeague, setSelectedLeague] = useState<any>(null)
+  const [yahooAccessToken, setYahooAccessToken] = useState<string | null>(() => localStorage.getItem('yahoo_access_token'))
+  const [yahooRefreshToken, setYahooRefreshToken] = useState<string | null>(() => localStorage.getItem('yahoo_refresh_token'))
+  const [selectedLeague, setSelectedLeague] = useState<any>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('yahoo_selected_league') || 'null')
+    } catch {
+      return null
+    }
+  })
+  const [yahooSnapshot, setYahooSnapshot] = useState<any>(null)
   
   // Real data from backend API
   const currentSeason = 2026
+
+  useEffect(() => {
+    if (!selectedLeague?.id) return
+    fetch(`/api/yahoo/leagues/${selectedLeague.id}/snapshot`)
+      .then((response) => response.ok ? response.json() : null)
+      .then(setYahooSnapshot)
+      .catch(() => setYahooSnapshot(null))
+  }, [selectedLeague?.id, sourceRefreshResult?.completed_at])
   
   // Fetch scoring profiles
   const { data: scoringProfiles, isLoading: profilesLoading } = useScoringProfiles()
@@ -132,6 +204,13 @@ const DraftRoomContent: React.FC = () => {
     const analyticsByPlayer = new Map(
       (projectionAnalytics?.players ?? []).map((row) => [row.player_id, row]),
     )
+    const yahooRows = (yahooSnapshot?.players ?? []) as YahooSnapshotPlayer[]
+    const yahooById = new Map<string, YahooSnapshotPlayer>(
+      yahooRows.map((row) => [String(row.id).split('.').pop() ?? row.id, row]),
+    )
+    const yahooByIdentity = new Map<string, YahooSnapshotPlayer>(
+      yahooRows.map((row) => [`${row.name}|${row.position}|${row.team}`, row]),
+    )
     return players.map((player: BackendPlayer) => {
       const projection = analyticsByPlayer.get(player.player_id)
       const fantasyPoints = projection?.analytics_points ?? 0
@@ -140,6 +219,8 @@ const DraftRoomContent: React.FC = () => {
       const fantasyPros = composite?.fantasyPros
       const espn = composite?.espn
       const ffc = composite?.ffc
+      const yahoo = yahooById.get(String(player.yahoo_id || ''))
+        ?? yahooByIdentity.get(`${player.full_name}|${player.position}|${player.team}`)
       
       return {
         id: player.player_id,
@@ -159,6 +240,7 @@ const DraftRoomContent: React.FC = () => {
         ecr: fantasyPros?.ecr ?? undefined,
         espnRank: espn?.rank ?? undefined,
         rankingSourceCount: composite?.sourceCount ?? 0,
+        draftConfidence: composite?.confidence,
         projectedPoints: espn?.projected_points ?? undefined,
         projectedPointsPerGame: espn?.projected_points_per_game ?? undefined,
         projectionScoringBasis: projection?.scoring_basis,
@@ -168,9 +250,14 @@ const DraftRoomContent: React.FC = () => {
         status: player.status,
         lastSeason: player.last_season,
         headshot: player.headshot,
+        yahooAveragePick: yahoo?.average_pick || undefined,
+        yahooAverageRound: yahoo?.average_round || undefined,
+        yahooPercentOwned: yahoo?.percent_owned || undefined,
+        yahooPercentDrafted: yahoo?.percent_drafted || undefined,
+        yahooSeasonStats: yahoo?.named_stats || undefined,
       }
     })
-  }, [compositeRankings, players, projectionAnalytics])
+  }, [compositeRankings, players, projectionAnalytics, yahooSnapshot])
 
   const effectivePlayers = enrichedPlayers.length
     ? enrichedPlayers
@@ -199,6 +286,11 @@ const DraftRoomContent: React.FC = () => {
   }, [myPlayers, rosterDefinitions])
   const currentPick = session.picks.length + 1
   const isMyTurn = teamForPick(currentPick, session.config.leagueSize) === session.config.draftSlot
+  const currentRound = Math.min(session.config.rounds, Math.ceil(currentPick / session.config.leagueSize))
+  const currentTeam = teamForPick(currentPick, session.config.leagueSize)
+  const myPickCount = session.picks.filter((pick) => pick.isMine).length
+  const filledRosterSlots = rosterSlots.reduce((sum, slot) => sum + slot.filled, 0)
+  const totalRosterSlots = rosterSlots.reduce((sum, slot) => sum + slot.required, 0)
   
   // Set default scoring profile when data loads
   useEffect(() => {
@@ -311,8 +403,79 @@ const DraftRoomContent: React.FC = () => {
     })
   }
 
+  const handleRefreshSources = async () => {
+    setIsRefreshingSources(true)
+    try {
+      const startedAt = new Date().toISOString()
+      const yahooSync = yahooAccessToken && selectedLeague?.id
+        ? api.post(
+            `/yahoo/leagues/${selectedLeague.id}/sync`,
+            undefined,
+            { headers: { Authorization: `Bearer ${yahooAccessToken}` } },
+          )
+        : null
+      const [publicOutcome, yahooOutcome] = await Promise.allSettled([
+        rankingsAPI.refreshAll(),
+        yahooSync,
+      ])
+      let result: SourceRefreshResponse = publicOutcome.status === 'fulfilled'
+        ? publicOutcome.value
+        : {
+            started_at: startedAt,
+            completed_at: new Date().toISOString(),
+            succeeded: 0,
+            failed: 1,
+            results: {
+              'public-sources': {
+                error: publicOutcome.reason instanceof Error
+                  ? publicOutcome.reason.message
+                  : 'Public source refresh failed',
+              },
+            },
+          }
+      if (yahooSync && yahooOutcome.status === 'fulfilled' && yahooOutcome.value) {
+        result = {
+          ...result,
+          completed_at: new Date().toISOString(),
+          succeeded: result.succeeded + 1,
+          results: {
+            ...result.results,
+            'yahoo-league': {
+              loaded: yahooOutcome.value.data.coverage?.available_players ?? 0,
+              ...yahooOutcome.value.data.coverage,
+            },
+          },
+        }
+      } else if (yahooSync && yahooOutcome.status === 'rejected') {
+        const yahooMessage = yahooOutcome.reason instanceof Error
+          ? yahooOutcome.reason.message
+          : 'Yahoo sync failed'
+        result = {
+          ...result,
+          completed_at: new Date().toISOString(),
+          failed: result.failed + 1,
+          results: { ...result.results, 'yahoo-league': { error: yahooMessage } },
+        }
+      }
+      setSourceRefreshResult(result)
+      await queryClient.invalidateQueries({ queryKey: ['rankings'] })
+      addToast({
+        type: result.failed ? 'warning' : 'success',
+        title: result.failed ? 'Sources Refreshed with Warnings' : 'All Sources Refreshed',
+        message: `${result.succeeded} updated${result.failed ? ` · ${result.failed} failed` : ''}`,
+        duration: 5000,
+      })
+    } catch (refreshError) {
+      const message = refreshError instanceof Error ? refreshError.message : 'Unable to refresh sources'
+      addToast({ type: 'error', title: 'Source Refresh Failed', message, duration: 5000 })
+    } finally {
+      setIsRefreshingSources(false)
+    }
+  }
+
   const handleLeagueSelect = (league: any) => {
     setSelectedLeague(league)
+    localStorage.setItem('yahoo_selected_league', JSON.stringify(league))
     addToast({
       type: 'info',
       title: 'League Selected',
@@ -435,216 +598,184 @@ const DraftRoomContent: React.FC = () => {
   }
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700">
-      {/* Compact command header */}
-      <div className="relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.02%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-20"></div>
-        </div>
-        
-        {/* Header Content */}
-        <div className="relative z-10 mx-auto max-w-7xl px-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-blue-300">Manual-first workspace</div>
-              <h1 className="mt-1 text-3xl font-black tracking-tight text-white">Draft Room</h1>
-              <p className="mt-1 text-sm text-slate-300">Track every pick locally, keep the board clean, and stay ready if league sync is unavailable.</p>
+    <div className="min-h-screen bg-slate-950 text-white">
+      <header className="border-b border-white/10 bg-gradient-to-r from-slate-950 via-blue-950 to-slate-950">
+        <div className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl font-black shadow-lg ${isMyTurn ? 'bg-emerald-400 text-emerald-950 shadow-emerald-500/20' : 'bg-blue-500 text-white shadow-blue-500/20'}`}>
+                {currentPick}
+              </div>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-300">2026 draft command center</div>
+                <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{isMyTurn ? 'You are on the clock' : `Team ${currentTeam} is on the clock`}</h1>
+                <p className="mt-1 text-sm text-slate-300">Round {currentRound} · Pick {currentPick} · {availablePlayers.length} players available</p>
+              </div>
             </div>
-            
 
-
-            {/* Scoring Profile Selector */}
-            <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/20">
-              <label className="text-blue-100 text-sm font-medium">Scoring Profile:</label>
-              <select
-                value={scoringProfile}
-                onChange={(e) => setScoringProfile(e.target.value)}
-                className="px-3 py-1.5 bg-white/20 border border-white/30 rounded-lg text-white text-sm font-medium focus:ring-2 focus:ring-blue-400 focus:border-blue-400 backdrop-blur-sm"
-                disabled={profilesLoading}
-                title="Select scoring profile"
-              >
-                {profilesLoading ? (
-                  <option className="bg-slate-800 text-white">Loading profiles...</option>
-                ) : (
-                  scoringProfiles?.map(profile => (
-                    <option key={profile.profile_id} className="bg-slate-800 text-white" value={profile.name}>
-                      {profile.name}
-                    </option>
-                  ))
-                )}
-              </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold text-slate-300">
+                <span className="mr-2 uppercase tracking-wide">Scoring</span>
+                <select value={scoringProfile} onChange={(event) => setScoringProfile(event.target.value)} className="rounded-lg border border-white/15 bg-slate-900 px-2 py-1 text-sm font-bold text-white" disabled={profilesLoading} aria-label="Scoring profile">
+                  {profilesLoading ? <option>Loading…</option> : scoringProfiles?.map((profile) => <option key={profile.profile_id} value={profile.name}>{profile.name}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={handleRefreshSources} disabled={isRefreshingSources} className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-100 hover:bg-cyan-400/20 disabled:cursor-wait disabled:opacity-60">
+                <ArrowPathIcon className={`h-4 w-4 ${isRefreshingSources ? 'animate-spin' : ''}`} />
+                {isRefreshingSources ? 'Refreshing sources…' : 'Refresh all sources'}
+              </button>
+              <button type="button" onClick={() => setActivePanel('tracker')} className="rounded-xl bg-blue-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400">Open draft tracker</button>
+              <button type="button" onClick={() => setActivePanel('yahoo')} className={`rounded-xl border px-4 py-3 text-sm font-bold ${yahooAccessToken ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200' : 'border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'}`}>
+                {yahooAccessToken ? `Yahoo linked${selectedLeague?.name ? ` · ${selectedLeague.name}` : ''}` : 'Link Yahoo'}
+              </button>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-4 pt-2">
-        <div className="flex flex-wrap items-center gap-2" aria-label="Ranking data sources">
-          {rankingSources?.map((source) => (
-            <a
-              key={source.source}
-              href={source.attribution_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10"
-              title={`${source.purpose}. ${Math.round(source.match_rate * 100)}% canonical player match coverage.`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${source.available ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-              <span className="font-semibold">{source.label}</span>
-              <span className="text-slate-400">{source.snapshot_date ?? 'not loaded'}</span>
-            </a>
-          ))}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 pb-8">
-        <ManualDraftConsole
-          session={session}
-          players={effectivePlayers}
-          availablePlayers={availablePlayers}
-          onConfigure={configure}
-          onUndo={undo}
-          onRemovePick={removePick}
-          onReset={reset}
-          onDraftPlayer={draftPlayer}
-          draftPackage={draftPackage}
-          onImportPackage={handlePackageImport}
-          onPackageError={(message) => addToast({
-            type: 'error', title: 'Package Import Failed', message, duration: 5000,
-          })}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Left Column - Tools & Analytics */}
-          <div className="md:col-span-2 lg:col-span-1 border border-red-500/20 rounded-lg p-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-            {/* Watchlist */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white/20 rounded-md flex items-center justify-center">
-                    <span className="text-white text-xs">📋</span>
-                  </div>
-                  Watchlist
-                </h3>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:max-w-3xl">
+            {[
+              ['Drafted', session.picks.length],
+              ['My roster', myPickCount],
+              ['Roster filled', `${filledRosterSlots}/${totalRosterSlots}`],
+              ['League', `${session.config.leagueSize} teams · slot ${session.config.draftSlot}`],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</div>
+                <div className="mt-0.5 truncate text-sm font-black text-white">{value}</div>
               </div>
-              <div className="p-4">
-                <Watchlist
-                  watchlist={effectivePlayers.filter(p => watchlist.includes(p.id))}
-                  onRemoveFromWatchlist={handleRemoveFromWatchlist}
-                  onPlayerSelect={handlePlayerSelect}
-                />
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <section aria-label="Player board" className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white text-slate-950 shadow-2xl shadow-black/20">
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-700">Primary workspace</div>
+                  <h2 className="mt-1 text-xl font-black">Best available players</h2>
+                </div>
+                <div className={`rounded-full px-3 py-1.5 text-xs font-black ${isMyTurn ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>{isMyTurn ? 'Draft action assigns to you' : `Draft action records Team ${currentTeam}`}</div>
               </div>
             </div>
-
-            {hasProjectionData ? (
-              <ProjectionAnalyticsPanel
-                players={effectivePlayers}
-                profileName={projectionAnalytics?.profile.name ?? scoringProfile}
-                snapshotDate={projectionAnalytics?.snapshot_date}
-                methodology={projectionAnalytics?.methodology}
+            <div className="p-3 sm:p-4">
+              <PlayerBoard
+                players={availablePlayers}
+                selectedPosition={selectedPosition}
+                searchQuery={searchQuery}
+                onPlayerSelect={handlePlayerSelect}
+                onAddToWatchlist={handleAddToWatchlist}
+                onRemoveFromWatchlist={handleRemoveFromWatchlist}
+                watchlist={watchlist}
+                scoringProfile={scoringProfile}
+                importedADP={importedADP}
+                onADPImport={handleADPImport}
+                weeklyStats={{}}
+                news={{}}
+                depthChart={{}}
+                playerNotes={playerNotes}
+                onPlayerNotesChange={handlePlayerNotesChange}
+                loading={loading}
+                error={error}
+                onRetry={handleRetry}
+                onPositionChange={setSelectedPosition}
+                onSearchChange={setSearchQuery}
+                onDraftOther={!isMyTurn ? (player) => draftPlayer(player.id, false) : undefined}
+                onDraftMine={isMyTurn ? (player) => draftPlayer(player.id, true) : undefined}
+                leagueSize={session.config.leagueSize}
               />
-            ) : (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm md:col-span-2 lg:col-span-1">
-                <div className="text-xs font-bold uppercase tracking-wider text-blue-700">Projection analytics</div>
-                <h3 className="mt-1 text-lg font-black text-slate-950">Tiers and VORP are pending</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">The 2026 player pool and draft ranks are live. Tier and value-over-replacement analysis will appear after projection or weekly scoring data is loaded.</p>
-              </div>
-            )}
+            </div>
+          </section>
 
-            {/* Roster Bar */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
-              <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white/20 rounded-md flex items-center justify-center">
-                    <span className="text-white text-xs">👥</span>
-                  </div>
-                  Roster Overview
-                </h3>
+          <aside className="space-y-4 xl:sticky xl:top-4">
+            <section className="overflow-hidden rounded-2xl border border-emerald-400/20 bg-slate-900 shadow-xl">
+              <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <div><div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Always visible</div><h2 className="mt-0.5 font-black">My roster</h2></div>
+                <button type="button" onClick={() => setActivePanel('roster')} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/20">Full roster</button>
+              </header>
+              <div className="grid grid-cols-4 gap-2 p-4">
+                {rosterSlots.map((slot) => (
+                  <button key={slot.position} type="button" onClick={() => setActivePanel('roster')} className={`rounded-xl border px-2 py-3 text-center ${slot.filled >= slot.required ? 'border-emerald-400/30 bg-emerald-400/10' : 'border-white/10 bg-white/5'}`}>
+                    <div className="text-xs font-black">{slot.position}</div>
+                    <div className={`mt-1 text-lg font-black ${slot.filled >= slot.required ? 'text-emerald-300' : 'text-white'}`}>{slot.filled}/{slot.required}</div>
+                  </button>
+                ))}
               </div>
-              <div className="p-4">
-                <RosterBar
-                  rosterSlots={rosterSlots}
-                  selectedPlayers={myPlayers}
-                  onSlotClick={handleSlotClick}
-                  scoringProfile={scoringProfile}
-                />
-              </div>
-            </div>
+              {myPlayers.length > 0 && <div className="border-t border-white/10 px-4 py-3 text-xs text-slate-300"><span className="font-bold text-white">Latest:</span> {myPlayers.slice(-3).map((player) => player.name).join(' · ')}</div>}
+            </section>
 
-            {/* Yahoo Integration */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
-              <div className="bg-gradient-to-r from-yellow-600 to-orange-600 px-4 py-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white/20 rounded-md flex items-center justify-center">
-                    <span className="text-white text-xs">🔗</span>
-                  </div>
-                  Yahoo Fantasy
-                </h3>
-              </div>
-              <div className="p-4 space-y-3">
-                <YahooOAuth
-                  onAuthSuccess={handleAuthSuccess}
-                  onAuthError={handleAuthError}
-                />
-                
-                {yahooAccessToken && (
-                  <YahooLeagueImport
-                    accessToken={yahooAccessToken}
-                    onLeagueSelect={handleLeagueSelect}
-                    onImportComplete={handleLeagueImport}
-                  />
-                )}
-              </div>
-            </div>
-            </div>
-          </div>
+            <section className="max-h-[32rem] overflow-y-auto rounded-2xl border border-violet-400/20 bg-white p-4 text-slate-950 shadow-xl">
+              <Watchlist watchlist={effectivePlayers.filter((player) => watchlist.includes(player.id))} onRemoveFromWatchlist={handleRemoveFromWatchlist} onPlayerSelect={handlePlayerSelect} />
+            </section>
 
-          {/* Right Column - Player Board */}
-          <div className="md:col-span-2 lg:col-span-2 border border-blue-500/20 rounded-lg p-2">
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 overflow-hidden">
-              <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-4 py-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-500 rounded-md flex items-center justify-center">
-                    <span className="text-white text-xs">📊</span>
-                  </div>
-                  Player Board
-                </h3>
-                <p className="text-blue-100 text-xs mt-1">
-                  Comprehensive player analysis, rankings, and drafting tools
-                </p>
-              </div>
-              <div className="p-4">
-                <PlayerBoard
-                  players={availablePlayers}
-                  selectedPosition={selectedPosition}
-                  searchQuery={searchQuery}
-                  onPlayerSelect={handlePlayerSelect}
-                  onAddToWatchlist={handleAddToWatchlist}
-                  onRemoveFromWatchlist={handleRemoveFromWatchlist}
-                  watchlist={watchlist}
-                  scoringProfile={scoringProfile}
-                  importedADP={importedADP}
-                  onADPImport={handleADPImport}
-                  weeklyStats={{}}
-                  news={{}}
-                  depthChart={{}}
-                  playerNotes={playerNotes}
-                  onPlayerNotesChange={handlePlayerNotesChange}
-                  loading={loading}
-                  error={error}
-                  onRetry={handleRetry}
-                  onPositionChange={setSelectedPosition}
-                  onSearchChange={setSearchQuery}
-                  onDraftOther={!isMyTurn ? (player) => draftPlayer(player.id, false) : undefined}
-                  onDraftMine={isMyTurn ? (player) => draftPlayer(player.id, true) : undefined}
-                />
-              </div>
-            </div>
-          </div>
+            <button type="button" onClick={() => setActivePanel('insights')} className="flex w-full items-center justify-between rounded-2xl border border-violet-400/20 bg-gradient-to-r from-violet-600/20 to-blue-600/20 px-4 py-4 text-left hover:border-violet-300/40">
+              <span><span className="block text-[10px] font-bold uppercase tracking-wider text-violet-300">Decision support</span><span className="mt-1 block font-black">Tiers, sleepers &amp; methodology</span></span>
+              <span className="text-xl">→</span>
+            </button>
+          </aside>
         </div>
-      </div>
+
+        <details className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+          <summary className="cursor-pointer font-bold text-white">Data sources and workspace details</summary>
+          <div className="mt-4 flex flex-wrap gap-2" aria-label="Ranking data sources">
+            {rankingSources?.map((source) => (
+              <a key={source.source} href={source.attribution_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900 px-3 py-1.5 text-xs hover:bg-slate-800" title={`${source.purpose}. ${Math.round(source.match_rate * 100)}% canonical player match coverage.`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${source.available ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                <span className="font-semibold">{source.label}</span>
+                <span className="text-slate-500">{source.snapshot_date ?? 'not loaded'}</span>
+              </a>
+            ))}
+          </div>
+          {sourceRefreshResult && (
+            <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/50 p-3" aria-label="Latest source refresh results">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold text-white">Latest refresh · {new Date(sourceRefreshResult.completed_at).toLocaleString()}</span>
+                <span className={`text-xs font-bold ${sourceRefreshResult.failed ? 'text-amber-300' : 'text-emerald-300'}`}>{sourceRefreshResult.succeeded} succeeded · {sourceRefreshResult.failed} failed</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {Object.entries(sourceRefreshResult.results).map(([source, result]) => (
+                  <span key={source} className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${result.error ? 'border-red-400/30 bg-red-400/10 text-red-200' : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'}`} title={result.error || `${String(result.loaded ?? result.matched ?? 'Updated')} records`}>
+                    {source} · {result.error ? 'failed' : 'updated'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="mt-3 text-xs text-slate-400">Offline package {draftPackage ? `ready with ${draftPackage.players.length} players` : 'pending'} · Yahoo {yahooAccessToken ? 'connected' : 'optional'} · all picks persist locally.</p>
+        </details>
+      </main>
+
+      {activePanel === 'tracker' && (
+        <WorkspaceModal title="Draft tracker" eyebrow="Record picks, recommendations, and corrections" onClose={() => setActivePanel(null)}>
+          <ManualDraftConsole session={session} players={effectivePlayers} availablePlayers={availablePlayers} onConfigure={configure} onUndo={undo} onRemovePick={removePick} onReset={reset} onDraftPlayer={draftPlayer} draftPackage={draftPackage} onImportPackage={handlePackageImport} onPackageError={(message) => addToast({ type: 'error', title: 'Package Import Failed', message, duration: 5000 })} />
+        </WorkspaceModal>
+      )}
+
+      {activePanel === 'yahoo' && (
+        <WorkspaceModal title="Yahoo Fantasy" eyebrow="Connection and league import" onClose={() => setActivePanel(null)}>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <YahooOAuth onAuthSuccess={handleAuthSuccess} onAuthError={handleAuthError} />
+            {yahooAccessToken ? <YahooLeagueImport accessToken={yahooAccessToken} selectedLeagueId={selectedLeague?.id} onLeagueSelect={handleLeagueSelect} onImportComplete={handleLeagueImport} onRefreshAll={handleRefreshSources} isRefreshingAll={isRefreshingSources} refreshVersion={sourceRefreshResult?.completed_at} /> : <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">Connect Yahoo to choose and import a league.</div>}
+          </div>
+        </WorkspaceModal>
+      )}
+
+      {activePanel === 'roster' && (
+        <WorkspaceModal title="Roster construction" eyebrow={`${filledRosterSlots} of ${totalRosterSlots} slots filled`} onClose={() => setActivePanel(null)}>
+          <RosterBar rosterSlots={rosterSlots} selectedPlayers={myPlayers} onSlotClick={handleSlotClick} scoringProfile={scoringProfile} />
+        </WorkspaceModal>
+      )}
+
+      {activePanel === 'insights' && (
+        <WorkspaceModal title="Projection insights" eyebrow="Tiers, value over replacement, and assumptions" onClose={() => setActivePanel(null)}>
+          <div className="space-y-5">
+            <NewsInsightsPanel season={currentSeason} leagueSize={session.config.leagueSize} />
+            {hasProjectionData ? <ProjectionAnalyticsPanel players={effectivePlayers} profileName={projectionAnalytics?.profile.name ?? scoringProfile} snapshotDate={projectionAnalytics?.snapshot_date} methodology={projectionAnalytics?.methodology} /> : <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 text-slate-700"><h3 className="text-lg font-black text-slate-950">Tiers and VORP are pending</h3><p className="mt-2 text-sm">Draft ranks are live. Projection analytics will appear when projected or weekly scoring data is loaded.</p></div>}
+          </div>
+        </WorkspaceModal>
+      )}
+
       <PlayerDetailDrawer
         player={selectedDetailPlayer}
         season={currentSeason}

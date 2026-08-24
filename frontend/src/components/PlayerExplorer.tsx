@@ -61,6 +61,7 @@ export function PlayerExplorer() {
         ecr: ranking?.fantasyPros?.ecr ?? undefined,
         espnRank: ranking?.espn?.rank ?? undefined,
         rankingSourceCount: ranking?.sourceCount ?? 0,
+        draftConfidence: ranking?.confidence,
         projectedPoints: ranking?.espn?.projected_points ?? undefined,
         projectedPointsPerGame: ranking?.espn?.projected_points_per_game ?? undefined,
         projectionScoringBasis: projection?.scoring_basis,

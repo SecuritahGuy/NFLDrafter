@@ -15,9 +15,10 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("Database initialized successfully")
 
-    # Start background ingestion scheduler (skipped when disabled via env)
+    # External data is local-first: background refresh is opt-in. The default
+    # path is the explicit "Refresh all sources" action in the Draft Room.
     scheduler = None
-    if os.getenv("DISABLE_SCHEDULER", "false").lower() != "true":
+    if os.getenv("ENABLE_BACKGROUND_REFRESH", "false").lower() == "true":
         from .services.scheduler import create_scheduler
         scheduler = create_scheduler()
         scheduler.start()

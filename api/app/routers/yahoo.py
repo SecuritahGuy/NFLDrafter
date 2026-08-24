@@ -5,12 +5,15 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import httpx
 import os
+import hashlib
+import time
 from urllib.parse import urlencode
 from datetime import datetime, timedelta
 import jwt
 from dotenv import load_dotenv
 from app.deps import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.models import ApiResponseCache
 from app.services.yahoo_xml import (
     parse_leagues,
     parse_rosters,
@@ -24,6 +27,7 @@ from app.services.yahoo_scoring import (
     persist_yahoo_scoring_profile,
     translate_yahoo_settings,
 )
+from app.services.yahoo_snapshot import get_yahoo_snapshot, sync_yahoo_league_snapshot
 
 router = APIRouter(prefix="/yahoo", tags=["yahoo"])
 callback_router = APIRouter(tags=["yahoo"])
@@ -159,6 +163,15 @@ async def get_yahoo_client():
 
 def _game_key(league_id: str) -> str:
     return league_id.split(".", 1)[0]
+
+
+def _merge_team_details(teams: list[dict], standings: list[dict]) -> list[dict]:
+    """Overlay standings fields without losing team names and managers."""
+    standings_by_id = {team["id"]: team for team in standings}
+    return [
+        {**team, **{key: value for key, value in standings_by_id.get(team["id"], {}).items() if key not in {"name", "owner"} or value}}
+        for team in teams
+    ]
 
 async def exchange_code_for_tokens(code: str) -> Dict[str, Any]:
     """Exchange authorization code for access and refresh tokens"""
@@ -325,10 +338,17 @@ async def get_user_info(
 @router.get("/leagues")
 async def get_leagues(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    force_refresh: bool = Query(False),
 ):
     """Get user's fantasy football leagues"""
     access_token = credentials.credentials
+    cache_key = hashlib.sha256(b"yahoo|league-list").hexdigest()
+    cached = await db.get(ApiResponseCache, cache_key)
+    if cached and not force_refresh:
+        cached.last_accessed_at = int(time.time())
+        await db.commit()
+        return cached.response
     
     try:
         async with httpx.AsyncClient() as client:
@@ -352,7 +372,20 @@ async def get_leagues(
                     ),
                 )
             
-            return {"leagues": parse_leagues(leagues_response.text)}
+            payload = {"leagues": parse_leagues(leagues_response.text), "cached_at": int(time.time())}
+            values = {
+                "provider": "yahoo", "endpoint": "/leagues", "query": {},
+                "response": payload, "fetched_at": int(time.time()),
+                "expires_at": 2_147_483_647, "last_accessed_at": int(time.time()),
+                "status_code": 200, "response_headers": {},
+            }
+            if cached:
+                for field, value in values.items():
+                    setattr(cached, field, value)
+            else:
+                db.add(ApiResponseCache(cache_key=cache_key, **values))
+            await db.commit()
+            return payload
             
     except HTTPException:
         raise
@@ -373,10 +406,14 @@ async def get_league_teams(
     
     try:
         async with httpx.AsyncClient() as client:
-            # Get league teams
+            headers = {"Authorization": f"Bearer {access_token}"}
             teams_response = await client.get(
                 f"https://fantasysports.yahooapis.com/fantasy/v2/league/{league_id}/teams",
-                headers={"Authorization": f"Bearer {access_token}"}
+                headers=headers,
+            )
+            standings_response = await client.get(
+                f"https://fantasysports.yahooapis.com/fantasy/v2/league/{league_id}/standings",
+                headers=headers,
             )
             
             if teams_response.status_code != 200:
@@ -385,7 +422,9 @@ async def get_league_teams(
                     detail="Failed to fetch teams"
                 )
             
-            return {"teams": parse_teams(teams_response.text)}
+            teams = parse_teams(teams_response.text)
+            standings = parse_teams(standings_response.text) if standings_response.status_code == 200 else []
+            return {"teams": _merge_team_details(teams, standings), "standings_available": bool(standings)}
             
     except HTTPException:
         raise
@@ -455,6 +494,33 @@ async def get_league_rosters(
             detail=f"Failed to fetch rosters: {str(e)}"
         )
 
+
+@router.get("/leagues/{league_id}/snapshot")
+async def yahoo_league_snapshot(
+    league_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the last persisted read-only Yahoo snapshot without contacting Yahoo."""
+    snapshot = await get_yahoo_snapshot(db, league_id)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Yahoo snapshot is cached. Run Refresh all sources.",
+        )
+    return snapshot
+
+
+@router.post("/leagues/{league_id}/sync")
+async def sync_yahoo_league(
+    league_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    """Refresh all useful read-only Yahoo resources and persist the result."""
+    if not await verify_yahoo_token(credentials.credentials):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    return await sync_yahoo_league_snapshot(db, league_id, credentials.credentials)
+
 @router.post("/import-league")
 async def import_league(
     request: LeagueImportRequest,
@@ -483,6 +549,12 @@ async def import_league(
                 f"https://fantasysports.yahooapis.com/fantasy/v2/league/{request.league_id}/teams",
                 headers=headers,
             )
+            standings_response = None
+            if request.include_standings:
+                standings_response = await client.get(
+                    f"https://fantasysports.yahooapis.com/fantasy/v2/league/{request.league_id}/standings",
+                    headers=headers,
+                )
             categories_response = await client.get(
                 f"https://fantasysports.yahooapis.com/fantasy/v2/game/{_game_key(request.league_id)}/stat_categories",
                 headers=headers,
@@ -500,6 +572,12 @@ async def import_league(
 
         settings = parse_settings(settings_response.text)
         teams = parse_teams(teams_response.text)
+        standings = (
+            parse_teams(standings_response.text)
+            if standings_response is not None and standings_response.status_code == 200
+            else []
+        )
+        teams = _merge_team_details(teams, standings)
         rosters = parse_rosters(rosters_response.text) if rosters_response is not None else []
         categories = (
             parse_stat_categories(categories_response.text)
@@ -524,6 +602,7 @@ async def import_league(
             "player_mapping": player_mapping,
             "stat_categories_imported": len(categories),
             "teams": teams,
+            "standings_imported": bool(standings),
             "rosters": rosters,
             "status": "success",
         }
