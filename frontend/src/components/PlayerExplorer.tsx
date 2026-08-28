@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { MagnifyingGlassIcon, UserCircleIcon } from '@heroicons/react/24/outline'
 import { useScoringProfiles } from '../hooks/useScoringProfiles'
-import { usePlayers } from '../hooks/usePlayers'
+import { useInjuries, usePlayers } from '../hooks/usePlayers'
+import { InjuryIndicator } from './InjuryIndicator'
 import { useProjectionAnalytics, useRankings } from '../hooks/useRankings'
 import { buildCompositeRankings } from '../services/compositeRankings'
 import { PlayerDetailDrawer } from './PlayerDetailDrawer'
@@ -24,6 +25,7 @@ export function PlayerExplorer() {
     current_only: selectedSeason === 2026,
     season: selectedSeason,
   })
+  const { data: injuries } = useInjuries(selectedSeason)
   const { data: fantasyPros } = useRankings('fantasypros-ecr')
   const { data: espn } = useRankings('espn-draft-rank')
   const { data: ffc } = useRankings('ffc-adp')
@@ -83,6 +85,17 @@ export function PlayerExplorer() {
       .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name))
   }, [players, searchQuery, selectedPosition])
 
+  const injuriesByPlayer = useMemo(() => {
+    const grouped = new Map<string, import('../api').InjuryReportEntry[]>()
+    for (const injury of injuries ?? []) {
+      if (!injury.player_id) continue
+      const entries = grouped.get(injury.player_id) ?? []
+      entries.push(injury)
+      grouped.set(injury.player_id, entries)
+    }
+    return grouped
+  }, [injuries])
+
   const profileId = profilesData?.find((profile) => profile.profile_id === selectedProfile)?.profile_id
 
   return (
@@ -137,7 +150,7 @@ export function PlayerExplorer() {
                 <tr key={player.id} className="cursor-pointer hover:bg-blue-50" onClick={() => setSelectedPlayer(player)}>
                   <td className="px-5 py-3"><div className="flex items-center gap-3">
                     {player.headshot ? <img src={player.headshot} alt="" className="h-10 w-10 rounded-xl bg-slate-100 object-cover object-top" /> : <UserCircleIcon className="h-10 w-10 text-slate-300" />}
-                    <div><div className="font-bold text-slate-950">{player.name}</div><div className="text-xs text-slate-500">{player.status ?? 'Roster status unknown'}</div></div>
+                    <div><div className="flex items-center gap-1.5 font-bold text-slate-950">{player.name}<InjuryIndicator injuries={injuriesByPlayer.get(player.id)} /></div><div className="text-xs text-slate-500">{player.status ?? 'Roster status unknown'}</div></div>
                   </div></td>
                   <td className="font-semibold text-slate-700">{player.position}</td><td className="text-slate-700">{player.team}</td>
                   <td className="font-black text-blue-800">{player.rank ? `#${player.rank}` : '—'}</td>

@@ -17,6 +17,8 @@ import { LoadingState } from './LoadingState'
 import { ErrorDisplay } from './ErrorDisplay'
 import type { Player } from '../types'
 import { DraftConfidenceBadge } from './DraftConfidenceBadge'
+import { InjuryIndicator } from './InjuryIndicator'
+import type { InjuryReportEntry } from '../api'
 
 const INITIAL_VISIBLE_PLAYERS = 75
 
@@ -53,6 +55,7 @@ export interface PlayerBoardProps {
   onDraftOther?: (player: Player) => void
   onDraftMine?: (player: Player) => void
   leagueSize?: number
+  injuriesByPlayer?: Map<string, InjuryReportEntry[]>
 }
 
 type SortField = 'name' | 'position' | 'team' | 'fantasyPoints' | 'rank' | 'yahooPoints' | 'delta' | 'vorp' | 'tier' | 'adp' | 'valueVsADP'
@@ -82,6 +85,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
   onDraftOther,
   onDraftMine,
   leagueSize = 12,
+  injuriesByPlayer,
 }) => {
   const [sortField, setSortField] = useState<SortField>('rank')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -712,7 +716,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({
                             </div>
                             <div>
                               <div className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors text-base">
-                                {player.name}
+                                <span className="flex items-center gap-1.5">{player.name}<InjuryIndicator injuries={injuriesByPlayer?.get(player.id)} /></span>
                               </div>
                               <div className="text-sm text-gray-500 flex items-center gap-2">
                                 <span className="flex items-center gap-1">

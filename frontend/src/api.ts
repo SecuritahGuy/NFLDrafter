@@ -25,6 +25,7 @@ export const endpoints = {
   // External rankings
   rankings: '/rankings/',
   rankingSources: '/rankings/sources',
+  injuries: '/injuries/',
   
   // Health check
   health: '/health',
@@ -176,10 +177,12 @@ export interface PlayerContext {
   };
   injuries: Array<{
     season: number;
-    week: number;
+    week: number | null;
     report_status: string | null;
     primary_injury: string | null;
     practice_status: string | null;
+    source: string;
+    is_current: boolean;
   }>;
   news: Array<{
     title: string;
@@ -189,6 +192,22 @@ export interface PlayerContext {
     summary: string | null;
     relevance: number | null;
   }>;
+}
+
+export interface InjuryReportEntry {
+  player_id: string | null;
+  full_name: string;
+  position: string | null;
+  team: string | null;
+  season: number;
+  week: number;
+  season_type: string | null;
+  report_status: string | null;
+  report_primary_injury: string | null;
+  report_secondary_injury: string | null;
+  practice_status: string | null;
+  practice_primary_injury: string | null;
+  practice_secondary_injury: string | null;
 }
 
 export interface BulkPointsRequest {
@@ -374,6 +393,13 @@ export const playersAPI = {
   async getTeams(): Promise<{ teams: string[] }> {
     const response = await api.get(endpoints.teams);
     return response.data;
+  },
+};
+
+export const injuriesAPI = {
+  async getInjuries(season: number): Promise<InjuryReportEntry[]> {
+    const response = await api.get(endpoints.injuries, { params: { season, limit: 1000 } });
+    return Array.isArray(response.data?.injuries) ? response.data.injuries : [];
   },
 };
 

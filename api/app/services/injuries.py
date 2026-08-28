@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import time
+import urllib.request
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -12,6 +15,58 @@ from sqlalchemy import delete, select
 from ..db import SessionLocal
 from ..models import Player, PlayerInjury
 from .nfl_data_provider import NFLDataProvider, get_nfl_data_provider
+
+_ESPN_INJURIES_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries"
+
+
+@dataclass(slots=True)
+class ESPNInjuryProvider:
+    """Current NFL injuries from ESPN, including preseason reports."""
+
+    def load_injuries(self) -> list[dict[str, Any]]:
+        req = urllib.request.Request(_ESPN_INJURIES_URL)
+        with urllib.request.urlopen(req, timeout=60) as response:
+            payload = json.loads(response.read())
+
+        season = (payload.get("season") or {}).get("year")
+        records: list[dict[str, Any]] = []
+        for team_group in payload.get("injuries") or []:
+            for injury in team_group.get("injuries") or []:
+                athlete = injury.get("athlete") or {}
+                details = injury.get("details") or {}
+                full_name = _clean(athlete.get("displayName"))
+                status = _clean(injury.get("status"))
+                # ESPN's endpoint also contains routine player-news entries
+                # with an Active status. They are not injury listings and
+                # generally lack injury details, so importing them produces
+                # misleading UI flags such as "Not Specified".
+                if not season or not full_name or str(status or "").lower() == "active":
+                    continue
+                injury_parts = [
+                    _clean(details.get("side")),
+                    _clean(details.get("type")),
+                    _clean(details.get("detail")),
+                ]
+                injury_parts = [
+                    part for part in injury_parts
+                    if str(part).strip().lower() not in {"", "not specified"}
+                ]
+                records.append(
+                    {
+                        "season": season,
+                        # ESPN's endpoint has no NFL week during preseason.
+                        "week": 0,
+                        "season_type": "ESPN",
+                        "full_name": full_name,
+                        "position": _clean((athlete.get("position") or {}).get("abbreviation")),
+                        "team": _clean((athlete.get("team") or {}).get("abbreviation")),
+                        "report_primary_injury": " ".join(str(part) for part in injury_parts if part),
+                        "report_status": status,
+                        "practice_primary_injury": _clean(injury.get("shortComment")),
+                        "report_date": _clean(injury.get("date")),
+                    }
+                )
+        return records
 
 
 def _clean(value: Any) -> Any:
@@ -32,6 +87,7 @@ async def _resolve_player_id(full_name: str, team: str, name_to_player: dict[tup
 async def ingest_injuries(
     seasons: Sequence[int] | None = None,
     provider: NFLDataProvider | None = None,
+    espn_provider: ESPNInjuryProvider | None = None,
     delete_existing: bool = True,
 ) -> dict:
     """
@@ -47,6 +103,12 @@ async def ingest_injuries(
         Summary dict with the number of records stored per season.
     """
     records = (provider or get_nfl_data_provider()).load_injuries(seasons=seasons)
+    # nflverse publishes official weekly reports after games begin.  ESPN fills
+    # the preseason/current-status gap and includes the injury body part.
+    try:
+        records += (espn_provider or ESPNInjuryProvider()).load_injuries()
+    except Exception as exc:  # keep official-report ingestion available on ESPN outages
+        print(f"Current ESPN injuries refresh failed: {exc}")
     by_season: dict[int, int] = {}
     snapshot_ts = int(time.time() * 1000)
 
@@ -96,6 +158,7 @@ async def ingest_injuries(
                     practice_primary_injury=_clean(row.get("practice_primary_injury")),
                     practice_secondary_injury=_clean(row.get("practice_secondary_injury")),
                     practice_status=_clean(row.get("practice_status")),
+                    report_date=_clean(row.get("report_date")),
                     snapshot_ts=snapshot_ts,
                 )
             )

@@ -504,6 +504,8 @@ async def get_player_context(
                 "report_status": row.report_status,
                 "primary_injury": row.report_primary_injury or row.practice_primary_injury,
                 "practice_status": row.practice_status,
+                "source": "ESPN" if row.season_type == "ESPN" else "NFL official report",
+                "is_current": row.season == season,
             }
             for row in injury_rows
         ],

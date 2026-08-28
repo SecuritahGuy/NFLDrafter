@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { playersAPI } from '../api';
+import { injuriesAPI, playersAPI } from '../api';
 import type { PlayerSearchParams } from '../api';
 
 // Query keys for caching
@@ -67,6 +67,13 @@ export const usePlayerContext = (playerId: string, season: number, profileId?: s
     staleTime: 30 * 60 * 1000,
   });
 };
+
+export const useInjuries = (season: number) => useQuery({
+  queryKey: ['injuries', season],
+  queryFn: () => injuriesAPI.getInjuries(season),
+  enabled: !!season,
+  staleTime: 15 * 60 * 1000,
+});
 
 // Hook for getting available positions
 export const usePositions = () => {

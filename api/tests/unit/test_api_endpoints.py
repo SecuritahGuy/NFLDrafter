@@ -2,7 +2,7 @@ import pytest
 from fastapi import status
 from sqlalchemy import insert
 from urllib.parse import parse_qs, urlparse
-from app.models import Player, ScoringProfile, ScoringRule
+from app.models import Player, PlayerInjury, ScoringProfile, ScoringRule
 from app.routers import yahoo
 
 
@@ -244,6 +244,32 @@ class TestPlayerEndpoints:
         assert data["methodology"]["replacement_ranks"]["WR"] == 5
         assert data["players"][0]["profile_points"] == 100
         assert data["players"][0]["scoring_basis"] == "profile"
+
+    def test_player_context_labels_espn_injury_reports(self, client, db_session):
+        # The fixture database transaction can see this pending row when the
+        # request uses the same connection override.
+        db_session.add(
+            PlayerInjury(
+                injury_id="fixture-espn-injury", player_id="fixture-wr-1",
+                full_name="Fixture Receiver One", position="WR", team="KC",
+                season=2026, season_type="ESPN", week=0,
+                report_primary_injury="Right Ankle Sprain", report_status="Questionable",
+                snapshot_ts=1,
+            )
+        )
+        response = client.get("/players/fixture-wr-1/context", params={"season": 2026})
+
+        assert response.status_code == status.HTTP_200_OK
+        injury = response.json()["injuries"][0]
+        assert injury == {
+            "season": 2026,
+            "week": 0,
+            "report_status": "Questionable",
+            "primary_injury": "Right Ankle Sprain",
+            "practice_status": None,
+            "source": "ESPN",
+            "is_current": True,
+        }
 
 
 class TestErrorHandling:

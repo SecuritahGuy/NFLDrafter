@@ -11,7 +11,7 @@ import { ToastProvider, useToast } from './Toast'
 import { LoadingState } from './LoadingState'
 import { ErrorDisplay } from './ErrorDisplay'
 import type { Player } from '../types'
-import { usePlayers } from '../hooks/usePlayers'
+import { useInjuries, usePlayers } from '../hooks/usePlayers'
 import { useScoringProfiles } from '../hooks/useScoringProfiles'
 import { api, rankingsAPI, type BackendPlayer, type SourceRefreshResponse } from '../api'
 import { ManualDraftConsole } from './ManualDraftConsole'
@@ -170,6 +170,17 @@ const DraftRoomContent: React.FC = () => {
     current_only: true,
     season: currentSeason,
   })
+  const { data: injuries } = useInjuries(currentSeason)
+  const injuriesByPlayer = useMemo(() => {
+    const grouped = new Map<string, import('../api').InjuryReportEntry[]>()
+    for (const injury of injuries ?? []) {
+      if (!injury.player_id) continue
+      const entries = grouped.get(injury.player_id) ?? []
+      entries.push(injury)
+      grouped.set(injury.player_id, entries)
+    }
+    return grouped
+  }, [injuries])
 
   const compositeRankings = useMemo(() => {
     return buildCompositeRankings(
@@ -684,6 +695,7 @@ const DraftRoomContent: React.FC = () => {
                 onDraftOther={!isMyTurn ? (player) => draftPlayer(player.id, false) : undefined}
                 onDraftMine={isMyTurn ? (player) => draftPlayer(player.id, true) : undefined}
                 leagueSize={session.config.leagueSize}
+                injuriesByPlayer={injuriesByPlayer}
               />
             </div>
           </section>
