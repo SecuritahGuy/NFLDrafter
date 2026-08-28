@@ -9,13 +9,13 @@ A local-first fantasy football draft assistant with custom scoring profiles, pla
 | Area | Status |
 | --- | --- |
 | Manual snake draft, undo/correction, persistence, CSV export | Implemented |
-| Current/next-pick calculation and roster-aware recommendations | Implemented; recommendation weights are an initial baseline |
+| Current/next-pick calculation and roster-aware recommendations | Implemented; combines value, tiers, roster needs, ADP availability, and capped explainable news context |
 | Draft confidence and next-pick availability | Implemented from source agreement, FantasyPros expert ranges, and FFC ADP variance; availability remains a directional model |
 | Custom scoring, player board, watchlist, and shared player detail | Implemented |
 | Profile-scored FantasyPros/ESPN projections, position tiers, and VORP | Implemented with a persistent seven-day API cache, league/roster-aware replacement baselines, and labeled provider fallback |
 | `nflreadpy` data-provider boundary | Implemented; live 2026 import requires network access |
 | Yahoo OAuth token exchange | Implemented and live-verified with automatic token refresh and a non-secret server-readiness check |
-| Yahoo read-only league snapshot | Implemented and live-verified for metadata, settings, teams, standings, rosters, draft results, transactions, scoreboard, available players, ownership, draft analysis, and season stats |
+| Yahoo read-only league snapshot | Implemented and live-verified for metadata, settings, teams, assigned draft positions, standings, rosters, draft results, transactions, scoreboard, available players, ownership, draft analysis, and season stats |
 | Yahoo scoring-profile persistence and season-aware player-ID matching | Implemented, fixture-tested, and exercised against a credentialed 2026 league |
 | Automated Yahoo live-pick synchronization | Not implemented; manual mode remains the reliable draft path |
 | Versioned offline draft packages | Implemented with browser cache, JSON import/export, and checksum validation |
@@ -34,12 +34,12 @@ Yahoo is optional: after player data has loaded, the draft room prepares and cac
 - **API-First Architecture**: FastAPI backend with automatic documentation
 - **Multi-Source Draft Rank**: FantasyPros expert consensus, ESPN platform rank, and human mock-draft ADP remain visible as separate inputs
 - **Rich Player Profiles**: Last-season production, snap/target/rushing shares, expected-opportunity results, ESPN season/weekly projections, projection-derived team role, ownership context, modeled schedule strength, official injury reports, and player-linked news
-- **News Correlations**: Persist publisher freshness plus explainable article-to-player and article-to-team links, then surface evidence-weighted late-round watch candidates without treating news volume as a projection
+- **News Correlations**: Persist publisher freshness plus explainable article-to-player and article-to-team links, surface evidence-weighted late-round watch candidates, and make a capped role/risk adjustment to live recommendations without treating news volume as a projection
 - **Projection Analytics**: Score cached FantasyPros projected stat lines through the selected profile with ESPN fallback, derive position tiers and VORP from league settings, and feed those values into draft recommendations
 - **Draft Confidence**: Explain source agreement and expert ranges, then estimate whether a player is likely to survive until the next user pick from FFC ADP variance
 - **ADP Round Estimates**: Convert overall ADP into a likely round and pick within the round using the active league size
 - **Ranking Movement**: Compare dated FantasyPros, ESPN, and FFC snapshots in every player profile, with feed freshness and missing matches called out explicitly
-- **Yahoo Import Verification**: Preview teams, roster slots, draft rounds, and mapped scoring rules before import, then report player-ID coverage and unresolved matches
+- **Yahoo Import Verification**: Preview assigned draft order, teams, roster slots, draft rounds, and mapped scoring rules before import; automatically set the current Yahoo manager's slot when Yahoo has a complete order, with a manual labeled fallback
 - **Read-Only Yahoo Cache**: Persist useful league, market, transaction, matchup, and completed-season player data so ordinary frontend views remain database-only
 
 The current fantasy-relevant player pool contains 1,024 selectable players, including all 32 defenses. The August 2026 browser QA covered missing-player searches, position filters, board ordering, ADP round estimates, credentialed Yahoo reads, and player details opened from both the Draft Room and Player Explorer. See the [QA evidence](docs/QA.md) for the scenarios and captured screenshots.
@@ -64,7 +64,9 @@ Refresh all sources fetches the independent news providers concurrently, then se
 
 ![2026 Draft Room with source refresh and league-aware ADP rounds](docs/images/nfldrafter-draft-room-2026.png)
 
-Manual mode is designed as the dependable fallback when a platform connection is unavailable. The tracker follows the configured snake order, changes the board action between `Mine` and `Taken`, removes recorded players from the available pool, keeps a searchable correction ledger, and persists the session in the browser.
+Manual mode is designed as the dependable fallback when a platform connection is unavailable. The tracker follows the configured snake order, changes the board action between `Mine` and `Taken`, removes recorded players from the available pool, keeps a searchable correction ledger, and persists the session in the browser. When Yahoo provides a complete assigned order, import labels the teams and sets the signed-in manager's slot; otherwise, Draft setup provides a manual position picker.
+
+Live recommendations use value, position tiers, roster needs, source confidence, next-pick availability, and a deliberately capped 30-day news adjustment. Recent opportunity evidence can nudge a player upward; role or injury-risk evidence can nudge the player downward. A material adjustment displays its supporting article. News is contextual evidence, not a substitute for projections or an automatic draft command.
 
 ![Manual Draft Room tracker with automatic turn ownership and draft ledger](docs/images/manual-draft-tracker.png)
 
@@ -215,6 +217,7 @@ This creates `.venv`, installs locked frontend dependencies, initializes SQLite 
 - **GET** `/news/sources` - Inspect persisted publishers, article counts, freshness, and player/team link coverage
 - **GET** `/news/teams/{team}/features` - Read direct and player-inferred news context for a team
 - **GET** `/news/insights/sleepers` - Get evidence-weighted late-round watch candidates using recent news and current FFC ADP
+- **GET** `/news/insights/draft-signals` - Get capped, recency-weighted player news context used by live draft recommendations
 - **GET** `/health` - Health check
 
 API documentation available at `http://localhost:8000/docs`

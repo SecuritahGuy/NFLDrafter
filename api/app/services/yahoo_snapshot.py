@@ -45,6 +45,21 @@ def _merge_by_id(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(merged.values())
 
 
+def _merge_teams(teams: list[dict[str, Any]], standings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add standings to team data without replacing Yahoo draft positions with zeros."""
+    standings_by_id = {team["id"]: team for team in standings}
+    return [
+        {
+            **team,
+            **{
+                key: value for key, value in standings_by_id.get(team["id"], {}).items()
+                if key not in {"draft_position", "is_current_user"} or value
+            },
+        }
+        for team in teams
+    ]
+
+
 async def get_yahoo_snapshot(db: AsyncSession, league_id: str) -> dict[str, Any] | None:
     row = await db.get(ApiResponseCache, _cache_key(league_id))
     if not row:
@@ -129,7 +144,7 @@ async def sync_yahoo_league_snapshot(
             stat_groups.append(stats)
         yahoo_players = _merge_by_id(available_players, *stat_groups)
 
-    teams = _merge_by_id(teams, standings)
+    teams = _merge_teams(teams, standings)
     category_names = {
         category["stat_id"]: category.get("display_name") or category.get("name")
         for category in categories

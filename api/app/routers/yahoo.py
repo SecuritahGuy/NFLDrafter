@@ -80,6 +80,8 @@ class YahooTeam(BaseModel):
     id: str
     name: str
     owner: str
+    draft_position: int = 0
+    is_current_user: bool = False
     rank: int
     wins: int
     losses: int
@@ -90,6 +92,31 @@ class YahooTeam(BaseModel):
 class YahooRoster(BaseModel):
     team_id: str
     players: List[Dict[str, Any]]
+
+
+def _draft_context(teams: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return a safe draft-order payload when Yahoo has assigned positions.
+
+    Yahoo does not expose a future order before commissioners set it.  A partial
+    or malformed set of positions is therefore reported as unavailable instead
+    of guessing an order from the standings.
+    """
+    ordered = sorted(
+        (team for team in teams if int(team.get("draft_position") or 0) > 0),
+        key=lambda team: int(team["draft_position"]),
+    )
+    positions = [int(team["draft_position"]) for team in ordered]
+    complete = len(ordered) == len(teams) and positions == list(range(1, len(teams) + 1))
+    my_team = next((team for team in ordered if team.get("is_current_user")), None)
+    return {
+        "available": complete,
+        "my_draft_slot": int(my_team["draft_position"]) if complete and my_team else None,
+        "my_team_id": my_team.get("id") if my_team else None,
+        "order": [
+            {"slot": int(team["draft_position"]), "team_id": team["id"], "name": team["name"], "owner": team.get("owner", ""), "is_current_user": bool(team.get("is_current_user"))}
+            for team in ordered
+        ] if complete else [],
+    }
 
 
 @router.get("/readiness")
@@ -169,7 +196,14 @@ def _merge_team_details(teams: list[dict], standings: list[dict]) -> list[dict]:
     """Overlay standings fields without losing team names and managers."""
     standings_by_id = {team["id"]: team for team in standings}
     return [
-        {**team, **{key: value for key, value in standings_by_id.get(team["id"], {}).items() if key not in {"name", "owner"} or value}}
+        {
+            **team,
+            **{
+                key: value
+                for key, value in standings_by_id.get(team["id"], {}).items()
+                if (key not in {"name", "owner", "draft_position", "is_current_user"} or value)
+            },
+        }
         for team in teams
     ]
 
@@ -602,6 +636,7 @@ async def import_league(
             "player_mapping": player_mapping,
             "stat_categories_imported": len(categories),
             "teams": teams,
+            "draft": _draft_context(teams),
             "standings_imported": bool(standings),
             "rosters": rosters,
             "status": "success",

@@ -5,6 +5,8 @@ export interface DraftConfig {
   leagueSize: number
   draftSlot: number
   rounds: number
+  /** Optional provider-imported labels, keyed by snake-order slot. */
+  teamNames?: Record<number, string>
 }
 
 export interface DraftPick {
@@ -37,6 +39,9 @@ export const teamForPick = (pick: number, leagueSize: number): number => {
   const positionInRound = (pick - 1) % leagueSize
   return round % 2 === 0 ? positionInRound + 1 : leagueSize - positionInRound
 }
+
+export const teamLabel = (team: number, config: DraftConfig): string =>
+  config.teamNames?.[team] || `Team ${team}`
 
 export const nextPickForTeam = (
   afterPick: number,
@@ -153,6 +158,14 @@ export interface Recommendation {
   score: number
   reason: string
   availability: PlayerAvailability | null
+  news?: DraftNewsSignal
+}
+
+export interface DraftNewsSignal {
+  adjustment: number
+  positive: number
+  risk: number
+  headlines: Array<{ title: string; url: string; source: string; topics: string[] }>
 }
 
 export interface OpeningDraftPlan {
@@ -211,6 +224,7 @@ export const recommendPlayers = (
   currentPick: number,
   nextUserPick: number | null,
   limit = 5,
+  newsSignals: Record<string, DraftNewsSignal> = {},
 ): Recommendation[] => {
   const counts = rosterPositionCounts(myPicks, allPlayers)
   const picksUntilTurn = nextUserPick === null ? 0 : Math.max(0, nextUserPick - currentPick)
@@ -232,10 +246,14 @@ export const recommendPlayers = (
       const sourceRankValue = player.rank
         ? Math.max(0, 250 - player.rank) * 0.08
         : 0
-      const score = player.vorp + tierDropoff + adpUrgency + need + sourceRankValue + player.fantasyPoints * 0.01
+      const news = newsSignals[player.id]
+      const newsAdjustment = Math.max(-6, Math.min(6, news?.adjustment ?? 0))
+      const score = player.vorp + tierDropoff + adpUrgency + need + sourceRankValue + player.fantasyPoints * 0.01 + newsAdjustment
       const reasons = [
         player.rank ? `multi-source draft rank #${player.rank}` : null,
         player.vorp > 0 ? `${player.vorp.toFixed(1)} VORP` : null,
+        newsAdjustment >= 1.5 ? 'recent opportunity news supports the role' : null,
+        newsAdjustment <= -1.5 ? 'recent news adds role or injury risk' : null,
         need > 0 ? `fills a ${player.position} roster need` : null,
         adpUrgency > 2 ? 'unlikely to reach your next pick' : null,
         player.draftConfidence?.level === 'high' ? 'high-confidence rank' : null,
@@ -244,8 +262,9 @@ export const recommendPlayers = (
       return {
         player,
         score,
-        reason: reasons.slice(0, 2).join(' and ') || 'best available projection',
+        reason: reasons.slice(0, 3).join(' and ') || 'best available projection',
         availability,
+        news,
       }
     })
     .sort((a, b) => b.score - a.score)

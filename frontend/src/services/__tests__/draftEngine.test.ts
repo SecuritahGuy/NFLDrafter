@@ -85,6 +85,23 @@ describe('draftEngine', () => {
     expect(recommendation.availability?.basis).toBe('ffc_distribution')
   })
 
+  it('uses a capped, explainable news adjustment as draft context', () => {
+    const baseline = player('baseline', 'WR', 20, 35, 2)
+    const opportunity = player('opportunity', 'WR', 20, 35, 2)
+    const recommendations = recommendPlayers(
+      [baseline, opportunity], [], [baseline, opportunity], 1, 24, 5,
+      {
+        opportunity: {
+          adjustment: 4, positive: 4, risk: 0,
+          headlines: [{ title: 'Opportunity expands', url: 'https://example.com/news', source: 'espn', topics: ['opportunity'] }],
+        },
+      },
+    )
+    expect(recommendations[0].player.id).toBe('opportunity')
+    expect(recommendations[0].reason).toContain('recent opportunity news')
+    expect(recommendations[0].news?.headlines[0].title).toBe('Opportunity expands')
+  })
+
   it('assigns dedicated starters before flex and bench slots', () => {
     const players = [
       player('rb1', 'RB', 1, 1), player('rb2', 'RB', 1, 2), player('rb3', 'RB', 1, 3),

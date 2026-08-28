@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PlayerBoard } from './PlayerBoard'
 import { Watchlist } from './Watchlist'
 import { ProjectionAnalyticsPanel } from './ProjectionAnalyticsPanel'
@@ -17,7 +17,7 @@ import { api, rankingsAPI, type BackendPlayer, type SourceRefreshResponse } from
 import { ManualDraftConsole } from './ManualDraftConsole'
 import { useDraftSession } from '../hooks/useDraftSession'
 import { useProjectionAnalytics, useRankings, useRankingSources } from '../hooks/useRankings'
-import { assignRosterSlots, teamForPick } from '../services/draftEngine'
+import { assignRosterSlots, teamForPick, type DraftNewsSignal } from '../services/draftEngine'
 import { buildCompositeRankings } from '../services/compositeRankings'
 import { PlayerDetailDrawer } from './PlayerDetailDrawer'
 import { NewsInsightsPanel } from './NewsInsightsPanel'
@@ -131,6 +131,14 @@ const DraftRoomContent: React.FC = () => {
   const { data: espnRankings } = useRankings('espn-draft-rank')
   const { data: ffcRankings } = useRankings('ffc-adp')
   const { data: rankingSources } = useRankingSources()
+  const { data: newsDraftSignals = {} } = useQuery({
+    queryKey: ['news-draft-signals'],
+    queryFn: async () => {
+      const response = await api.get<{ signals: Array<{ player_id: string } & DraftNewsSignal> }>('/news/insights/draft-signals', { params: { days: 30 } })
+      return Object.fromEntries(response.data.signals.map(({ player_id, ...signal }) => [player_id, signal])) as Record<string, DraftNewsSignal>
+    },
+    staleTime: 10 * 60 * 1000,
+  })
   
   // Yahoo OAuth state
   const [yahooAccessToken, setYahooAccessToken] = useState<string | null>(() => localStorage.getItem('yahoo_access_token'))
@@ -470,6 +478,7 @@ const DraftRoomContent: React.FC = () => {
       }
       setSourceRefreshResult(result)
       await queryClient.invalidateQueries({ queryKey: ['rankings'] })
+      await queryClient.invalidateQueries({ queryKey: ['news-draft-signals'] })
       addToast({
         type: result.failed ? 'warning' : 'success',
         title: result.failed ? 'Sources Refreshed with Warnings' : 'All Sources Refreshed',
@@ -497,16 +506,21 @@ const DraftRoomContent: React.FC = () => {
 
   const handleLeagueImport = (leagueData: any) => {
     const preparedLeague = leagueData.prepared_league
+    const yahooDraft = leagueData.draft
+    const teamNames = yahooDraft?.available
+      ? Object.fromEntries(yahooDraft.order.map((team: any) => [team.slot, team.name]))
+      : undefined
     const importedConfig = preparedLeague?.draft_config
       ? {
           leagueSize: preparedLeague.draft_config.league_size || session.config.leagueSize,
-          draftSlot: Math.min(
+          draftSlot: yahooDraft?.my_draft_slot || Math.min(
             session.config.draftSlot,
             preparedLeague.draft_config.league_size || session.config.leagueSize,
           ),
           rounds: preparedLeague.draft_config.rounds || session.config.rounds,
+          teamNames,
         }
-      : session.config
+      : { ...session.config, teamNames: teamNames ?? session.config.teamNames }
     const importedSlots = (preparedLeague?.roster_slots ?? []).map((slot: any) => ({
       position: slot.normalized_position || slot.position,
       required: Number(slot.count) || 0,
@@ -545,7 +559,9 @@ const DraftRoomContent: React.FC = () => {
       title: unmappedCount ? 'League Imported — Review Scoring' : 'League Imported!',
       message: unmappedCount
         ? `${unmappedCount} Yahoo scoring categories need manual mapping; no values were guessed`
-        : `Imported ${leagueData.teams_imported} teams; ${leagueData.player_mapping?.matched ?? 0} Yahoo player IDs matched`,
+        : yahooDraft?.my_draft_slot
+          ? `Imported ${leagueData.teams_imported} teams; your Yahoo pick #${yahooDraft.my_draft_slot} is ready in the draft tracker`
+          : `Imported ${leagueData.teams_imported} teams; set your draft position in the draft tracker when Yahoo assigns it`,
       duration: 5000
     })
   }
@@ -760,7 +776,7 @@ const DraftRoomContent: React.FC = () => {
 
       {activePanel === 'tracker' && (
         <WorkspaceModal title="Draft tracker" eyebrow="Record picks, recommendations, and corrections" onClose={() => setActivePanel(null)}>
-          <ManualDraftConsole session={session} players={effectivePlayers} availablePlayers={availablePlayers} onConfigure={configure} onUndo={undo} onRemovePick={removePick} onReset={reset} onDraftPlayer={draftPlayer} draftPackage={draftPackage} onImportPackage={handlePackageImport} onPackageError={(message) => addToast({ type: 'error', title: 'Package Import Failed', message, duration: 5000 })} />
+          <ManualDraftConsole session={session} players={effectivePlayers} availablePlayers={availablePlayers} onConfigure={configure} onUndo={undo} onRemovePick={removePick} onReset={reset} onDraftPlayer={draftPlayer} draftPackage={draftPackage} onImportPackage={handlePackageImport} onPackageError={(message) => addToast({ type: 'error', title: 'Package Import Failed', message, duration: 5000 })} newsSignals={newsDraftSignals} />
         </WorkspaceModal>
       )}
 

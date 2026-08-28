@@ -10,7 +10,7 @@ from ..db import DATABASE_URL
 from ..deps import get_db_session
 from ..models import NewsEntityLink, NewsItem, NewsSource, Player
 from ..services.news import rebuild_news_correlations
-from ..services.news_insights import build_sleeper_insights
+from ..services.news_insights import build_draft_signals, build_sleeper_insights
 
 router = APIRouter(prefix="/news", tags=["news"])
 
@@ -78,6 +78,15 @@ async def sleeper_insights(
         db, season=season, days=days, min_adp=min_adp, limit=limit,
         league_size=league_size,
     )
+
+
+@router.get("/insights/draft-signals")
+async def draft_signals(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Recent player news context for the live draft recommendation engine."""
+    return await build_draft_signals(db, days=days)
 
 
 @router.get("/teams/{team}/features")

@@ -25,7 +25,8 @@ XML = """<?xml version="1.0"?>
   <teams>
     <team>
       <team_key>461.l.123.t.1</team_key><name>Chicago Dogs</name>
-      <managers><manager><nickname>Tim</nickname></manager></managers>
+      <managers><manager><nickname>Tim</nickname><is_current_login>1</is_current_login></manager></managers>
+      <draft_position>4</draft_position>
       <team_standings><rank>2</rank><outcome_totals><wins>8</wins><losses>5</losses><ties>1</ties></outcome_totals><points_for>1500.2</points_for><points_against>1401.1</points_against></team_standings>
       <roster><players><player><player_key>461.p.42</player_key><name><full>Example Player</full></name><display_position>WR</display_position><editorial_team_abbr>CHI</editorial_team_abbr><selected_position><position>WR</position></selected_position></player></players></roster>
     </team>
@@ -60,7 +61,8 @@ def test_parses_league_and_settings_with_namespaces():
 def test_parses_teams_and_rosters_without_name_only_matching():
     teams = parse_teams(XML)
     assert teams[0] == {
-        "id": "461.l.123.t.1", "name": "Chicago Dogs", "owner": "Tim", "rank": 2,
+        "id": "461.l.123.t.1", "name": "Chicago Dogs", "owner": "Tim", "draft_position": 4,
+        "is_current_user": True, "rank": 2,
         "wins": 8, "losses": 5, "ties": 1, "points_for": 1500.2, "points_against": 1401.1,
     }
     rosters = parse_rosters(XML)

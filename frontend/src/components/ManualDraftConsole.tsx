@@ -5,7 +5,9 @@ import {
   openingDraftPlan,
   recommendPlayers,
   sessionToCsv,
+  teamLabel,
   teamForPick,
+  type DraftNewsSignal,
   type DraftConfig,
   type DraftSession,
 } from '../services/draftEngine'
@@ -28,6 +30,7 @@ interface ManualDraftConsoleProps {
   draftPackage?: DraftPackageV1 | null
   onImportPackage?: (draftPackage: DraftPackageV1) => void
   onPackageError?: (message: string) => void
+  newsSignals?: Record<string, DraftNewsSignal>
 }
 
 export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
@@ -42,6 +45,7 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
   draftPackage,
   onImportPackage,
   onPackageError,
+  newsSignals = {},
 }) => {
   const currentPick = session.picks.length + 1
   const currentTeam = teamForPick(currentPick, session.config.leagueSize)
@@ -52,8 +56,8 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
     ? nextPickForTeam(currentPick, session.config.draftSlot, session.config.leagueSize, session.config.rounds)
     : nextUserPick
   const recommendations = useMemo(
-    () => recommendPlayers(availablePlayers, session.picks, players, currentPick, recommendationTargetPick, 5),
-    [availablePlayers, currentPick, recommendationTargetPick, players, session.picks],
+    () => recommendPlayers(availablePlayers, session.picks, players, currentPick, recommendationTargetPick, 5, newsSignals),
+    [availablePlayers, currentPick, newsSignals, recommendationTargetPick, players, session.picks],
   )
   const openingPlan = useMemo(
     () => openingDraftPlan(session.picks, players, session.config),
@@ -93,10 +97,10 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
       if (ledgerFilter === 'mine' && !pick.isMine) return false
       if (!query) return true
       const player = playersById.get(pick.playerId)
-      return `${player?.name ?? pick.playerId} ${player?.position ?? ''} ${player?.team ?? ''} team ${pick.team}`
+      return `${player?.name ?? pick.playerId} ${player?.position ?? ''} ${player?.team ?? ''} ${teamLabel(pick.team, session.config)}`
         .toLowerCase().includes(query)
     })
-  }, [ledgerFilter, ledgerSearch, playersById, session.picks])
+  }, [ledgerFilter, ledgerSearch, playersById, session.config, session.picks])
 
   const recordPlayer = (player: Player) => {
     if (!onDraftPlayer || draftComplete) return
@@ -146,7 +150,7 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
             <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-lg font-black ${isMyTurn ? 'bg-emerald-400 text-emerald-950' : 'bg-blue-500 text-white'}`}>{draftComplete ? '✓' : currentPick}</div>
             <div>
               <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{draftComplete ? 'Draft complete' : 'On the clock'}</div>
-              <div className="text-lg font-black">{draftComplete ? `${session.picks.length} picks recorded` : `${isMyTurn ? 'Your team' : `Team ${currentTeam}`} · Round ${currentRound}, pick ${pickInRound}`}</div>
+              <div className="text-lg font-black">{draftComplete ? `${session.picks.length} picks recorded` : `${isMyTurn ? 'Your team' : teamLabel(currentTeam, session.config)} · Round ${currentRound}, pick ${pickInRound}`}</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
@@ -182,13 +186,15 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
       )}
 
       <details className="mt-3 rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2">
-        <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide text-slate-300">Draft setup · {session.config.leagueSize} teams · slot {session.config.draftSlot} · {session.config.rounds} rounds</summary>
+        <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide text-slate-300">Draft setup · {session.config.leagueSize} teams · your slot {session.config.draftSlot} · {session.config.rounds} rounds</summary>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <label className="text-xs text-slate-300">Teams
           <input aria-label="League size" type="number" min={2} max={20} value={session.config.leagueSize} onChange={(event) => onConfigure({ ...session.config, leagueSize: Number(event.target.value), draftSlot: Math.min(session.config.draftSlot, Number(event.target.value)) })} className="mt-1 w-full rounded bg-slate-800 px-2 py-1.5 text-white" />
         </label>
-        <label className="text-xs text-slate-300">My slot
-          <input aria-label="Draft slot" type="number" min={1} max={session.config.leagueSize} value={session.config.draftSlot} onChange={(event) => onConfigure({ ...session.config, draftSlot: Number(event.target.value) })} className="mt-1 w-full rounded bg-slate-800 px-2 py-1.5 text-white" />
+        <label className="text-xs text-slate-300">My draft position
+          <select aria-label="Draft slot" value={session.config.draftSlot} onChange={(event) => onConfigure({ ...session.config, draftSlot: Number(event.target.value) })} className="mt-1 w-full rounded bg-slate-800 px-2 py-1.5 text-white">
+            {Array.from({ length: session.config.leagueSize }, (_, index) => index + 1).map((slot) => <option key={slot} value={slot}>#{slot} · {teamLabel(slot, session.config)}</option>)}
+          </select>
         </label>
         <label className="text-xs text-slate-300">Rounds
           <input aria-label="Draft rounds" type="number" min={1} max={30} value={session.config.rounds} onChange={(event) => onConfigure({ ...session.config, rounds: Number(event.target.value) })} className="mt-1 w-full rounded bg-slate-800 px-2 py-1.5 text-white" />
@@ -207,7 +213,7 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
             {quickResults.map((player, index) => <button key={player.id} type="button" onClick={() => recordPlayer(player)} className="grid w-full grid-cols-[2rem_1fr_auto] items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-left hover:border-blue-400/40 hover:bg-blue-500/10" disabled={draftComplete}>
               <span className="text-center text-xs font-black text-slate-500">{index + 1}</span>
               <span className="min-w-0"><span className="block truncate text-sm font-bold text-white">{player.name}</span><span className="text-xs text-slate-400">{player.position} · {player.team} · {player.rank ? `#${player.rank}` : 'unranked'}</span></span>
-              <span className={`rounded-lg px-3 py-1.5 text-xs font-black ${isMyTurn ? 'bg-emerald-400 text-emerald-950' : 'bg-slate-700 text-white'}`}>{isMyTurn ? 'Draft to me' : `Taken · T${currentTeam}`}</span>
+              <span className={`rounded-lg px-3 py-1.5 text-xs font-black ${isMyTurn ? 'bg-emerald-400 text-emerald-950' : 'bg-slate-700 text-white'}`}>{isMyTurn ? 'Draft to me' : `Taken · ${teamLabel(currentTeam, session.config)}`}</span>
             </button>)}
             {!quickResults.length && <div className="rounded-lg border border-dashed border-slate-700 p-4 text-center text-sm text-slate-400">No available player matches that search.</div>}
           </div>
@@ -221,9 +227,9 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
           </div>
           <div className="flex items-center justify-between gap-2"><h3 className="text-xs font-bold uppercase tracking-[0.16em] text-slate-300">Recommended now</h3><span className="text-[10px] text-slate-500">for pick {currentPick}</span></div>
           <ol className="mt-2 space-y-1">
-            {recommendations.slice(0, 5).map(({ player, score, reason, availability }, index) => (
+            {recommendations.slice(0, 5).map(({ player, score, reason, availability, news }, index) => (
               <li key={player.id} className="flex items-center gap-2 rounded-lg bg-slate-950/70 px-3 py-2 text-sm">
-                <span className="w-5 text-xs font-black text-violet-300">{index + 1}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-1.5 truncate font-semibold"><span className="truncate">{player.name} · {player.position}</span><DraftConfidenceBadge confidence={player.draftConfidence} compact /></span><span className="block truncate text-[10px] text-slate-400">{reason}</span></span>{availability && <span title={`${Math.round(availability.probability * 100)}% directional chance of lasting to pick ${availability.targetPick} · ${availability.basis === 'ffc_distribution' ? 'FFC ADP distribution' : 'modeled ADP spread'}`} className={`whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-black ${availability.label === 'likely' ? 'bg-emerald-500/20 text-emerald-300' : availability.label === 'coin_flip' ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>{availability.label === 'likely' ? 'Likely back' : availability.label === 'coin_flip' ? 'Coin flip' : 'Take now'}</span>}<span className="text-xs font-bold text-slate-400">{score.toFixed(1)}</span>
+                <span className="w-5 text-xs font-black text-violet-300">{index + 1}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-1.5 truncate font-semibold"><span className="truncate">{player.name} · {player.position}</span><DraftConfidenceBadge confidence={player.draftConfidence} compact /></span><span className="block truncate text-[10px] text-slate-400">{reason}</span>{news && Math.abs(news.adjustment) >= 1.5 && news.headlines[0] && <a href={news.headlines[0].url} target="_blank" rel="noreferrer" title={news.headlines[0].title} className={`mt-1 block truncate text-[10px] font-semibold hover:underline ${news.adjustment > 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{news.adjustment > 0 ? '↑' : '↓'} News: {news.headlines[0].title}</a>}</span>{availability && <span title={`${Math.round(availability.probability * 100)}% directional chance of lasting to pick ${availability.targetPick} · ${availability.basis === 'ffc_distribution' ? 'FFC ADP distribution' : 'modeled ADP spread'}`} className={`whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-black ${availability.label === 'likely' ? 'bg-emerald-500/20 text-emerald-300' : availability.label === 'coin_flip' ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>{availability.label === 'likely' ? 'Likely back' : availability.label === 'coin_flip' ? 'Coin flip' : 'Take now'}</span>}<span className="text-xs font-bold text-slate-400">{score.toFixed(1)}</span>
               </li>
             ))}
           </ol>
@@ -242,7 +248,7 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
               const roundPick = ((pick.pick - 1) % session.config.leagueSize) + 1
               return (
                 <li key={pick.pick} className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${pick.isMine ? 'border-emerald-400/40 bg-emerald-500/10' : 'border-slate-700 bg-slate-950/60'}`}>
-                  <span className="min-w-0"><span className="block truncate font-bold">#{pick.pick} {player?.name ?? pick.playerId}</span><span className="text-[10px] text-slate-400">R{round}.{roundPick} · {player?.position} {player?.team} · {pick.isMine ? 'My roster' : `Team ${pick.team}`}</span></span>
+                  <span className="min-w-0"><span className="block truncate font-bold">#{pick.pick} {player?.name ?? pick.playerId}</span><span className="text-[10px] text-slate-400">R{round}.{roundPick} · {player?.position} {player?.team} · {pick.isMine ? 'My roster' : teamLabel(pick.team, session.config)}</span></span>
                   <button type="button" aria-label={`Remove pick ${pick.pick}`} className="shrink-0 rounded px-2 py-1 text-xs text-red-300 hover:bg-red-500/10 hover:text-red-100" onClick={() => onRemovePick(pick.pick)}>Correct</button>
                 </li>
               )

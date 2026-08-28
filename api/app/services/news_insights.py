@@ -200,3 +200,52 @@ async def build_sleeper_insights(
             "roundup articles are diluted. News is a draft-context signal, not a projection."
         ),
     }
+
+
+async def build_draft_signals(db: AsyncSession, *, days: int = 30) -> dict[str, Any]:
+    """Create small, explainable news adjustments for live draft choices.
+
+    These are deliberately capped context signals. They cannot replace a
+    projection, ADP, or an injury report; the client applies them only as a
+    tie-breaker alongside its normal draft model.
+    """
+    cutoff_ms = (int(time.time()) - days * 86400) * 1000
+    rows = (await db.execute(
+        select(NewsEntityLink, NewsItem).join(NewsItem, NewsItem.news_id == NewsEntityLink.news_id)
+        .where(NewsEntityLink.entity_type == "player", NewsItem.published_at >= cutoff_ms)
+        .order_by(NewsItem.published_at.desc())
+    )).all()
+    now_ms = int(time.time()) * 1000
+    signals: dict[str, dict[str, Any]] = {}
+    for link, item in rows:
+        raw_signal = _signal_value(link.signals or {})
+        if raw_signal == 0:
+            continue
+        age_days = max((now_ms - item.published_at) / 86400000.0, 0.0)
+        contribution = float(link.relevance_score) * raw_signal * math.exp(-age_days / 14.0)
+        entry = signals.setdefault(link.entity_id, {
+            "player_id": link.entity_id,
+            "adjustment": 0.0,
+            "positive": 0.0,
+            "risk": 0.0,
+            "headlines": [],
+        })
+        entry["adjustment"] += contribution
+        if contribution > 0:
+            entry["positive"] += contribution
+        else:
+            entry["risk"] += abs(contribution)
+        entry["headlines"].append({
+            "title": item.title,
+            "url": item.url,
+            "source": item.source,
+            "topics": (link.signals or {}).get("topics") or [],
+            "contribution": round(contribution, 3),
+        })
+    for entry in signals.values():
+        # Keep this adjustment intentionally modest relative to VORP and roster need.
+        entry["adjustment"] = round(max(-6.0, min(6.0, entry["adjustment"])), 2)
+        entry["positive"] = round(entry["positive"], 2)
+        entry["risk"] = round(entry["risk"], 2)
+        entry["headlines"] = sorted(entry["headlines"], key=lambda value: abs(value["contribution"]), reverse=True)[:2]
+    return {"days": days, "signals": list(signals.values())}

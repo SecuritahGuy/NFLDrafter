@@ -6,6 +6,8 @@ All notable changes to NFLDrafter are documented here.
 
 ### Added
 
+- Yahoo team parsing and import now recognize an assigned Yahoo draft order, label the manual snake board, and select the signed-in manager's draft slot when Yahoo provides a complete order.
+- Live draft recommendations now include capped, recency-weighted news context with linked supporting headlines; opportunity can help a player while role and injury risk can reduce the recommendation.
 - Persistent news-source health records and normalized article correlations to players and NFL teams.
 - Explainable late-round watch candidates combining direct news evidence, recency decay, article breadth, injury/market-risk terms, and current FFC ADP.
 - A news-insights panel and a flexible opening-draft plan that adapts after the first roster pick.

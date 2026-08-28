@@ -15,6 +15,8 @@ interface YahooTeam {
   id: string
   name: string
   owner: string
+  draft_position?: number
+  is_current_user?: boolean
   rank: number
   wins: number
   losses: number
@@ -50,6 +52,12 @@ interface YahooImportResult {
   }
   status: string
   standings_imported?: boolean
+  draft?: {
+    available: boolean
+    my_draft_slot: number | null
+    my_team_id: string | null
+    order: Array<{ slot: number; team_id: string; name: string; owner: string; is_current_user: boolean }>
+  }
 }
 
 interface YahooLeagueImportProps {
@@ -301,6 +309,8 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
   const yahooMarketPlayers = snapshot?.players.filter(
     player => player.average_pick || player.percent_owned || player.percent_drafted,
   ) ?? []
+  const draftOrder = [...teams].filter((team) => team.draft_position).sort((a, b) => (a.draft_position ?? 0) - (b.draft_position ?? 0))
+  const hasCompleteDraftOrder = draftOrder.length === teams.length
 
   return (
     <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-6 ${className}`}>
@@ -396,7 +406,7 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
                   <div className="max-h-40 overflow-y-auto space-y-2">
                     {teams.map((team) => (
                       <div key={team.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
-                        <span>{team.rank ? <span className="mr-1 font-bold text-gray-500">#{team.rank} ·</span> : null}<span className="font-medium">{team.name}</span><span className="ml-2 text-gray-500">{team.owner}</span></span>
+                        <span>{team.draft_position ? <span className="mr-1 font-bold text-blue-600">Pick #{team.draft_position} ·</span> : team.rank ? <span className="mr-1 font-bold text-gray-500">#{team.rank} ·</span> : null}<span className="font-medium">{team.name}</span>{team.is_current_user ? <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">You</span> : null}<span className="ml-2 text-gray-500">{team.owner}</span></span>
                         {standingsAvailable && <span className="font-semibold text-gray-700">{team.wins}-{team.losses}{team.ties ? `-${team.ties}` : ''}</span>}
                       </div>
                     ))}
@@ -406,6 +416,10 @@ export const YahooLeagueImport: React.FC<YahooLeagueImportProps> = ({
 
               {settings && (
                 <div className="space-y-4">
+                <div className={`rounded-lg border p-4 ${hasCompleteDraftOrder ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                  <h5 className={`font-bold ${hasCompleteDraftOrder ? 'text-emerald-950' : 'text-amber-950'}`}>{hasCompleteDraftOrder ? 'Yahoo draft order detected' : 'Draft order not set in Yahoo yet'}</h5>
+                  {hasCompleteDraftOrder ? <><p className="mt-1 text-sm text-emerald-900">Import will set your tracker to {draftOrder.find((team) => team.is_current_user)?.draft_position ? `pick #${draftOrder.find((team) => team.is_current_user)?.draft_position}` : 'the slot you select manually'} and label every team in the snake board.</p><div className="mt-3 flex flex-wrap gap-1.5">{draftOrder.map((team) => <span key={team.id} className={`rounded px-2 py-1 text-xs font-semibold ${team.is_current_user ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-900'}`}>#{team.draft_position} {team.name}</span>)}</div></> : <p className="mt-1 text-sm text-amber-900">Yahoo has not assigned every draft position. You can still import league settings, then choose your position in Draft tracker → Draft setup.</p>}
+                </div>
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <h5 className="font-bold text-blue-950">Yahoo data ready to use now</h5>

@@ -86,11 +86,16 @@ def parse_teams(xml: str) -> list[dict]:
             continue
         managers = _descendants(team, "manager")
         owner = _text(managers[0], "nickname") if managers else ""
+        is_current_user = any(_text(manager, "is_current_login") == "1" for manager in managers)
         teams.append(
             {
                 "id": team_key,
                 "name": _text(team, "name", team_key),
                 "owner": owner,
+                # Yahoo includes this on the league teams response once the order is set.
+                # It is intentionally kept separate from standings rank.
+                "draft_position": _int(_text(team, "draft_position")),
+                "is_current_user": is_current_user,
                 "rank": _int(_nested_text(team, ("team_standings", "rank"))),
                 "wins": _int(_nested_text(team, ("team_standings", "outcome_totals", "wins"))),
                 "losses": _int(_nested_text(team, ("team_standings", "outcome_totals", "losses"))),
