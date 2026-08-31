@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PlayerBoard } from './PlayerBoard'
@@ -17,7 +17,7 @@ import { api, rankingsAPI, type BackendPlayer, type SourceRefreshResponse } from
 import { ManualDraftConsole } from './ManualDraftConsole'
 import { useDraftSession } from '../hooks/useDraftSession'
 import { useProjectionAnalytics, useRankings, useRankingSources } from '../hooks/useRankings'
-import { assignRosterSlots, teamForPick, type DraftNewsSignal } from '../services/draftEngine'
+import { assignRosterSlots, teamForPick, type DraftNewsSignal, type DraftPick } from '../services/draftEngine'
 import { buildCompositeRankings } from '../services/compositeRankings'
 import { PlayerDetailDrawer } from './PlayerDetailDrawer'
 import { NewsInsightsPanel } from './NewsInsightsPanel'
@@ -58,6 +58,30 @@ interface YahooSnapshotPlayer {
   percent_drafted?: number
   named_stats?: Record<string, number>
 }
+
+interface YahooLiveDraftResult {
+  pick: number
+  team_id: string
+  player_id: string
+}
+
+interface YahooLiveDraftTeam {
+  id: string
+  name: string
+  draft_position: number
+  is_current_user: boolean
+}
+
+interface YahooLiveDraftResponse {
+  fetched_at: number
+  draft_status: string
+  draft_started: boolean
+  my_team_id: string | null
+  teams: YahooLiveDraftTeam[]
+  draft_results: YahooLiveDraftResult[]
+}
+
+const yahooNumericId = (value: string | undefined | null) => String(value || '').split('.').pop() || ''
 
 const WorkspaceModal: React.FC<{
   title: string
@@ -126,7 +150,7 @@ const DraftRoomContent: React.FC = () => {
       ...slot, filled: 0, byeWeeks: [] as number[], scarcity: rosterScarcity(slot.position),
     })) ?? BASE_ROSTER_SLOTS
   )
-  const { session, draftPlayer, undo, removePick, configure, reset } = useDraftSession()
+  const { session, draftPlayer, undo, removePick, syncDraftPicks, configure, reset } = useDraftSession()
   const { data: fantasyProsRankings } = useRankings('fantasypros-ecr')
   const { data: espnRankings } = useRankings('espn-draft-rank')
   const { data: ffcRankings } = useRankings('ffc-adp')
@@ -151,6 +175,9 @@ const DraftRoomContent: React.FC = () => {
     }
   })
   const [yahooSnapshot, setYahooSnapshot] = useState<any>(null)
+  const [yahooLiveStatus, setYahooLiveStatus] = useState<'waiting' | 'live' | 'error' | null>(null)
+  const [yahooLiveTeams, setYahooLiveTeams] = useState<YahooLiveDraftTeam[]>([])
+  const yahooPickSignature = useRef('')
   
   // Real data from backend API
   const currentSeason = 2026
@@ -178,6 +205,71 @@ const DraftRoomContent: React.FC = () => {
     current_only: true,
     season: currentSeason,
   })
+  const playerIdByYahooId = useMemo(() => new Map(
+    (players ?? [])
+      .filter((player) => Boolean(player.yahoo_id))
+      .map((player) => [yahooNumericId(player.yahoo_id), player.player_id]),
+  ), [players])
+
+  useEffect(() => {
+    if (!yahooAccessToken || !selectedLeague?.id || !players?.length) {
+      setYahooLiveStatus(null)
+      return
+    }
+
+    let cancelled = false
+    const pollLiveDraft = async () => {
+      try {
+        const response = await api.post<YahooLiveDraftResponse>(
+          `/yahoo/leagues/${selectedLeague.id}/draft-results`,
+          undefined,
+          { headers: { Authorization: `Bearer ${yahooAccessToken}` } },
+        )
+        if (cancelled) return
+        const data = response.data
+        setYahooLiveStatus(data.draft_started ? 'live' : 'waiting')
+        setYahooLiveTeams(data.teams)
+        setYahooSnapshot((current: any) => current ? {
+          ...current,
+          draft_results: data.draft_results,
+          metadata: { ...current.metadata, draft_status: data.draft_status },
+        } : current)
+        if (!data.draft_started) return
+
+        const syncedPicks: DraftPick[] = data.draft_results
+          .filter((result) => Number.isInteger(result.pick) && result.pick > 0)
+          .sort((left, right) => left.pick - right.pick)
+          .map((result) => {
+            const playerId = playerIdByYahooId.get(yahooNumericId(result.player_id))
+              ?? `yahoo-unmatched:${result.player_id}`
+            return {
+              pick: result.pick,
+              playerId,
+              team: data.teams.find((team) => team.id === result.team_id)?.draft_position
+                || teamForPick(result.pick, session.config.leagueSize),
+              isMine: data.my_team_id
+                ? result.team_id === data.my_team_id
+                : teamForPick(result.pick, session.config.leagueSize) === session.config.draftSlot,
+              madeAt: new Date(data.fetched_at * 1000).toISOString(),
+            }
+          })
+        const signature = syncedPicks.map((pick) => `${pick.pick}:${pick.playerId}:${pick.team}:${pick.isMine}`).join('|')
+        if (signature !== yahooPickSignature.current) {
+          yahooPickSignature.current = signature
+          syncDraftPicks(syncedPicks)
+        }
+      } catch {
+        if (!cancelled) setYahooLiveStatus('error')
+      }
+    }
+
+    void pollLiveDraft()
+    const interval = window.setInterval(() => void pollLiveDraft(), 10_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [playerIdByYahooId, players?.length, selectedLeague?.id, session.config.draftSlot, session.config.leagueSize, syncDraftPicks, yahooAccessToken])
   const { data: injuries } = useInjuries(currentSeason)
   const injuriesByPlayer = useMemo(() => {
     const grouped = new Map<string, import('../api').InjuryReportEntry[]>()
@@ -291,6 +383,18 @@ const DraftRoomContent: React.FC = () => {
     () => effectivePlayers.filter((player) => !draftedPlayerIds.has(player.id)),
     [draftedPlayerIds, effectivePlayers],
   )
+  const liveDraftRosters = useMemo(() => {
+    const playersById = new Map(effectivePlayers.map((player) => [player.id, player]))
+    return yahooLiveTeams
+      .filter((team) => team.draft_position > 0)
+      .sort((left, right) => left.draft_position - right.draft_position)
+      .map((team) => ({
+        ...team,
+        picks: session.picks
+          .filter((pick) => pick.team === team.draft_position)
+          .map((pick) => playersById.get(pick.playerId)?.name ?? 'Yahoo player'),
+      }))
+  }, [effectivePlayers, session.picks, yahooLiveTeams])
   const myPlayers = useMemo(() => {
     const ids = new Set(session.picks.filter((pick) => pick.isMine).map((pick) => pick.playerId))
     return effectivePlayers.filter((player) => ids.has(player.id))
@@ -655,6 +759,7 @@ const DraftRoomContent: React.FC = () => {
               <button type="button" onClick={() => setActivePanel('yahoo')} className={`rounded-xl border px-4 py-3 text-sm font-bold ${yahooAccessToken ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200' : 'border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'}`}>
                 {yahooAccessToken ? `Yahoo linked${selectedLeague?.name ? ` · ${selectedLeague.name}` : ''}` : 'Link Yahoo'}
               </button>
+              {yahooLiveStatus && <span className={`rounded-xl border px-3 py-2 text-xs font-black ${yahooLiveStatus === 'live' ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200' : yahooLiveStatus === 'waiting' ? 'border-amber-300/40 bg-amber-300/10 text-amber-100' : 'border-rose-400/40 bg-rose-400/10 text-rose-100'}`}>Yahoo sync · {yahooLiveStatus === 'live' ? 'live · 10s' : yahooLiveStatus === 'waiting' ? 'waiting for draft' : 'unavailable'}</span>}
             </div>
           </div>
 
@@ -733,6 +838,25 @@ const DraftRoomContent: React.FC = () => {
               {myPlayers.length > 0 && <div className="border-t border-white/10 px-4 py-3 text-xs text-slate-300"><span className="font-bold text-white">Latest:</span> {myPlayers.slice(-3).map((player) => player.name).join(' · ')}</div>}
             </section>
 
+            {yahooLiveStatus && (
+              <section className="max-h-[32rem] overflow-y-auto rounded-2xl border border-cyan-400/20 bg-slate-900 shadow-xl">
+                <header className="border-b border-white/10 px-4 py-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">Yahoo live draft</div>
+                  <h2 className="mt-0.5 font-black">League rosters</h2>
+                  <p className="mt-1 text-xs text-slate-400">Next: {liveDraftRosters.find((team) => team.draft_position === currentTeam)?.name ?? `Team ${currentTeam}`}</p>
+                </header>
+                <div className="space-y-2 p-3">
+                  {liveDraftRosters.map((team) => (
+                    <div key={team.id} className={`rounded-xl border p-3 ${team.draft_position === currentTeam ? 'border-cyan-300/50 bg-cyan-400/10' : 'border-white/10 bg-white/5'}`}>
+                      <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-black text-white">{team.name}{team.is_current_user ? ' · You' : ''}</span><span className="shrink-0 text-slate-400">#{team.draft_position} · {team.picks.length}</span></div>
+                      <p className="mt-1 text-xs leading-5 text-slate-300">{team.picks.length ? team.picks.join(' · ') : 'No picks yet'}</p>
+                    </div>
+                  ))}
+                  {!liveDraftRosters.length && <p className="p-2 text-xs text-slate-400">Team rosters will appear when Yahoo publishes the draft order.</p>}
+                </div>
+              </section>
+            )}
+
             <section className="max-h-[32rem] overflow-y-auto rounded-2xl border border-violet-400/20 bg-white p-4 text-slate-950 shadow-xl">
               <Watchlist watchlist={effectivePlayers.filter((player) => watchlist.includes(player.id))} onRemoveFromWatchlist={handleRemoveFromWatchlist} onPlayerSelect={handlePlayerSelect} />
             </section>
@@ -770,7 +894,7 @@ const DraftRoomContent: React.FC = () => {
               </div>
             </div>
           )}
-          <p className="mt-3 text-xs text-slate-400">Offline package {draftPackage ? `ready with ${draftPackage.players.length} players` : 'pending'} · Yahoo {yahooAccessToken ? 'connected' : 'optional'} · all picks persist locally.</p>
+          <p className="mt-3 text-xs text-slate-400">Offline package {draftPackage ? `ready with ${draftPackage.players.length} players` : 'pending'} · Yahoo {yahooAccessToken ? 'connected' : 'optional'}{yahooLiveStatus ? ` · live draft sync ${yahooLiveStatus === 'live' ? 'active (10s)' : yahooLiveStatus === 'waiting' ? 'waiting for draft start' : 'unavailable'}` : ''} · all picks persist locally.</p>
         </details>
       </main>
 

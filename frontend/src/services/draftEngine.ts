@@ -79,6 +79,20 @@ export const addDraftPick = (
   }
 }
 
+/** Replace the local ledger with the provider's ordered draft results. */
+export const replaceDraftPicks = (
+  session: DraftSession,
+  picks: DraftPick[],
+): DraftSession => ({
+  ...session,
+  picks: [...picks]
+    .sort((left, right) => left.pick - right.pick)
+    .filter((pick, index, ordered) =>
+      pick.pick > 0
+      && !ordered.slice(0, index).some((earlier) => earlier.pick === pick.pick || earlier.playerId === pick.playerId),
+    ),
+})
+
 export const removeDraftPick = (session: DraftSession, pickNumber: number): DraftSession => ({
   ...session,
   picks: session.picks
