@@ -27,7 +27,11 @@ from app.services.yahoo_scoring import (
     persist_yahoo_scoring_profile,
     translate_yahoo_settings,
 )
-from app.services.yahoo_snapshot import get_yahoo_snapshot, sync_yahoo_league_snapshot
+from app.services.yahoo_snapshot import (
+    get_yahoo_snapshot,
+    sync_yahoo_draft_results,
+    sync_yahoo_league_snapshot,
+)
 
 router = APIRouter(prefix="/yahoo", tags=["yahoo"])
 callback_router = APIRouter(tags=["yahoo"])
@@ -554,6 +558,21 @@ async def sync_yahoo_league(
     if not await verify_yahoo_token(credentials.credentials):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
     return await sync_yahoo_league_snapshot(db, league_id, credentials.credentials)
+
+
+@router.post("/leagues/{league_id}/draft-results")
+async def sync_yahoo_live_draft_results(
+    league_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    """Refresh current Yahoo draft results for the live draft board poll."""
+    if not await verify_yahoo_token(credentials.credentials):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    try:
+        return await sync_yahoo_draft_results(db, league_id, credentials.credentials)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 @router.post("/import-league")
 async def import_league(

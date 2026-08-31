@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import time
@@ -67,6 +68,63 @@ async def get_yahoo_snapshot(db: AsyncSession, league_id: str) -> dict[str, Any]
     row.last_accessed_at = int(time.time())
     await db.commit()
     return row.response
+
+
+async def sync_yahoo_draft_results(
+    db: AsyncSession,
+    league_id: str,
+    access_token: str,
+) -> dict[str, Any]:
+    """Fetch only the small Yahoo resources needed for the live draft board."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    async with httpx.AsyncClient(base_url=YAHOO_BASE_URL, timeout=20.0) as client:
+        metadata_response, teams_response, results_response = await asyncio.gather(
+            client.get(f"/league/{league_id}", headers=headers),
+            client.get(f"/league/{league_id}/teams", headers=headers),
+            client.get(f"/league/{league_id}/draftresults", headers=headers),
+        )
+
+    responses = {"metadata": metadata_response, "teams": teams_response, "draft_results": results_response}
+    failed = next((name for name, response in responses.items() if response.status_code != 200), None)
+    if failed:
+        raise RuntimeError(f"Yahoo HTTP {responses[failed].status_code} while fetching {failed}")
+
+    metadata = parse_league_metadata(metadata_response.text)
+    teams = parse_teams(teams_response.text)
+    draft_results = parse_draft_results(results_response.text)
+    my_team = next((team for team in teams if team.get("is_current_user")), None)
+    draft_status = str(metadata.get("draft_status") or "").lower()
+    result = {
+        "league_id": league_id,
+        "fetched_at": int(time.time()),
+        "draft_status": draft_status,
+        "draft_started": bool(draft_results) or draft_status in {"drafting", "postdraft"},
+        "my_team_id": my_team.get("id") if my_team else None,
+        "teams": [
+            {
+                "id": team["id"],
+                "name": team.get("name") or team["id"],
+                "draft_position": int(team.get("draft_position") or 0),
+                "is_current_user": bool(team.get("is_current_user")),
+            }
+            for team in teams
+        ],
+        "draft_results": draft_results,
+        "read_only": True,
+    }
+
+    # Keep the Yahoo detail panel current without downloading the full player pool.
+    row = await db.get(ApiResponseCache, _cache_key(league_id))
+    if row and isinstance(row.response, dict):
+        row.response = {
+            **row.response,
+            "fetched_at": result["fetched_at"],
+            "metadata": {**(row.response.get("metadata") or {}), **metadata},
+            "teams": teams,
+            "draft_results": draft_results,
+        }
+        await db.commit()
+    return result
 
 
 async def sync_yahoo_league_snapshot(

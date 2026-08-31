@@ -7,6 +7,7 @@ import {
   nextPickForTeam,
   openingDraftPlan,
   recommendPlayers,
+  replaceDraftPicks,
   removeDraftPick,
   teamForPick,
 } from '../draftEngine'
@@ -45,6 +46,16 @@ describe('draftEngine', () => {
     expect(session.picks).toEqual([
       expect.objectContaining({ pick: 1, playerId: 'bravo', team: 4 }),
     ])
+  })
+
+  it('replaces the local ledger with ordered provider picks for live sync', () => {
+    const session = addDraftPick(createDraftSession(), 'manual', true)
+    const synced = replaceDraftPicks(session, [
+      { pick: 2, playerId: 'second', team: 2, isMine: false, madeAt: '2026-09-01T00:00:02Z' },
+      { pick: 1, playerId: 'first', team: 1, isMine: true, madeAt: '2026-09-01T00:00:01Z' },
+    ])
+    expect(synced.picks.map((pick) => pick.playerId)).toEqual(['first', 'second'])
+    expect(synced.picks).toHaveLength(2)
   })
 
   it('raises an unfilled roster need in explainable recommendations', () => {

@@ -3,8 +3,10 @@ import {
   addDraftPick,
   createDraftSession,
   removeDraftPick,
+  replaceDraftPicks,
   updateDraftConfig,
   type DraftConfig,
+  type DraftPick,
   type DraftSession,
 } from '../services/draftEngine'
 
@@ -43,11 +45,15 @@ export const useDraftSession = () => {
     setSession((current) => removeDraftPick(current, pickNumber))
   }, [])
 
+  const syncDraftPicks = useCallback((picks: DraftPick[]) => {
+    setSession((current) => replaceDraftPicks(current, picks))
+  }, [])
+
   const configure = useCallback((config: DraftConfig) => {
     setSession((current) => updateDraftConfig(current, config))
   }, [])
 
   const reset = useCallback(() => setSession(createDraftSession(session.config)), [session.config])
 
-  return { session, draftPlayer, undo, removePick, configure, reset }
+  return { session, draftPlayer, undo, removePick, syncDraftPicks, configure, reset }
 }
