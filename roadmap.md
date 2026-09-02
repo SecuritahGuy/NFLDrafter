@@ -70,7 +70,8 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 
 ### 6. Automate browser regression coverage
 
-- Add Playwright coverage for player completeness, position filters, draft selection, undo, persistence, and both player-detail entry points
+- [x] Add a Playwright Chromium smoke suite to CI for primary navigation and the no-ledger Draft Review state
+- Extend browser coverage to player completeness, position filters, draft selection, undo, persistence, and both player-detail entry points
 - Capture deterministic screenshots from seeded fixtures for pull requests and documentation
 - Add keyboard and accessibility checks to the release gate
 

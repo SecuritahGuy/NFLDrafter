@@ -24,3 +24,5 @@ jobs:
       - run: npm ci
       - run: npm --prefix frontend ci
       - run: make check
+      - run: npx --prefix frontend playwright install --with-deps chromium
+      - run: npm --prefix frontend run test:e2e
