@@ -9,6 +9,11 @@ const players: Player[] = [{
   yahooPoints: 0, delta: 0, vorp: 20, tier: 1, adp: 3, newsCount: 0, byeWeek: 8,
 }]
 
+const completedPlayers: Player[] = [
+  ...players,
+  { ...players[0], id: 'p2', name: 'Second Player', position: 'WR', team: 'DET' },
+]
+
 describe('ManualDraftConsole', () => {
   it('shows snake pick context and exposes undo/correction controls', () => {
     const session = addDraftPick(createDraftSession({ leagueSize: 12, draftSlot: 12, rounds: 15 }), 'p1', true)
@@ -52,5 +57,26 @@ describe('ManualDraftConsole', () => {
     fireEvent.change(screen.getByPlaceholderText('Type a player, team, or position…'), { target: { value: 'First' } })
     fireEvent.click(screen.getByRole('button', { name: /First Player/ }))
     expect(onDraftPlayer).toHaveBeenCalledWith('p1', true)
+  })
+
+  it('shows a final summary instead of another pick prompt when the draft is complete', () => {
+    let session = createDraftSession({ leagueSize: 2, draftSlot: 1, rounds: 1 })
+    session = addDraftPick(session, 'p1', true)
+    session = addDraftPick(session, 'p2', false)
+    render(
+      <ManualDraftConsole
+        session={session}
+        players={completedPlayers}
+        availablePlayers={[]}
+        onConfigure={vi.fn()}
+        onUndo={vi.fn()}
+        onRemovePick={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Draft complete')).toBeInTheDocument()
+    expect(screen.getByText('Everything is done')).toBeInTheDocument()
+    expect(screen.queryByText('Record the next pick')).not.toBeInTheDocument()
   })
 })

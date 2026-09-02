@@ -48,6 +48,7 @@ type YahooSnapshot = {
 }
 
 const BENCH_SLOTS = new Set(['BN', 'IR', 'IR+', 'NA'])
+const isActiveLineupPlayer = (player: RosterPlayer) => Boolean(player.selected_position) && !BENCH_SLOTS.has(player.selected_position || '')
 const number = (value: number | undefined) => typeof value === 'number' ? value.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'
 const yahooPlayerKey = (id: string | undefined) => id?.match(/(?:^|\.p\.)(\d+)$/)?.[1] || id || ''
 
@@ -78,6 +79,16 @@ type ProjectionSignal = {
   source: 'FantasyPros' | 'ESPN'
 }
 
+type TeamComparisonSummary = {
+  rostered: number
+  active: number
+  projected: number
+  covered: number
+  activeCovered: number
+  injuries: number
+  depth: Record<string, number>
+}
+
 const plausibleProjection = (position: string | null, points: number | null, ppg: number | null) => {
   if (points == null || ppg == null || points < 0 || ppg < 0) return false
   const normalized = position === 'DEF' ? 'DST' : position
@@ -92,6 +103,8 @@ export const WeeklyPrep: React.FC = () => {
   const [isRefreshingYahoo, setIsRefreshingYahoo] = useState(false)
   const [sortBy, setSortBy] = useState<'standing' | 'projection' | 'injuries'>('standing')
   const [inspectedTeamId, setInspectedTeamId] = useState<string | null>(null)
+  const [comparisonLeftId, setComparisonLeftId] = useState<string | null>(null)
+  const [comparisonRightId, setComparisonRightId] = useState<string | null>(null)
   const [drawerTeamId, setDrawerTeamId] = useState<string | null>(null)
   const [teamDetail, setTeamDetail] = useState<TeamDetail | null>(null)
   const [isLoadingTeam, setIsLoadingTeam] = useState(false)
@@ -153,6 +166,15 @@ export const WeeklyPrep: React.FC = () => {
   useEffect(() => { void loadSnapshot() }, [selectedLeague?.id])
 
   useEffect(() => {
+    if (!snapshot?.teams.length) return
+    const myTeamId = snapshot.teams.find(team => team.is_current_user)?.id ?? snapshot.teams[0].id
+    setComparisonLeftId(current => snapshot.teams.some(team => team.id === current) ? current : myTeamId)
+    setComparisonRightId(current => snapshot.teams.some(team => team.id === current && team.id !== myTeamId)
+      ? current
+      : snapshot.teams.find(team => team.id !== myTeamId)?.id ?? null)
+  }, [snapshot])
+
+  useEffect(() => {
     if (!drawerTeamId) return
     const priorOverflow = document.body.style.overflow
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setDrawerTeamId(null) }
@@ -204,9 +226,10 @@ export const WeeklyPrep: React.FC = () => {
     return blended
   }, [espnProjections, fantasyProsProjections])
   const teamProjection = useMemo(() => new Map((snapshot?.rosters || []).map(roster => {
-    const matched = roster.players.map(player => player.canonical_player_id ? playerById.get(player.canonical_player_id) : playerByYahooId.get(yahooPlayerKey(player.id))).filter(Boolean)
+    const activePlayers = roster.players.filter(isActiveLineupPlayer)
+    const matched = activePlayers.map(player => player.canonical_player_id ? playerById.get(player.canonical_player_id) : playerByYahooId.get(yahooPlayerKey(player.id))).filter(Boolean)
     const projected = matched.map(player => projectionByPlayerId.get(player!.player_id)).filter((value): value is ProjectionSignal => Boolean(value?.projected_points != null))
-    return [roster.team_id, { total: projected.reduce((sum, value) => sum + (value.projected_points || 0), 0), covered: projected.length, rostered: roster.players.length, fantasyPros: projected.filter(value => value.source === 'FantasyPros').length, espn: projected.filter(value => value.source === 'ESPN').length }]
+    return [roster.team_id, { total: projected.reduce((sum, value) => sum + (value.projected_points || 0), 0), covered: projected.length, active: activePlayers.length, fantasyPros: projected.filter(value => value.source === 'FantasyPros').length, espn: projected.filter(value => value.source === 'ESPN').length }]
   })), [snapshot, playerById, playerByYahooId, projectionByPlayerId])
   const injuryByPlayerId = useMemo(() => {
     // The endpoint returns newest reports first. Keep the first report per
@@ -251,6 +274,25 @@ export const WeeklyPrep: React.FC = () => {
   const myTeam = snapshot.teams.find(team => team.is_current_user)
   const myRoster = rosterByTeam.get(myTeam?.id || '') || []
   const inspectedTeam = snapshot.teams.find(team => team.id === inspectedTeamId) || myTeam
+  const comparisonLeft = snapshot.teams.find(team => team.id === comparisonLeftId) || myTeam
+  const comparisonRight = snapshot.teams.find(team => team.id === comparisonRightId) || snapshot.teams.find(team => team.id !== comparisonLeft?.id)
+  const comparisonSummary = (team: YahooTeam | undefined): TeamComparisonSummary | null => {
+    if (!team) return null
+    const projection = teamProjection.get(team.id)
+    const depth = teamDepth.get(team.id)
+    const roster = rosterByTeam.get(team.id) || []
+    return {
+      rostered: roster.length,
+      active: roster.filter(isActiveLineupPlayer).length,
+      projected: projection?.total ?? 0,
+      covered: projection?.covered ?? 0,
+      activeCovered: projection?.active ?? 0,
+      injuries: depth?.injuryCount ?? 0,
+      depth: depth?.counts ?? {},
+    }
+  }
+  const leftSummary = comparisonSummary(comparisonLeft)
+  const rightSummary = comparisonSummary(comparisonRight)
   const inspectedRoster = rosterByTeam.get(inspectedTeam?.id || '') || []
   const myInjuries = myRoster.flatMap(player => {
     const canonical = player.canonical_player_id ? playerById.get(player.canonical_player_id) : playerByYahooId.get(yahooPlayerKey(player.id))
@@ -262,7 +304,7 @@ export const WeeklyPrep: React.FC = () => {
     const projection = canonical ? projectionByPlayerId.get(canonical.player_id) : undefined
     return {
       player,
-      starter: !BENCH_SLOTS.has(player.selected_position || ''),
+      starter: isActiveLineupPlayer(player),
       injury: canonical ? injuryByPlayerId.get(canonical.player_id) : undefined,
       projectedPpg: projection?.projected_points_per_game ?? null,
       projectionSource: projection?.source,
@@ -297,9 +339,9 @@ export const WeeklyPrep: React.FC = () => {
       recent: formatRecent(player),
     }
   })
-  const drawerStarters = drawerRows.filter(row => !BENCH_SLOTS.has(row.player.selected_position || ''))
-  const drawerBench = drawerRows.filter(row => BENCH_SLOTS.has(row.player.selected_position || ''))
-  const startingCount = myRoster.filter(player => !BENCH_SLOTS.has(player.selected_position || '')).length
+  const drawerStarters = drawerRows.filter(row => isActiveLineupPlayer(row.player))
+  const drawerBench = drawerRows.filter(row => !isActiveLineupPlayer(row.player))
+  const startingCount = myRoster.filter(isActiveLineupPlayer).length
   const matchupProjection = myScoreboardTeam?.projected_points && opponent?.projected_points
     ? myScoreboardTeam.projected_points - opponent.projected_points : null
 
@@ -375,10 +417,38 @@ export const WeeklyPrep: React.FC = () => {
               const roster = rosterByTeam.get(team.id) || []
               const depth = teamDepth.get(team.id)
               const projection = teamProjection.get(team.id)
-              return <tr key={team.id} className={`border-b border-slate-800 last:border-0 ${team.is_current_user ? 'bg-blue-500/10' : ''}`}><td className="px-4 py-3 font-semibold"><button onClick={() => void openTeamDrawer(team.id)} className="text-left hover:text-blue-300 hover:underline">{team.rank ? <span className="mr-2 text-slate-500">#{team.rank}</span> : null}{team.name}</button>{team.is_current_user ? <span className="ml-2 rounded bg-blue-500 px-1.5 py-0.5 text-[10px] font-bold text-white">YOU</span> : null}<span className="ml-2 text-xs font-normal text-slate-500">{team.owner || ''}</span></td><td className="px-4 py-3 text-slate-300">{team.wins ?? 0}-{team.losses ?? 0}{team.ties ? `-${team.ties}` : ''}</td><td className="px-4 py-3 text-right">{number(team.points_for)}</td><td className="px-4 py-3 text-right">{number(team.points_against)}</td><td className="px-4 py-3 text-right">{roster.length || '—'}</td><td className="px-4 py-3 text-right text-xs text-slate-300">{depth ? `QB ${depth.counts.QB || 0} · RB ${depth.counts.RB || 0} · WR ${depth.counts.WR || 0} · TE ${depth.counts.TE || 0}` : '—'}</td><td className={`px-4 py-3 text-right font-semibold ${depth?.injuryCount ? 'text-amber-300' : 'text-slate-300'}`}>{depth ? depth.injuryCount : '—'}</td><td className="px-4 py-3 text-right font-semibold">{projection?.covered ? <>{number(projection.total)} <span className="text-xs font-normal text-slate-500">({projection.covered}/{projection.rostered})</span></> : '—'}</td></tr>
+              return <tr key={team.id} className={`border-b border-slate-800 last:border-0 ${team.is_current_user ? 'bg-blue-500/10' : ''}`}><td className="px-4 py-3 font-semibold"><button onClick={() => void openTeamDrawer(team.id)} className="text-left hover:text-blue-300 hover:underline">{team.rank ? <span className="mr-2 text-slate-500">#{team.rank}</span> : null}{team.name}</button>{team.is_current_user ? <span className="ml-2 rounded bg-blue-500 px-1.5 py-0.5 text-[10px] font-bold text-white">YOU</span> : null}<span className="ml-2 text-xs font-normal text-slate-500">{team.owner || ''}</span></td><td className="px-4 py-3 text-slate-300">{team.wins ?? 0}-{team.losses ?? 0}{team.ties ? `-${team.ties}` : ''}</td><td className="px-4 py-3 text-right">{number(team.points_for)}</td><td className="px-4 py-3 text-right">{number(team.points_against)}</td><td className="px-4 py-3 text-right">{roster.length || '—'}</td><td className="px-4 py-3 text-right text-xs text-slate-300">{depth ? `QB ${depth.counts.QB || 0} · RB ${depth.counts.RB || 0} · WR ${depth.counts.WR || 0} · TE ${depth.counts.TE || 0}` : '—'}</td><td className={`px-4 py-3 text-right font-semibold ${depth?.injuryCount ? 'text-amber-300' : 'text-slate-300'}`}>{depth ? depth.injuryCount : '—'}</td><td className="px-4 py-3 text-right font-semibold">{projection?.covered ? <>{number(projection.total)} <span className="text-xs font-normal text-slate-500">({projection.covered}/{projection.active})</span></> : '—'}</td></tr>
             })}</tbody></table></div>
-            <p className="border-t border-slate-800 px-4 py-3 text-xs leading-5 text-slate-400">Projected season totals prefer FantasyPros and use ESPN only when FantasyPros is missing. Injury counts use current official reports. Coverage gaps are omitted, not estimated; these are roster-strength signals, not weekly matchup projections.</p>
+            <p className="border-t border-slate-800 px-4 py-3 text-xs leading-5 text-slate-400">Projected season totals cover active lineup players only; bench, IR, and reserve players are excluded. Totals prefer FantasyPros and use ESPN only when FantasyPros is missing. Coverage gaps are omitted, not estimated; these are roster-strength signals, not weekly matchup projections.</p>
           </div>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-cyan-400/25 bg-cyan-950/15 p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><p className="text-xs font-bold uppercase tracking-widest text-cyan-300">Team comparison</p><h2 className="mt-1 text-xl font-black">Compare two rosters</h2></div>
+            <div className="flex flex-wrap gap-2">
+              <label className="text-xs font-bold text-slate-300">Team one<select aria-label="First team to compare" value={comparisonLeft?.id || ''} onChange={event => setComparisonLeftId(event.target.value)} className="ml-2 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm font-semibold text-slate-100">{snapshot.teams.map(team => <option key={team.id} value={team.id}>{team.name}{team.is_current_user ? ' (You)' : ''}</option>)}</select></label>
+              <label className="text-xs font-bold text-slate-300">Team two<select aria-label="Second team to compare" value={comparisonRight?.id || ''} onChange={event => setComparisonRightId(event.target.value)} className="ml-2 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm font-semibold text-slate-100">{snapshot.teams.map(team => <option key={team.id} value={team.id}>{team.name}{team.is_current_user ? ' (You)' : ''}</option>)}</select></label>
+            </div>
+          </div>
+          {comparisonLeft && comparisonRight && comparisonLeft.id !== comparisonRight.id && leftSummary && rightSummary ? <>
+            <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+              <TeamComparisonHeader team={comparisonLeft} summary={leftSummary} align="left" />
+              <div className="flex items-center justify-center text-xs font-black uppercase tracking-widest text-cyan-300">vs</div>
+              <TeamComparisonHeader team={comparisonRight} summary={rightSummary} align="right" />
+            </div>
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-700 bg-slate-900/70">
+              <table className="w-full text-sm"><thead className="bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"><tr><th className="px-4 py-3 text-left">Measure</th><th className="px-4 py-3 text-right">{comparisonLeft.name}</th><th className="px-4 py-3 text-right">Edge</th><th className="px-4 py-3 text-right">{comparisonRight.name}</th></tr></thead><tbody>
+                <ComparisonRow label="Projected season · active lineup" left={leftSummary.projected} right={rightSummary.projected} format={value => number(value)} />
+                <ComparisonRow label="Projection coverage · active lineup" left={leftSummary.covered} right={rightSummary.covered} leftDetail={`/${leftSummary.activeCovered}`} rightDetail={`/${rightSummary.activeCovered}`} format={value => String(value)} />
+                <ComparisonRow label="Rostered players" left={leftSummary.rostered} right={rightSummary.rostered} format={value => String(value)} />
+                <ComparisonRow label="Active lineup" left={leftSummary.active} right={rightSummary.active} format={value => String(value)} />
+                <ComparisonRow label="Injury reports" left={leftSummary.injuries} right={rightSummary.injuries} format={value => String(value)} lowerIsBetter />
+                {['QB', 'RB', 'WR', 'TE'].map(position => <ComparisonRow key={position} label={`${position} roster depth`} left={leftSummary.depth[position] || 0} right={rightSummary.depth[position] || 0} format={value => String(value)} />)}
+              </tbody></table>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">Season projection compares active lineup players only. Depth and injuries cover each full roster.</p>
+          </> : <p className="mt-5 rounded-xl border border-dashed border-slate-700 p-4 text-sm text-slate-300">Choose two different teams to compare their cached roster strength.</p>}
         </section>
 
         <section className="mt-8 grid gap-4 lg:grid-cols-2">
@@ -394,6 +464,14 @@ export const WeeklyPrep: React.FC = () => {
 
 const Metric: React.FC<{ label: string; value: string; tone?: 'good' | 'neutral' }> = ({ label, value, tone = 'neutral' }) => <div className="rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-2"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className={`mt-1 font-bold ${tone === 'good' ? 'text-emerald-300' : 'text-slate-100'}`}>{value}</p></div>
 
+const TeamComparisonHeader: React.FC<{ team: YahooTeam; summary: TeamComparisonSummary; align: 'left' | 'right' }> = ({ team, summary, align }) => <div className={`rounded-xl border border-cyan-400/20 bg-slate-950/50 p-4 ${align === 'right' ? 'md:text-right' : ''}`}><p className="font-black text-cyan-100">{team.name}</p><p className="mt-1 text-xs text-slate-400">{team.owner || 'Manager'} · {team.wins ?? 0}-{team.losses ?? 0}{team.ties ? `-${team.ties}` : ''}{team.rank ? ` · #${team.rank}` : ''}</p><p className="mt-3 text-2xl font-black text-white">{summary.covered ? number(summary.projected) : '—'}</p><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Active lineup projection</p></div>
+
+const ComparisonRow: React.FC<{ label: string; left: number; right: number; leftDetail?: string; rightDetail?: string; format: (value: number) => string; lowerIsBetter?: boolean }> = ({ label, left, right, leftDetail = '', rightDetail = '', format, lowerIsBetter = false }) => {
+  const difference = left - right
+  const winner = difference === 0 ? 'Even' : (lowerIsBetter ? difference < 0 : difference > 0) ? 'Team one' : 'Team two'
+  return <tr className="border-t border-slate-800"><th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">{label}</th><td className="px-4 py-3 text-right font-bold">{format(left)}<span className="text-xs font-normal text-slate-500">{leftDetail}</span></td><td className={`px-4 py-3 text-right text-xs font-bold ${winner === 'Even' ? 'text-slate-400' : 'text-emerald-300'}`}>{winner === 'Even' ? 'Even' : `${winner} +${format(Math.abs(difference))}`}</td><td className="px-4 py-3 text-right font-bold">{format(right)}<span className="text-xs font-normal text-slate-500">{rightDetail}</span></td></tr>
+}
+
 const SourceHealth: React.FC<{ label: string; value: string; detail: string; tone: 'good' | 'neutral' | 'warning' }> = ({ label, value, detail, tone }) => <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</p><span className={`h-2 w-2 rounded-full ${tone === 'good' ? 'bg-emerald-400' : tone === 'warning' ? 'bg-amber-400' : 'bg-slate-400'}`} /></div><p className="mt-2 text-xl font-black">{value}</p><p className="mt-1 text-xs text-slate-400">{detail}</p></div>
 
 const AdviceCard: React.FC<{ title: string; detail: string; tone: 'good' | 'warning' }> = ({ title, detail, tone }) => <div className={`rounded-xl border p-4 ${tone === 'warning' ? 'border-amber-400/30 bg-amber-400/10' : 'border-emerald-400/30 bg-emerald-400/10'}`}><p className={`font-bold ${tone === 'warning' ? 'text-amber-100' : 'text-emerald-100'}`}>{title}</p><p className="mt-1 text-sm leading-5 text-slate-300">{detail}</p></div>
@@ -402,7 +480,7 @@ const TeamRosterDrawer: React.FC<{
   team: YahooTeam
   starters: DrawerRow[]
   bench: DrawerRow[]
-  projectionSummary?: { total: number; covered: number; rostered: number; fantasyPros: number; espn: number }
+  projectionSummary?: { total: number; covered: number; active: number; fantasyPros: number; espn: number }
   isLoading: boolean
   error: string | null
   projectionDates: { fantasyPros: string | null; espn: string | null }
@@ -415,7 +493,7 @@ const TeamRosterDrawer: React.FC<{
     <aside className="relative flex h-full w-full max-w-3xl flex-col border-l border-slate-700 bg-slate-950 shadow-2xl shadow-black">
       <header className="sticky top-0 z-10 border-b border-slate-700 bg-slate-950/95 px-5 py-5 backdrop-blur sm:px-7">
         <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-300">Team roster</p><h2 id="team-roster-title" className="mt-1 text-2xl font-black">{team.name}</h2><p className="mt-1 text-sm text-slate-400">{team.owner || 'Manager'} · {team.wins ?? 0}-{team.losses ?? 0}{team.ties ? `-${team.ties}` : ''}{team.rank ? ` · #${team.rank}` : ''}</p></div><button type="button" onClick={onClose} aria-label="Close" className="rounded-lg border border-slate-700 bg-slate-900 p-2 text-slate-300 hover:bg-slate-800 hover:text-white"><XMarkIcon className="h-5 w-5" /></button></div>
-        <div className="mt-4 grid grid-cols-3 gap-2"><Metric label="Projected season" value={projectionSummary?.covered ? number(projectionSummary.total) : 'No data'} /><Metric label="Projection coverage" value={`${projectionSummary?.covered || 0}/${projectionSummary?.rostered || starters.length + bench.length}`} /><Metric label="Injury reports" value={String(injuries)} /></div>
+        <div className="mt-4 grid grid-cols-3 gap-2"><Metric label="Projected season" value={projectionSummary?.covered ? number(projectionSummary.total) : 'No data'} /><Metric label="Active coverage" value={`${projectionSummary?.covered || 0}/${projectionSummary?.active || starters.length}`} /><Metric label="Injury reports" value={String(injuries)} /></div>
         <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wide"><span className="rounded bg-blue-400/10 px-2 py-1 text-blue-200">Yahoo lineup</span><span className="rounded bg-violet-400/10 px-2 py-1 text-violet-200">FantasyPros {projectionSummary?.fantasyPros || 0} · {projectionDates.fantasyPros || 'unavailable'}</span><span className="rounded bg-cyan-400/10 px-2 py-1 text-cyan-200">ESPN fallback {projectionSummary?.espn || 0} · {projectionDates.espn || 'unavailable'}</span><span className="rounded bg-emerald-400/10 px-2 py-1 text-emerald-200">nflverse recent stats {statsSeasons.filter(Boolean).join('/') || 'unavailable'}</span></div>
       </header>
       <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-7">

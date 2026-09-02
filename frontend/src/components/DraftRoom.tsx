@@ -57,6 +57,8 @@ interface YahooSnapshotPlayer {
   percent_owned?: number
   percent_drafted?: number
   named_stats?: Record<string, number>
+  bye_week?: number
+  status?: string
 }
 
 interface YahooLiveDraftResult {
@@ -79,6 +81,7 @@ interface YahooLiveDraftResponse {
   my_team_id: string | null
   teams: YahooLiveDraftTeam[]
   draft_results: YahooLiveDraftResult[]
+  players: YahooSnapshotPlayer[]
 }
 
 const yahooNumericId = (value: string | undefined | null) => String(value || '').split('.').pop() || ''
@@ -205,11 +208,18 @@ const DraftRoomContent: React.FC = () => {
     current_only: true,
     season: currentSeason,
   })
-  const playerIdByYahooId = useMemo(() => new Map(
-    (players ?? [])
-      .filter((player) => Boolean(player.yahoo_id))
-      .map((player) => [yahooNumericId(player.yahoo_id), player.player_id]),
-  ), [players])
+  const playerIdByYahooId = useMemo(() => {
+    const ids = new Map(
+      (players ?? [])
+        .filter((player) => Boolean(player.yahoo_id))
+        .map((player) => [yahooNumericId(player.yahoo_id), player.player_id]),
+    )
+    for (const player of (yahooSnapshot?.players ?? []) as YahooSnapshotPlayer[]) {
+      const yahooId = yahooNumericId(player.id)
+      if (yahooId && !ids.has(yahooId)) ids.set(yahooId, `yahoo:${player.id}`)
+    }
+    return ids
+  }, [players, yahooSnapshot])
 
   useEffect(() => {
     if (!yahooAccessToken || !selectedLeague?.id || !players?.length) {
@@ -229,11 +239,12 @@ const DraftRoomContent: React.FC = () => {
         const data = response.data
         setYahooLiveStatus(data.draft_started ? 'live' : 'waiting')
         setYahooLiveTeams(data.teams)
-        setYahooSnapshot((current: any) => current ? {
+        setYahooSnapshot((current: any) => ({
           ...current,
           draft_results: data.draft_results,
-          metadata: { ...current.metadata, draft_status: data.draft_status },
-        } : current)
+          players: data.players,
+          metadata: { ...current?.metadata, draft_status: data.draft_status },
+        }))
         if (!data.draft_started) return
 
         const syncedPicks: DraftPick[] = data.draft_results
@@ -322,7 +333,7 @@ const DraftRoomContent: React.FC = () => {
     const yahooByIdentity = new Map<string, YahooSnapshotPlayer>(
       yahooRows.map((row) => [`${row.name}|${row.position}|${row.team}`, row]),
     )
-    return players.map((player: BackendPlayer) => {
+    const canonicalPlayers = players.map((player: BackendPlayer) => {
       const projection = analyticsByPlayer.get(player.player_id)
       const fantasyPoints = projection?.analytics_points ?? 0
       const yahooPoints = projection?.espn_points ?? 0
@@ -368,6 +379,35 @@ const DraftRoomContent: React.FC = () => {
         yahooSeasonStats: yahoo?.named_stats || undefined,
       }
     })
+    const canonicalYahooIds = new Set(
+      players.map((player) => yahooNumericId(player.yahoo_id)),
+    )
+    const draftedYahooIds = new Set(
+      (yahooSnapshot?.draft_results ?? []).map((result: YahooLiveDraftResult) => yahooNumericId(result.player_id)),
+    )
+    const cachedDraftedPlayers = yahooRows
+      .filter((player) => draftedYahooIds.has(yahooNumericId(player.id)) && !canonicalYahooIds.has(yahooNumericId(player.id)))
+      .map((player) => ({
+        id: `yahoo:${player.id}`,
+        name: player.name || `Yahoo player ${player.id}`,
+        position: player.position || 'UNK',
+        team: player.team || '',
+        fantasyPoints: 0,
+        yahooPoints: 0,
+        delta: 0,
+        vorp: 0,
+        tier: 0,
+        adp: player.average_pick || 0,
+        newsCount: 0,
+        byeWeek: player.bye_week || 0,
+        yahooAveragePick: player.average_pick || undefined,
+        yahooAverageRound: player.average_round || undefined,
+        yahooPercentOwned: player.percent_owned || undefined,
+        yahooPercentDrafted: player.percent_drafted || undefined,
+        yahooSeasonStats: player.named_stats || undefined,
+        status: player.status || undefined,
+      }))
+    return [...canonicalPlayers, ...cachedDraftedPlayers]
   }, [compositeRankings, players, projectionAnalytics, yahooSnapshot])
 
   const effectivePlayers = enrichedPlayers.length
@@ -408,7 +448,9 @@ const DraftRoomContent: React.FC = () => {
     }))
   }, [myPlayers, rosterDefinitions])
   const currentPick = session.picks.length + 1
-  const isMyTurn = teamForPick(currentPick, session.config.leagueSize) === session.config.draftSlot
+  const totalPicks = session.config.leagueSize * session.config.rounds
+  const draftComplete = session.picks.length >= totalPicks
+  const isMyTurn = !draftComplete && teamForPick(currentPick, session.config.leagueSize) === session.config.draftSlot
   const currentRound = Math.min(session.config.rounds, Math.ceil(currentPick / session.config.leagueSize))
   const currentTeam = teamForPick(currentPick, session.config.leagueSize)
   const myPickCount = session.picks.filter((pick) => pick.isMine).length
@@ -734,13 +776,13 @@ const DraftRoomContent: React.FC = () => {
         <div className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-4">
-              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl font-black shadow-lg ${isMyTurn ? 'bg-emerald-400 text-emerald-950 shadow-emerald-500/20' : 'bg-blue-500 text-white shadow-blue-500/20'}`}>
-                {currentPick}
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl font-black shadow-lg ${draftComplete || isMyTurn ? 'bg-emerald-400 text-emerald-950 shadow-emerald-500/20' : 'bg-blue-500 text-white shadow-blue-500/20'}`}>
+                {draftComplete ? '✓' : currentPick}
               </div>
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-300">2026 draft command center</div>
-                <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{isMyTurn ? 'You are on the clock' : `Team ${currentTeam} is on the clock`}</h1>
-                <p className="mt-1 text-sm text-slate-300">Round {currentRound} · Pick {currentPick} · {availablePlayers.length} players available</p>
+                <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{draftComplete ? 'Draft complete' : isMyTurn ? 'You are on the clock' : `Team ${currentTeam} is on the clock`}</h1>
+                <p className="mt-1 text-sm text-slate-300">{draftComplete ? `All ${session.picks.length} picks are recorded. Your roster is ready for review.` : `Round ${currentRound} · Pick ${currentPick} · ${availablePlayers.length} players available`}</p>
               </div>
             </div>
 
@@ -755,7 +797,7 @@ const DraftRoomContent: React.FC = () => {
                 <ArrowPathIcon className={`h-4 w-4 ${isRefreshingSources ? 'animate-spin' : ''}`} />
                 {isRefreshingSources ? 'Refreshing sources…' : 'Refresh all sources'}
               </button>
-              <button type="button" onClick={() => setActivePanel('tracker')} className="rounded-xl bg-blue-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400">Open draft tracker</button>
+              <button type="button" onClick={() => setActivePanel('tracker')} className="rounded-xl bg-blue-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 hover:bg-blue-400">{draftComplete ? 'View draft summary' : 'Open draft tracker'}</button>
               <button type="button" onClick={() => setActivePanel('yahoo')} className={`rounded-xl border px-4 py-3 text-sm font-bold ${yahooAccessToken ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200' : 'border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'}`}>
                 {yahooAccessToken ? `Yahoo linked${selectedLeague?.name ? ` · ${selectedLeague.name}` : ''}` : 'Link Yahoo'}
               </button>
@@ -765,7 +807,7 @@ const DraftRoomContent: React.FC = () => {
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:max-w-3xl">
             {[
-              ['Drafted', session.picks.length],
+              [draftComplete ? 'Draft status' : 'Drafted', draftComplete ? 'Complete' : session.picks.length],
               ['My roster', myPickCount],
               ['Roster filled', `${filledRosterSlots}/${totalRosterSlots}`],
               ['League', `${session.config.leagueSize} teams · slot ${session.config.draftSlot}`],
