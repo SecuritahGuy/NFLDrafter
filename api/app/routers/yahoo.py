@@ -12,8 +12,10 @@ from datetime import datetime, timedelta
 import jwt
 from dotenv import load_dotenv
 from app.deps import get_db
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import ApiResponseCache
+from app.models import ApiResponseCache, PlayerIdentifier
+from copy import deepcopy
 from app.services.yahoo_xml import (
     parse_leagues,
     parse_rosters,
@@ -546,6 +548,56 @@ async def yahoo_league_snapshot(
             detail="No Yahoo snapshot is cached. Run Refresh all sources.",
         )
     return snapshot
+
+
+@router.get("/leagues/{league_id}/weekly-prep")
+async def yahoo_weekly_prep_snapshot(
+    league_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the cached Yahoo snapshot with verified canonical roster IDs.
+
+    This is deliberately database-only.  The mappings come from the
+    season-aware Yahoo import and allow the weekly UI to join roster players
+    to locally cached projection, injury, and ranking sources without making
+    name-based guesses in the browser.
+    """
+    snapshot = await get_yahoo_snapshot(db, league_id)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Yahoo snapshot is cached. Run Refresh all sources.",
+        )
+
+    season = int((snapshot.get("metadata") or {}).get("season") or 0)
+    enriched = deepcopy(snapshot)
+    if not season:
+        return enriched
+
+    rows = (
+        await db.execute(
+            select(PlayerIdentifier.external_id, PlayerIdentifier.canonical_player_id).where(
+                PlayerIdentifier.platform == "yahoo",
+                PlayerIdentifier.season == season,
+            )
+        )
+    ).all()
+    canonical_ids = {external_id: canonical_id for external_id, canonical_id in rows}
+    mapped = 0
+    for roster in enriched.get("rosters") or []:
+        for player in roster.get("players") or []:
+            canonical_id = canonical_ids.get(str(player.get("id") or ""))
+            if canonical_id:
+                player["canonical_player_id"] = canonical_id
+                mapped += 1
+    enriched["mapping_coverage"] = {
+        "season": season,
+        "mapped_roster_players": mapped,
+        "rostered_players": sum(
+            len(roster.get("players") or []) for roster in enriched.get("rosters") or []
+        ),
+    }
+    return enriched
 
 
 @router.post("/leagues/{league_id}/sync")

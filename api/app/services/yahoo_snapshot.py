@@ -156,6 +156,28 @@ async def sync_yahoo_league_snapshot(
         teams = await fetch("teams", f"/league/{league_id}/teams", parse_teams) or []
         standings = await fetch("standings", f"/league/{league_id}/standings", parse_teams) or []
         rosters = await fetch("rosters", f"/league/{league_id}/teams/roster", parse_rosters) or []
+        # Yahoo can return a 200 response containing team containers but no
+        # player records for the bulk roster collection.  A completed draft
+        # still needs player-level rosters for weekly preparation, so retry
+        # through the documented team roster resource before caching an empty
+        # result.  Keep this fallback conditional to avoid extra API calls
+        # when the bulk resource works normally.
+        if teams and not any(roster.get("players") for roster in rosters):
+            current_week = int(metadata.get("current_week") or 0)
+            roster_suffix = f";week={current_week}" if current_week > 0 else ""
+            direct_rosters: list[dict[str, Any]] = []
+            for team in teams:
+                team_id = team.get("id")
+                if not team_id:
+                    continue
+                parsed = await fetch(
+                    f"roster_{team_id}",
+                    f"/team/{team_id}/roster{roster_suffix}",
+                    parse_rosters,
+                ) or []
+                direct_rosters.extend(parsed)
+            if any(roster.get("players") for roster in direct_rosters):
+                rosters = direct_rosters
         draft_results = await fetch("draft_results", f"/league/{league_id}/draftresults", parse_draft_results) or []
         transactions = await fetch("transactions", f"/league/{league_id}/transactions;count=50", parse_transactions) or []
         scoreboard = await fetch("scoreboard", f"/league/{league_id}/scoreboard", parse_scoreboard) or {"week": 0, "matchups": []}

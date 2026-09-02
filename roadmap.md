@@ -1,6 +1,6 @@
 # NFLDrafter Revival Roadmap
 
-Last updated: August 24, 2026
+Last updated: September 2, 2026
 
 NFLDrafter is being revived as a dependable, local-first fantasy draft assistant. The manual draft workflow is the product baseline; external services add context without becoming a single point of failure.
 
@@ -28,7 +28,22 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 
 ## Next priorities
 
-### 1. Extend the verified Yahoo integration
+### 1. Build the weekly preparation workspace
+
+- [x] Add a database-only Weekly Prep view for the selected Yahoo league: current matchup, roster check, league comparison, and recent activity
+- [x] Match Yahoo roster identities to cached FantasyPros season projections and official injury reports, showing coverage rather than filling gaps with guesses
+- Add ESPN rankings and player-context signals to the roster comparison with source freshness and clear signal labels
+- Add start/sit and waiver views after weekly projection data is validated for the active scoring profile
+- Add team-comparison views for positional strength, bench depth, injury exposure, and schedule outlook
+
+### 2. Add a retrospective Draft Review
+
+- Import the completed Yahoo draft ledger and reconstruct each team’s selections
+- Evaluate each of the user’s picks against players still available at that exact pick, using the historical snapshot closest to draft time when available
+- Show alternatives as explainable counterfactuals (source ranks, ADP, roster need, tiers, and uncertainty), never as a claim that a different choice was definitively correct
+- Start with a post-draft report; do not alter the reliable manual draft workflow
+
+### 3. Extend the verified Yahoo integration
 
 - [x] Keep the registered HTTPS callback synchronized with `YAHOO_REDIRECT_URI` and complete a credentialed pre-draft league rehearsal
 - [x] Verify standings, roster slots, scoring modifiers, player-ID coverage, transactions, matchups, ownership, draft analysis, and completed-season stats
@@ -36,20 +51,20 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 - Add optional in-season current-week stats without weakening the database-first refresh contract
 - Keep live-pick synchronization deferred until the imported preparation workflow is trustworthy
 
-### 2. Expand opportunity coverage
+### 4. Expand opportunity coverage
 
 - Snap share, target share, rushing share, and expected fantasy points now load from nflverse through `load-usage`
 - Add route participation and official current depth-chart role only when a licensed or reliably structured source supports them directly
 - Separate historical production, projected opportunity, market cost, and news signals in both the API and UI
 - Surface missing or stale data explicitly
 
-### 3. Calibrate decision confidence
+### 5. Calibrate decision confidence
 
 - Backtest whether rank movement improves draft recommendations once enough daily history has accumulated
 - Backtest the directional availability model against mock-draft outcomes
 - Add tier-run alerts and calibrate recommendation weights through offline draft simulations
 
-### 4. Automate browser regression coverage
+### 6. Automate browser regression coverage
 
 - Add Playwright coverage for player completeness, position filters, draft selection, undo, persistence, and both player-detail entry points
 - Capture deterministic screenshots from seeded fixtures for pull requests and documentation
