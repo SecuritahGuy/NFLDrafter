@@ -40,6 +40,7 @@ from app.services.yahoo_snapshot import (
     sync_yahoo_draft_results,
     sync_yahoo_league_snapshot,
 )
+from app.services.schedule_strength import get_schedule_strength
 
 router = APIRouter(prefix="/yahoo", tags=["yahoo"])
 callback_router = APIRouter(tags=["yahoo"])
@@ -698,6 +699,59 @@ async def yahoo_weekly_prep_team(
         "players": players,
         "stats_source": "nflverse",
         "stats_seasons": [season, season - 1] if season else [],
+        "read_only": True,
+    }
+
+
+@router.get("/leagues/{league_id}/weekly-prep/teams/{team_id}/schedule-outlook")
+async def yahoo_weekly_prep_team_schedule_outlook(
+    league_id: str,
+    team_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Summarize cached schedule strength for a team's active Yahoo lineup."""
+    snapshot = await yahoo_weekly_prep_snapshot(league_id, db)
+    roster = next((item for item in snapshot.get("rosters") or [] if item.get("team_id") == team_id), None)
+    if roster is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team roster not found")
+    season = int((snapshot.get("metadata") or {}).get("season") or 0)
+    if not season:
+        return {"team_id": team_id, "season": season, "available": False, "positions": []}
+
+    active_ids = [
+        player.get("canonical_player_id")
+        for player in roster.get("players") or []
+        if player.get("canonical_player_id")
+        and player.get("selected_position")
+        and str(player.get("selected_position")).upper() not in {"BN", "IR", "IR+", "NA"}
+    ]
+    players = list((await db.execute(select(Player).where(Player.player_id.in_(active_ids)))).scalars().all()) if active_ids else []
+    outlooks: list[dict[str, Any]] = []
+    for player in players:
+        position = normalize_position(player.position)
+        if position not in {"QB", "RB", "WR", "TE", "K"} or not player.team:
+            continue
+        schedule = await get_schedule_strength(db, player.team, position, season)
+        outlooks.append({
+            "player_id": player.player_id,
+            "position": position,
+            "team": player.team,
+            "available": bool(schedule.get("available")),
+            "schedule_rank": schedule.get("schedule_rank"),
+            "label": schedule.get("label"),
+        })
+    ranks = [float(item["schedule_rank"]) for item in outlooks if item.get("schedule_rank") is not None]
+    average_rank = round(sum(ranks) / len(ranks), 1) if ranks else None
+    label = "Unavailable" if average_rank is None else "Favorable" if average_rank <= 10 else "Challenging" if average_rank >= 23 else "Neutral"
+    return {
+        "team_id": team_id,
+        "season": season,
+        "available": bool(ranks),
+        "average_schedule_rank": average_rank,
+        "label": label,
+        "covered_players": len(ranks),
+        "active_players": len(active_ids),
+        "positions": outlooks,
         "read_only": True,
     }
 

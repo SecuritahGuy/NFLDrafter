@@ -37,10 +37,11 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 - [x] Add a validated ESPN projection fallback when FantasyPros coverage is missing, with per-player source labels, source counts, freshness dates, and plausibility bounds
 - Add ESPN ranking and player-context signals beyond the projection fallback to roster comparison
 - Add scoring-profile-aware weekly start/sit and waiver recommendations after weekly projection data is validated
-- Add team-comparison views for positional strength, bench depth, injury exposure, and schedule outlook
+- [x] Add a cached, read-only team-comparison view for active-lineup projection, positional starter strength, bench depth, injury exposure, and schedule outlook
 
 ### 2. Add a retrospective Draft Review
 
+- [x] Add a post-draft report from the saved local ledger, comparing each user selection with later-drafted cached-board alternatives
 - Import the completed Yahoo draft ledger and reconstruct each team’s selections
 - Evaluate each of the user’s picks against players still available at that exact pick, using the historical snapshot closest to draft time when available
 - Show alternatives as explainable counterfactuals (source ranks, ADP, roster need, tiers, and uncertainty), never as a claim that a different choice was definitively correct

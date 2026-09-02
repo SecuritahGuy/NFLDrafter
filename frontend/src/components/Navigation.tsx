@@ -16,6 +16,7 @@ export const Navigation: React.FC = () => {
     { path: '/', label: 'Home', icon: HomeIcon },
     { path: '/draft-room', label: 'Draft Room', icon: TrophyIcon },
     { path: '/weekly-prep', label: 'Weekly Prep', icon: ChartBarIcon },
+    { path: '/draft-review', label: 'Draft Review', icon: ChartBarIcon },
     { path: '/scoring-builder', label: 'Scoring', icon: Cog6ToothIcon },
     { path: '/player-explorer', label: 'Players', icon: MagnifyingGlassIcon },
   ]
@@ -79,7 +80,7 @@ export const Navigation: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-5 gap-1 border-t border-slate-800 py-2 md:hidden">
+        <div className="grid grid-cols-6 gap-1 border-t border-slate-800 py-2 md:hidden">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path
             const IconComponent = item.icon

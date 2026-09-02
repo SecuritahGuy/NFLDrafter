@@ -87,6 +87,16 @@ type TeamComparisonSummary = {
   activeCovered: number
   injuries: number
   depth: Record<string, number>
+  starterDepth: Record<string, number>
+  benchDepth: Record<string, number>
+}
+
+type TeamScheduleOutlook = {
+  available: boolean
+  average_schedule_rank: number | null
+  label: string
+  covered_players: number
+  active_players: number
 }
 
 const plausibleProjection = (position: string | null, points: number | null, ppg: number | null) => {
@@ -105,6 +115,7 @@ export const WeeklyPrep: React.FC = () => {
   const [inspectedTeamId, setInspectedTeamId] = useState<string | null>(null)
   const [comparisonLeftId, setComparisonLeftId] = useState<string | null>(null)
   const [comparisonRightId, setComparisonRightId] = useState<string | null>(null)
+  const [scheduleOutlooks, setScheduleOutlooks] = useState<Record<string, TeamScheduleOutlook>>({})
   const [drawerTeamId, setDrawerTeamId] = useState<string | null>(null)
   const [teamDetail, setTeamDetail] = useState<TeamDetail | null>(null)
   const [isLoadingTeam, setIsLoadingTeam] = useState(false)
@@ -173,6 +184,21 @@ export const WeeklyPrep: React.FC = () => {
       ? current
       : snapshot.teams.find(team => team.id !== myTeamId)?.id ?? null)
   }, [snapshot])
+
+  useEffect(() => {
+    const teamIds = [comparisonLeftId, comparisonRightId].filter((id): id is string => Boolean(id))
+    if (!selectedLeague?.id || !teamIds.length) return
+    let cancelled = false
+    void Promise.all(teamIds.map(async teamId => {
+      const response = await fetch(`/api/yahoo/leagues/${selectedLeague.id}/weekly-prep/teams/${encodeURIComponent(teamId)}/schedule-outlook`)
+      return response.ok ? [teamId, await response.json()] as const : null
+    })).then(results => {
+      if (cancelled) return
+      const additions = Object.fromEntries(results.filter((result): result is readonly [string, TeamScheduleOutlook] => Boolean(result)))
+      setScheduleOutlooks(current => ({ ...current, ...additions }))
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [comparisonLeftId, comparisonRightId, selectedLeague?.id])
 
   useEffect(() => {
     if (!drawerTeamId) return
@@ -281,6 +307,11 @@ export const WeeklyPrep: React.FC = () => {
     const projection = teamProjection.get(team.id)
     const depth = teamDepth.get(team.id)
     const roster = rosterByTeam.get(team.id) || []
+    const depthFor = (filter: (player: RosterPlayer) => boolean) => roster.filter(filter).reduce<Record<string, number>>((total, player) => {
+      const position = player.position === 'D/ST' ? 'DST' : player.position
+      if (['QB', 'RB', 'WR', 'TE'].includes(position)) total[position] = (total[position] || 0) + 1
+      return total
+    }, {})
     return {
       rostered: roster.length,
       active: roster.filter(isActiveLineupPlayer).length,
@@ -289,10 +320,14 @@ export const WeeklyPrep: React.FC = () => {
       activeCovered: projection?.active ?? 0,
       injuries: depth?.injuryCount ?? 0,
       depth: depth?.counts ?? {},
+      starterDepth: depthFor(isActiveLineupPlayer),
+      benchDepth: depthFor(player => !isActiveLineupPlayer(player)),
     }
   }
   const leftSummary = comparisonSummary(comparisonLeft)
   const rightSummary = comparisonSummary(comparisonRight)
+  const leftScheduleOutlook = comparisonLeft ? scheduleOutlooks[comparisonLeft.id] : undefined
+  const rightScheduleOutlook = comparisonRight ? scheduleOutlooks[comparisonRight.id] : undefined
   const inspectedRoster = rosterByTeam.get(inspectedTeam?.id || '') || []
   const myInjuries = myRoster.flatMap(player => {
     const canonical = player.canonical_player_id ? playerById.get(player.canonical_player_id) : playerByYahooId.get(yahooPlayerKey(player.id))
@@ -444,7 +479,10 @@ export const WeeklyPrep: React.FC = () => {
                 <ComparisonRow label="Rostered players" left={leftSummary.rostered} right={rightSummary.rostered} format={value => String(value)} />
                 <ComparisonRow label="Active lineup" left={leftSummary.active} right={rightSummary.active} format={value => String(value)} />
                 <ComparisonRow label="Injury reports" left={leftSummary.injuries} right={rightSummary.injuries} format={value => String(value)} lowerIsBetter />
+                {leftScheduleOutlook?.available && rightScheduleOutlook?.available && leftScheduleOutlook.average_schedule_rank !== null && rightScheduleOutlook.average_schedule_rank !== null ? <ComparisonRow label="Schedule ease · active lineup" left={leftScheduleOutlook.average_schedule_rank} right={rightScheduleOutlook.average_schedule_rank} leftDetail={` · ${leftScheduleOutlook.label}`} rightDetail={` · ${rightScheduleOutlook.label}`} format={value => value.toFixed(1)} lowerIsBetter /> : null}
                 {['QB', 'RB', 'WR', 'TE'].map(position => <ComparisonRow key={position} label={`${position} roster depth`} left={leftSummary.depth[position] || 0} right={rightSummary.depth[position] || 0} format={value => String(value)} />)}
+                {['QB', 'RB', 'WR', 'TE'].map(position => <ComparisonRow key={`${position}-active`} label={`${position} active lineup`} left={leftSummary.starterDepth[position] || 0} right={rightSummary.starterDepth[position] || 0} format={value => String(value)} />)}
+                {['RB', 'WR', 'TE'].map(position => <ComparisonRow key={`${position}-bench`} label={`${position} bench depth`} left={leftSummary.benchDepth[position] || 0} right={rightSummary.benchDepth[position] || 0} format={value => String(value)} />)}
               </tbody></table>
             </div>
             <p className="mt-3 text-xs leading-5 text-slate-400">Season projection compares active lineup players only. Depth and injuries cover each full roster.</p>
