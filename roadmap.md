@@ -1,6 +1,6 @@
 # NFLDrafter Revival Roadmap
 
-Last updated: August 24, 2026
+Last updated: September 2, 2026
 
 NFLDrafter is being revived as a dependable, local-first fantasy draft assistant. The manual draft workflow is the product baseline; external services add context without becoming a single point of failure.
 
@@ -28,7 +28,26 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 
 ## Next priorities
 
-### 1. Extend the verified Yahoo integration
+### 1. Build the weekly preparation workspace
+
+- [x] Add a database-only Weekly Prep view for the selected Yahoo league: current matchup, roster check, league comparison, and recent activity
+- [x] Match Yahoo roster identities to cached FantasyPros season projections and official injury reports, showing coverage rather than filling gaps with guesses
+- [x] Add a conservative lineup-review and waiver-watch layer from saved lineup slots, official injuries, verified league availability, and cached projection coverage
+- [x] Add a lazy-loaded team roster drawer with starter/bench grouping, recent nflverse production, FantasyPros projections, injuries, and explicit missing-source states
+- [x] Add a validated ESPN projection fallback when FantasyPros coverage is missing, with per-player source labels, source counts, freshness dates, and plausibility bounds
+- Add ESPN ranking and player-context signals beyond the projection fallback to roster comparison
+- Add scoring-profile-aware weekly start/sit and waiver recommendations after weekly projection data is validated
+- [x] Add a cached, read-only team-comparison view for active-lineup projection, positional starter strength, bench depth, injury exposure, and schedule outlook
+
+### 2. Add a retrospective Draft Review
+
+- [x] Add a post-draft report from the saved local ledger, comparing each user selection with later-drafted cached-board alternatives
+- Import the completed Yahoo draft ledger and reconstruct each team’s selections
+- [x] Evaluate each user pick against players selected later using the nearest cached FantasyPros ECR snapshot when available, with a local-board fallback
+- Show alternatives as explainable counterfactuals (source ranks, ADP, roster need, tiers, and uncertainty), never as a claim that a different choice was definitively correct
+- Start with a post-draft report; do not alter the reliable manual draft workflow
+
+### 3. Extend the verified Yahoo integration
 
 - [x] Keep the registered HTTPS callback synchronized with `YAHOO_REDIRECT_URI` and complete a credentialed pre-draft league rehearsal
 - [x] Verify standings, roster slots, scoring modifiers, player-ID coverage, transactions, matchups, ownership, draft analysis, and completed-season stats
@@ -36,22 +55,24 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 - Add optional in-season current-week stats without weakening the database-first refresh contract
 - Keep live-pick synchronization deferred until the imported preparation workflow is trustworthy
 
-### 2. Expand opportunity coverage
+### 4. Expand opportunity coverage
 
 - Snap share, target share, rushing share, and expected fantasy points now load from nflverse through `load-usage`
 - Add route participation and official current depth-chart role only when a licensed or reliably structured source supports them directly
 - Separate historical production, projected opportunity, market cost, and news signals in both the API and UI
 - Surface missing or stale data explicitly
 
-### 3. Calibrate decision confidence
+### 5. Calibrate decision confidence
 
 - Backtest whether rank movement improves draft recommendations once enough daily history has accumulated
 - Backtest the directional availability model against mock-draft outcomes
 - Add tier-run alerts and calibrate recommendation weights through offline draft simulations
 
-### 4. Automate browser regression coverage
+### 6. Automate browser regression coverage
 
-- Add Playwright coverage for player completeness, position filters, draft selection, undo, persistence, and both player-detail entry points
+- [x] Add a Playwright Chromium smoke suite to CI for primary navigation and the no-ledger Draft Review state
+- [x] Cover seeded manual-draft selection, persisted reload, and undo in Playwright
+- Extend browser coverage to player completeness, position filters, and both player-detail entry points
 - Capture deterministic screenshots from seeded fixtures for pull requests and documentation
 - Add keyboard and accessibility checks to the release gate
 

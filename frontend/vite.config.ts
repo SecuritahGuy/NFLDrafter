@@ -28,6 +28,7 @@ export default defineConfig(({ mode }) => {
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
+        'e2e/**',
         'src/services/__tests__/offlineCache.test.ts',
         'src/test/season2025-components.test.tsx',
         'src/components/__tests__/PlayerBoardADP.test.tsx',

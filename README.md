@@ -4,7 +4,7 @@ A local-first fantasy football draft assistant with custom scoring profiles, pla
 
 ![NFLDrafter 2026 draft command center](docs/images/nfldrafter-draft-room-2026.png)
 
-## Revival status (August 2026)
+## Revival status (September 2026)
 
 | Area | Status |
 | --- | --- |
@@ -17,6 +17,7 @@ A local-first fantasy football draft assistant with custom scoring profiles, pla
 | Yahoo OAuth token exchange | Implemented and live-verified with automatic token refresh and a non-secret server-readiness check |
 | Yahoo read-only league snapshot | Implemented and live-verified for metadata, settings, teams, assigned draft positions, standings, rosters, draft results, transactions, scoreboard, available players, ownership, draft analysis, and season stats |
 | Yahoo scoring-profile persistence and season-aware player-ID matching | Implemented, fixture-tested, and exercised against a credentialed 2026 league |
+| Weekly Prep league comparison and roster review | Implemented from the persisted Yahoo snapshot, with recent production, injury context, waiver watch, and labeled FantasyPros/ESPN projection coverage |
 | Automated Yahoo live-pick synchronization | Not implemented; manual mode remains the reliable draft path |
 | Versioned offline draft packages | Implemented with browser cache, JSON import/export, and checksum validation |
 | FantasyPros ECR, ESPN draft rank, and FFC ADP | Implemented with daily timestamped snapshots, canonical-ID coverage, source attribution, a weighted draft rank, and player-level movement history |
@@ -41,8 +42,9 @@ Yahoo is optional: after player data has loaded, the draft room prepares and cac
 - **Ranking Movement**: Compare dated FantasyPros, ESPN, and FFC snapshots in every player profile, with feed freshness and missing matches called out explicitly
 - **Yahoo Import Verification**: Preview assigned draft order, teams, roster slots, draft rounds, and mapped scoring rules before import; automatically set the current Yahoo manager's slot when Yahoo has a complete order, with a manual labeled fallback
 - **Read-Only Yahoo Cache**: Persist useful league, market, transaction, matchup, and completed-season player data so ordinary frontend views remain database-only
+- **Weekly Prep Workspace**: Compare every linked-league roster, inspect starter and bench construction in a side drawer, review recent production and injuries, and use FantasyPros projections with a validated, visibly labeled ESPN fallback
 
-The current fantasy-relevant player pool contains 1,024 selectable players, including all 32 defenses. The August 2026 browser QA covered missing-player searches, position filters, board ordering, ADP round estimates, credentialed Yahoo reads, and player details opened from both the Draft Room and Player Explorer. See the [QA evidence](docs/QA.md) for the scenarios and captured screenshots.
+The current fantasy-relevant player pool contains 1,024 selectable players, including all 32 defenses. Browser QA covers missing-player searches, position filters, board ordering, ADP round estimates, credentialed Yahoo reads, player details opened from both the Draft Room and Player Explorer, and the post-draft Weekly Prep roster workflow. See the [QA evidence](docs/QA.md) for the scenarios and captured screenshots.
 
 ## Ranking sources
 
@@ -212,6 +214,8 @@ This creates `.venv`, installs locked frontend dependencies, initializes SQLite 
 - **GET** `/rankings/fantasypros/cache-status` - Inspect cache freshness and locally tracked daily-call usage without exposing the key
 - **GET** `/yahoo/readiness` - Confirm OAuth credentials and callback configuration without exposing secrets
 - **GET** `/yahoo/leagues/{league_id}/snapshot` - Read the persisted frontend-ready Yahoo league snapshot without contacting Yahoo
+- **GET** `/yahoo/leagues/{league_id}/weekly-prep` - Build the database-only matchup, league comparison, lineup review, and waiver-watch workspace
+- **GET** `/yahoo/leagues/{league_id}/weekly-prep/teams/{team_id}` - Lazily load a team roster with recent production and cached player context
 - **POST** `/yahoo/leagues/{league_id}/sync` - Refresh the linked league's supported read-only Yahoo resources and persist one snapshot
 - **GET** `/news/players/{player_id}/features` - Get player-linked news features and headlines
 - **GET** `/news/sources` - Inspect persisted publishers, article counts, freshness, and player/team link coverage
@@ -395,6 +399,10 @@ The checked-in QA captures are reusable in issues, release notes, and project do
 | Historical opportunity |
 | --- |
 | ![Historical snap share and expected opportunity](docs/images/nfldrafter-historical-opportunity.png) |
+
+| Weekly Prep roster review |
+| --- |
+| ![Weekly Prep team roster drawer](docs/images/nfldrafter-weekly-prep-roster-drawer.png) |
 
 `docs/index.html` is a dependency-free product page. The `GitHub Pages` workflow publishes that directory after Pages is configured to use **GitHub Actions** in the repository settings.
 

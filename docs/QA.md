@@ -1,6 +1,6 @@
 # Browser QA Evidence
 
-This record captures the August 2026 manual browser review used to validate the revived Draft Room and Player Explorer. The images in `docs/images` are application screenshots from that QA run and can be reused in the README and GitHub Pages site.
+This record captures the August and September 2026 manual browser reviews used to validate the revived Draft Room, Player Explorer, and post-draft Weekly Prep workspace. The images in `docs/images` are application screenshots from those QA runs and can be reused in the README and GitHub Pages site.
 
 ## Coverage
 
@@ -29,6 +29,9 @@ This record captures the August 2026 manual browser review used to validate the 
 | Credentialed Yahoo league import against live Fantasy Sports data | Pass | Live 2026 league snapshot: 57 successful read requests, zero failures, 300 available players, 262 players with non-zero 2025 stats, 108 stat categories, 12 teams, 20 transactions, and 6 scheduled matchups |
 | Yahoo fixture rehearsal previews teams, rosters, slots, and scoring rules, then reports match coverage | Pass | Frontend component tests plus backend XML/scoring/player-matching tests |
 | Yahoo settings preserve all live scoring modifiers and avoid guessing unsupported rules | Pass | 35 live modifiers parsed; 12 offensive rules mapped and 23 kicker/defense/special-case rules retained for review |
+| Weekly Prep renders the current matchup, league comparison, lineup review, waiver watch, and source-health context entirely from the persisted Yahoo snapshot | Pass | Live September 2 review against the imported 12-team league |
+| Yahoo roster fallback resolves all 180 rostered player identities and the available-player cache resolves 455 of 480 candidates | Pass | Live September 2 API and browser review |
+| Selecting a league team opens a side drawer with starter/bench groups, 2025 nflverse production, official injuries, FantasyPros-first projections, and visibly labeled validated ESPN fallback | Pass | [Weekly Prep roster drawer](images/nfldrafter-weekly-prep-roster-drawer.png) |
 
 ## Ranking review
 
@@ -42,6 +45,7 @@ Unexpectedly high players should be investigated through the visible source colu
 - Projected role share is a directional provider-rank estimate normalized among each team's ranked RB/WR/TE players; it is not labeled as snap or possession share. Exact stat shares show how many teammate projections are included because incomplete provider coverage can inflate the result.
 - Historical snap share comes from Pro Football Reference snap counts distributed by nflverse. Expected PPR and rushing opportunity come from nflverse play-level opportunity data. The UI does not substitute on-field participation for route participation or a projected role for an official depth rank.
 - The FantasyPros free API tier limits each response to 10 records. NFLDrafter makes one cached request per position, refreshes weekly, serves stale data on provider/quota failures, and keeps UI reads cache-only. ESPN remains the fallback outside the matched FantasyPros sample.
+- Weekly Prep never lets ESPN replace an available FantasyPros projection. Fallback values must also pass position-aware plausibility bounds; rejected or unavailable values remain visibly missing instead of being presented as credible projections.
 - Draft confidence describes agreement among available ranking inputs; it is not an injury, role, or performance confidence score. Availability percentages model draft position from ADP variance and must remain labeled directional.
 - Ranking movement treats a lower number as better, preserves source-specific dates, and does not connect missing matches. On August 7, the live QA showed three matched feeds for Jahmyr Gibbs: FantasyPros through July 31, FFC through August 6, and ESPN through August 7.
 - Strength-of-schedule rank is based on prior-season PPR points allowed by position. Rank 1 is easiest in the model and is descriptive context, not a forecast.

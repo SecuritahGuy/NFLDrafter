@@ -6,6 +6,8 @@ import { ScoringBuilder } from './components/ScoringBuilder'
 import { PlayerExplorer } from './components/PlayerExplorer'
 import { DraftRoom } from './components/DraftRoom'
 import { OAuthCallback } from './components/OAuthCallback'
+import { WeeklyPrep } from './components/WeeklyPrep'
+import { DraftReview } from './components/DraftReview'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -114,6 +116,8 @@ function App() {
                 </div>
               } />
               <Route path="/draft-room" element={<DraftRoom />} />
+              <Route path="/weekly-prep" element={<WeeklyPrep />} />
+              <Route path="/draft-review" element={<DraftReview />} />
               <Route path="/auth/callback" element={<OAuthCallback />} />
             </Routes>
           </main>

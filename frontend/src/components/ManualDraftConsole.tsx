@@ -144,10 +144,10 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
 
   return (
     <section aria-labelledby="manual-draft-heading" className="mb-6 overflow-hidden rounded-2xl border border-blue-400/30 bg-slate-950/90 text-white shadow-2xl shadow-slate-950/30">
-      <div className={`border-b px-4 py-3 ${isMyTurn ? 'border-emerald-400/40 bg-emerald-500/15' : 'border-blue-400/30 bg-blue-500/10'}`}>
+      <div className={`border-b px-4 py-3 ${draftComplete || isMyTurn ? 'border-emerald-400/40 bg-emerald-500/15' : 'border-blue-400/30 bg-blue-500/10'}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-lg font-black ${isMyTurn ? 'bg-emerald-400 text-emerald-950' : 'bg-blue-500 text-white'}`}>{draftComplete ? '✓' : currentPick}</div>
+            <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-lg font-black ${draftComplete || isMyTurn ? 'bg-emerald-400 text-emerald-950' : 'bg-blue-500 text-white'}`}>{draftComplete ? '✓' : currentPick}</div>
             <div>
               <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{draftComplete ? 'Draft complete' : 'On the clock'}</div>
               <div className="text-lg font-black">{draftComplete ? `${session.picks.length} picks recorded` : `${isMyTurn ? 'Your team' : teamLabel(currentTeam, session.config)} · Round ${currentRound}, pick ${pickInRound}`}</div>
@@ -156,7 +156,7 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
           <div className="flex flex-wrap gap-2 text-xs">
             <div className="rounded-lg bg-slate-900/70 px-3 py-2"><span className="text-slate-400">Off board</span><strong className="ml-2 text-white">{session.picks.length}</strong></div>
             <div className="rounded-lg bg-slate-900/70 px-3 py-2"><span className="text-slate-400">Available</span><strong className="ml-2 text-white">{availablePlayers.length}</strong></div>
-            <div className="rounded-lg bg-slate-900/70 px-3 py-2"><span className="text-slate-400">Your next</span><strong className="ml-2 text-white">{nextUserPick ?? '—'}{picksUntilMine != null && picksUntilMine > 0 ? ` (${picksUntilMine} away)` : ''}</strong></div>
+            <div className="rounded-lg bg-slate-900/70 px-3 py-2"><span className="text-slate-400">{draftComplete ? 'Status' : 'Your next'}</span><strong className="ml-2 text-white">{draftComplete ? 'Complete' : `${nextUserPick ?? '—'}${picksUntilMine != null && picksUntilMine > 0 ? ` (${picksUntilMine} away)` : ''}`}</strong></div>
           </div>
         </div>
       </div>
@@ -202,6 +202,12 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
         </div>
       </details>
 
+      {draftComplete ? (
+        <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-5 text-center">
+          <div className="text-lg font-black text-emerald-200">Everything is done</div>
+          <p className="mt-1 text-sm text-slate-300">All {totalPicks} picks are recorded. Review your roster or export the final draft ledger above.</p>
+        </div>
+      ) : (
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="rounded-xl border border-blue-400/30 bg-slate-900/80 p-3">
           <label htmlFor="draft-quick-search" className="text-xs font-bold uppercase tracking-[0.16em] text-blue-200">Record the next pick</label>
@@ -235,6 +241,7 @@ export const ManualDraftConsole: React.FC<ManualDraftConsoleProps> = ({
           </ol>
         </div>
       </div>
+      )}
 
       <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900/70 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
