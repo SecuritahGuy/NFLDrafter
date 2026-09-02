@@ -18,6 +18,10 @@ export function buildCompositeRankings(
   espnRows: RankingRow[] = [],
   ffcRows: RankingRow[] = [],
 ): Map<string, CompositeRanking> {
+  // Keep this utility safe when cached or third-party API data does not match
+  // the expected list contract. The API client normalizes known wrappers.
+  if (!Array.isArray(players)) return new Map()
+
   const toMap = (rows: RankingRow[]) => new Map(
     rows.filter((row) => row.player_id).map((row) => [row.player_id as string, row]),
   )

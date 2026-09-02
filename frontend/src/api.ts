@@ -344,7 +344,11 @@ export const playersAPI = {
   // Search players with filters
   async searchPlayers(params: PlayerSearchParams = {}): Promise<BackendPlayer[]> {
     const response = await api.get(endpoints.players, { params });
-    return response.data;
+    // The API currently returns an array, while some deployments wrap list
+    // responses in `{ players: [...] }`. Keep the hook contract stable for
+    // either response shape.
+    if (Array.isArray(response.data)) return response.data;
+    return Array.isArray(response.data?.players) ? response.data.players : [];
   },
 
   // Get player by ID
