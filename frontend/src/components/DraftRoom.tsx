@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PlayerBoard } from './PlayerBoard'
@@ -221,6 +221,28 @@ const DraftRoomContent: React.FC = () => {
     return ids
   }, [players, yahooSnapshot])
 
+  const refreshYahooAccessToken = useCallback(async (): Promise<string | null> => {
+    if (!yahooRefreshToken) return null
+    try {
+      const response = await api.post<{ access_token: string; refresh_token: string; expires_in: number }>('/yahoo/refresh-token', {
+        refresh_token: yahooRefreshToken,
+      })
+      const { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn } = response.data
+      localStorage.setItem('yahoo_access_token', accessToken)
+      localStorage.setItem('yahoo_refresh_token', refreshToken)
+      localStorage.setItem('yahoo_expires_at', String(Date.now() + expiresIn * 1000))
+      setYahooAccessToken(accessToken)
+      setYahooRefreshToken(refreshToken)
+      return accessToken
+    } catch {
+      localStorage.removeItem('yahoo_access_token')
+      localStorage.removeItem('yahoo_refresh_token')
+      setYahooAccessToken(null)
+      setYahooRefreshToken(null)
+      return null
+    }
+  }, [yahooRefreshToken])
+
   useEffect(() => {
     if (!yahooAccessToken || !selectedLeague?.id || !players?.length) {
       setYahooLiveStatus(null)
@@ -228,12 +250,12 @@ const DraftRoomContent: React.FC = () => {
     }
 
     let cancelled = false
-    const pollLiveDraft = async () => {
+    const pollLiveDraft = async (accessToken = yahooAccessToken, retriedAfterRefresh = false) => {
       try {
         const response = await api.post<YahooLiveDraftResponse>(
           `/yahoo/leagues/${selectedLeague.id}/draft-results`,
           undefined,
-          { headers: { Authorization: `Bearer ${yahooAccessToken}` } },
+          { headers: { Authorization: `Bearer ${accessToken}` } },
         )
         if (cancelled) return
         const data = response.data
@@ -269,7 +291,15 @@ const DraftRoomContent: React.FC = () => {
           yahooPickSignature.current = signature
           syncDraftPicks(syncedPicks)
         }
-      } catch {
+      } catch (error) {
+        const status = (error as { response?: { status?: number } }).response?.status
+        if (status === 401 && !retriedAfterRefresh) {
+          const refreshedToken = await refreshYahooAccessToken()
+          if (refreshedToken && !cancelled) {
+            await pollLiveDraft(refreshedToken, true)
+            return
+          }
+        }
         if (!cancelled) setYahooLiveStatus('error')
       }
     }
@@ -280,7 +310,7 @@ const DraftRoomContent: React.FC = () => {
       cancelled = true
       window.clearInterval(interval)
     }
-  }, [playerIdByYahooId, players?.length, selectedLeague?.id, session.config.draftSlot, session.config.leagueSize, syncDraftPicks, yahooAccessToken])
+  }, [playerIdByYahooId, players?.length, refreshYahooAccessToken, selectedLeague?.id, session.config.draftSlot, session.config.leagueSize, syncDraftPicks, yahooAccessToken])
   const { data: injuries } = useInjuries(currentSeason)
   const injuriesByPlayer = useMemo(() => {
     const grouped = new Map<string, import('../api').InjuryReportEntry[]>()
