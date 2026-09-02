@@ -9,6 +9,13 @@ import { rankingsAPI } from '../api'
 
 const SESSION_STORAGE_KEY = 'nfldrafter.manual-draft.v1'
 
+type YahooDraftSnapshot = {
+  fetched_at: number
+  teams?: Array<{ id: string; is_current_user?: boolean }>
+  draft_results?: Array<{ pick: number; team_id: string; player_id: string }>
+  players?: Array<{ id: string; name: string; position: string; team: string }>
+}
+
 const loadDraftSession = (): DraftSession | null => {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(SESSION_STORAGE_KEY) || 'null') as DraftSession | null
@@ -28,10 +35,40 @@ export const DraftReview: React.FC = () => {
   const { data: backendPlayers = [], isLoading } = usePlayers({ limit: 1200, current_only: true, season: 2026 })
   const session = useMemo(loadDraftSession, [])
   const draftPackage = useMemo(loadDraftPackage, [])
+  const selectedLeague = useMemo(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem('yahoo_selected_league') || 'null') as { id: string } | null
+    } catch {
+      return null
+    }
+  }, [])
+  const { data: yahooSnapshot } = useQuery({
+    queryKey: ['yahoo', 'draft-review', selectedLeague?.id],
+    queryFn: async () => {
+      const response = await fetch(`/api/yahoo/leagues/${selectedLeague!.id}/snapshot`)
+      if (!response.ok) throw new Error('Cached Yahoo draft is unavailable')
+      return response.json() as Promise<YahooDraftSnapshot>
+    },
+    enabled: Boolean(selectedLeague?.id),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+  const reviewPicks = useMemo(() => {
+    if (session?.picks.length) return session.picks
+    const myTeamId = yahooSnapshot?.teams?.find(team => team.is_current_user)?.id
+    return (yahooSnapshot?.draft_results ?? []).map(result => ({
+      pick: result.pick,
+      playerId: `yahoo:${result.player_id}`,
+      team: 0,
+      isMine: result.team_id === myTeamId,
+      madeAt: new Date((yahooSnapshot?.fetched_at ?? 0) * 1000).toISOString(),
+    }))
+  }, [session?.picks, yahooSnapshot])
+  const leagueSize = session?.config.leagueSize ?? yahooSnapshot?.teams?.length ?? 12
   const draftTimestamp = useMemo(() => {
-    const timestamps = (session?.picks ?? []).map(pick => Date.parse(pick.madeAt)).filter(Number.isFinite)
+    const timestamps = reviewPicks.map(pick => Date.parse(pick.madeAt)).filter(Number.isFinite)
     return timestamps.length ? timestamps.sort((a, b) => a - b)[Math.floor(timestamps.length / 2)] : null
-  }, [session])
+  }, [reviewPicks])
   const { data: snapshots = [] } = useQuery({
     queryKey: ['rankings', 'fantasypros-ecr', 'snapshots'],
     queryFn: () => rankingsAPI.getSnapshots('fantasypros-ecr'),
@@ -50,6 +87,12 @@ export const DraftReview: React.FC = () => {
   const playersById = useMemo(() => {
     const players = new Map<string, Player>()
     for (const player of draftPackage?.players ?? []) players.set(player.id, player)
+    for (const player of yahooSnapshot?.players ?? []) {
+      players.set(`yahoo:${player.id}`, {
+        id: `yahoo:${player.id}`, name: player.name, position: player.position, team: player.team,
+        fantasyPoints: 0, yahooPoints: 0, delta: 0, vorp: 0, tier: 0, adp: 0, newsCount: 0, byeWeek: 0,
+      })
+    }
     for (const player of backendPlayers) {
       players.set(player.player_id, {
         id: player.player_id,
@@ -67,11 +110,11 @@ export const DraftReview: React.FC = () => {
       })
     }
     return players
-  }, [backendPlayers, draftPackage])
+  }, [backendPlayers, draftPackage, yahooSnapshot])
   const historicalRankByPlayer = useMemo(() => new Map((historicalRankings?.rankings ?? []).filter(row => row.player_id && row.rank).map(row => [row.player_id!, row.rank!])), [historicalRankings])
-  const myPicks = useMemo(() => (session?.picks ?? []).filter(pick => pick.isMine).sort((a, b) => a.pick - b.pick), [session])
+  const myPicks = useMemo(() => reviewPicks.filter(pick => pick.isMine).sort((a, b) => a.pick - b.pick), [reviewPicks])
 
-  if (!session) return <DraftReviewEmpty title="No recorded draft yet" copy="Complete or import a draft in Draft Room first. Your review is built from the saved local draft ledger." />
+  if (!reviewPicks.length) return <DraftReviewEmpty title="No recorded draft yet" copy="Complete or import a draft in Draft Room first. Draft Review also reads a cached completed Yahoo ledger when the local ledger is unavailable." />
   if (!myPicks.length) return <DraftReviewEmpty title="No picks on your roster" copy="The saved ledger does not identify any selections as your team. Check the draft slot or correct the ledger in Draft Room." />
 
   return <div className="min-h-[calc(100vh-3rem)] bg-slate-950 text-slate-100">
@@ -85,9 +128,9 @@ export const DraftReview: React.FC = () => {
         {myPicks.map(pick => {
           const chosen = playersById.get(pick.playerId)
           const rankFor = (player: Player) => historicalRankByPlayer.get(player.id) ?? playerOrder(player)
-          const alternatives = session.picks.filter(candidate => candidate.pick > pick.pick).map(candidate => ({ pick: candidate, player: playersById.get(candidate.playerId) })).filter((candidate): candidate is { pick: DraftPick; player: Player } => Boolean(candidate.player)).sort((a, b) => rankFor(a.player) - rankFor(b.player)).slice(0, 3)
+          const alternatives = reviewPicks.filter(candidate => candidate.pick > pick.pick).map(candidate => ({ pick: candidate, player: playersById.get(candidate.playerId) })).filter((candidate): candidate is { pick: DraftPick; player: Player } => Boolean(candidate.player)).sort((a, b) => rankFor(a.player) - rankFor(b.player)).slice(0, 3)
           const chosenRank = chosen ? historicalRankByPlayer.get(chosen.id) : undefined
-          return <article key={pick.pick} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Pick {pickLabel(pick, session.config.leagueSize)} · overall #{pick.pick}</p><h2 className="mt-1 text-xl font-black">{chosen?.name ?? pick.playerId}</h2><p className="mt-1 text-sm text-slate-400">{chosen ? `${chosen.position} · ${chosen.team || 'FA'}${chosenRank ? ` · FantasyPros ECR #${chosenRank}` : chosen.rank ? ` · cached composite #${chosen.rank}` : ''}` : 'Player identity was not retained in the local package.'}</p></div><span className="rounded-lg bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-200">Your selection</span></div><div className="mt-4 border-t border-slate-700 pt-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Best cached board alternatives selected later</p><div className="mt-3 grid gap-2 md:grid-cols-3">{alternatives.map(({ pick: alternativePick, player }) => <div key={alternativePick.pick} className="rounded-xl border border-slate-700 bg-slate-950/50 p-3"><p className="font-bold">{player.name}</p><p className="mt-1 text-xs text-slate-400">{player.position} · {player.team || 'FA'} · selected {pickLabel(alternativePick, session.config.leagueSize)}</p><p className="mt-2 text-xs font-semibold text-cyan-200">{historicalRankByPlayer.get(player.id) ? `FantasyPros ECR #${historicalRankByPlayer.get(player.id)}` : player.rank ? `Cached composite #${player.rank}` : player.adp ? `Cached ADP ${player.adp.toFixed(1)}` : 'No cached ordering'}</p></div>)}{!alternatives.length && <p className="text-sm text-slate-400">No later selections with a cached player record.</p>}</div></div></article>
+          return <article key={pick.pick} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Pick {pickLabel(pick, leagueSize)} · overall #{pick.pick}</p><h2 className="mt-1 text-xl font-black">{chosen?.name ?? pick.playerId}</h2><p className="mt-1 text-sm text-slate-400">{chosen ? `${chosen.position} · ${chosen.team || 'FA'}${chosenRank ? ` · FantasyPros ECR #${chosenRank}` : chosen.rank ? ` · cached composite #${chosen.rank}` : ''}` : 'Player identity was not retained in the local package.'}</p></div><span className="rounded-lg bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-200">Your selection</span></div><div className="mt-4 border-t border-slate-700 pt-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Best cached board alternatives selected later</p><div className="mt-3 grid gap-2 md:grid-cols-3">{alternatives.map(({ pick: alternativePick, player }) => <div key={alternativePick.pick} className="rounded-xl border border-slate-700 bg-slate-950/50 p-3"><p className="font-bold">{player.name}</p><p className="mt-1 text-xs text-slate-400">{player.position} · {player.team || 'FA'} · selected {pickLabel(alternativePick, leagueSize)}</p><p className="mt-2 text-xs font-semibold text-cyan-200">{historicalRankByPlayer.get(player.id) ? `FantasyPros ECR #${historicalRankByPlayer.get(player.id)}` : player.rank ? `Cached composite #${player.rank}` : player.adp ? `Cached ADP ${player.adp.toFixed(1)}` : 'No cached ordering'}</p></div>)}{!alternatives.length && <p className="text-sm text-slate-400">No later selections with a cached player record.</p>}</div></div></article>
         })}
       </section>
       {isLoading && <p className="mt-4 text-sm text-slate-400">Loading current player identities…</p>}
