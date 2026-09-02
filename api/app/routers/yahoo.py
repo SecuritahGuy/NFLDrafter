@@ -14,8 +14,14 @@ from dotenv import load_dotenv
 from app.deps import get_db
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import ApiResponseCache, PlayerIdentifier
+from app.models import ApiResponseCache, Player, PlayerIdentifier, PlayerWeekStat
 from copy import deepcopy
+from app.services.player_matching import (
+    normalize_name,
+    normalize_position,
+    normalize_team,
+    yahoo_numeric_id,
+)
 from app.services.yahoo_xml import (
     parse_leagues,
     parse_rosters,
@@ -583,21 +589,117 @@ async def yahoo_weekly_prep_snapshot(
         )
     ).all()
     canonical_ids = {external_id: canonical_id for external_id, canonical_id in rows}
+    players = list((await db.execute(select(Player))).scalars().all())
+    by_yahoo_id = {
+        yahoo_numeric_id(player.yahoo_id): player.player_id
+        for player in players if player.yahoo_id
+    }
+    by_name_position_team: dict[tuple[str, str, str], list[str]] = {}
+    by_name_position: dict[tuple[str, str], list[str]] = {}
+    for player in players:
+        name = normalize_name(player.full_name)
+        position = normalize_position(player.position)
+        team = normalize_team(player.team)
+        by_name_position_team.setdefault((name, position, team), []).append(player.player_id)
+        by_name_position.setdefault((name, position), []).append(player.player_id)
+
+    def canonical_id_for(player: dict) -> tuple[str | None, str | None]:
+        external_id = str(player.get("id") or "")
+        if canonical := canonical_ids.get(external_id):
+            return canonical, "season_identifier"
+        if canonical := by_yahoo_id.get(yahoo_numeric_id(external_id)):
+            return canonical, "yahoo_id"
+        name = normalize_name(player.get("name"))
+        position = normalize_position(player.get("position"))
+        team = normalize_team(player.get("team"))
+        exact = by_name_position_team.get((name, position, team), [])
+        if len(exact) == 1:
+            return exact[0], "name_position_team"
+        by_position = by_name_position.get((name, position), [])
+        if len(by_position) == 1:
+            return by_position[0], "name_position"
+        return None, None
+
     mapped = 0
     for roster in enriched.get("rosters") or []:
         for player in roster.get("players") or []:
-            canonical_id = canonical_ids.get(str(player.get("id") or ""))
+            canonical_id, method = canonical_id_for(player)
             if canonical_id:
                 player["canonical_player_id"] = canonical_id
+                player["mapping_method"] = method
                 mapped += 1
+    mapped_available = 0
+    for player in enriched.get("players") or []:
+        canonical_id, method = canonical_id_for(player)
+        if canonical_id:
+            player["canonical_player_id"] = canonical_id
+            player["mapping_method"] = method
+            mapped_available += 1
     enriched["mapping_coverage"] = {
         "season": season,
         "mapped_roster_players": mapped,
         "rostered_players": sum(
             len(roster.get("players") or []) for roster in enriched.get("rosters") or []
         ),
+        "mapped_available_players": mapped_available,
+        "available_players": len(enriched.get("players") or []),
     }
     return enriched
+
+
+@router.get("/leagues/{league_id}/weekly-prep/teams/{team_id}")
+async def yahoo_weekly_prep_team(
+    league_id: str,
+    team_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return one cached roster with recent locally stored weekly statistics."""
+    snapshot = await yahoo_weekly_prep_snapshot(league_id, db)
+    team = next((item for item in snapshot.get("teams") or [] if item.get("id") == team_id), None)
+    roster = next((item for item in snapshot.get("rosters") or [] if item.get("team_id") == team_id), None)
+    if team is None or roster is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team roster not found")
+
+    season = int((snapshot.get("metadata") or {}).get("season") or 0)
+    canonical_ids = [
+        player["canonical_player_id"]
+        for player in roster.get("players") or []
+        if player.get("canonical_player_id")
+    ]
+    recent_by_player: dict[str, dict[tuple[int, int], dict[str, float]]] = {}
+    if canonical_ids and season:
+        rows = (
+            await db.execute(
+                select(PlayerWeekStat).where(
+                    PlayerWeekStat.player_id.in_(canonical_ids),
+                    PlayerWeekStat.season.in_((season, season - 1)),
+                )
+            )
+        ).scalars().all()
+        for row in rows:
+            recent_by_player.setdefault(row.player_id, {}).setdefault(
+                (row.season, row.week), {}
+            )[row.stat_key] = row.stat_value
+
+    players = []
+    for player in roster.get("players") or []:
+        weeks = recent_by_player.get(player.get("canonical_player_id") or "", {})
+        latest = sorted(weeks.items(), key=lambda item: item[0], reverse=True)[:3]
+        players.append({
+            **player,
+            "recent_weeks": [
+                {"season": key[0], "week": key[1], "stats": stats}
+                for key, stats in latest
+            ],
+        })
+    return {
+        "league_id": league_id,
+        "team": team,
+        "players": players,
+        "stats_source": "nflverse",
+        "stats_seasons": [season, season - 1] if season else [],
+        "read_only": True,
+    }
 
 
 @router.post("/leagues/{league_id}/sync")
