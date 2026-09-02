@@ -34,7 +34,8 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 - [x] Match Yahoo roster identities to cached FantasyPros season projections and official injury reports, showing coverage rather than filling gaps with guesses
 - [x] Add a conservative lineup-review and waiver-watch layer from saved lineup slots, official injuries, verified league availability, and cached projection coverage
 - [x] Add a lazy-loaded team roster drawer with starter/bench grouping, recent nflverse production, FantasyPros projections, injuries, and explicit missing-source states
-- Add ESPN rankings and player-context signals to the roster comparison with source freshness and clear signal labels
+- [x] Add a validated ESPN projection fallback when FantasyPros coverage is missing, with per-player source labels, source counts, freshness dates, and plausibility bounds
+- Add ESPN ranking and player-context signals beyond the projection fallback to roster comparison
 - Add scoring-profile-aware weekly start/sit and waiver recommendations after weekly projection data is validated
 - Add team-comparison views for positional strength, bench depth, injury exposure, and schedule outlook
 
