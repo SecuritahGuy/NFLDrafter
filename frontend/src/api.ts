@@ -254,6 +254,11 @@ export interface RankingsResponse {
   rankings: RankingRow[];
 }
 
+export interface RankingSnapshot {
+  snapshot_date: string;
+  snapshot_ts: number;
+}
+
 export interface RankingHistoryPoint {
   snapshot_date: string;
   rank: number | null;
@@ -502,11 +507,18 @@ export const fantasyAPI = {
 };
 
 export const rankingsAPI = {
-  async getRankings(source: RankingSourceId, limit = 500): Promise<RankingsResponse> {
+  async getRankings(source: RankingSourceId, limit = 500, snapshotDate?: string): Promise<RankingsResponse> {
     const response = await api.get(endpoints.rankings, {
-      params: { source, rank_type: 'preseason', scoring: 'PPR', limit },
+      params: { source, rank_type: 'preseason', scoring: 'PPR', limit, snapshot_date: snapshotDate },
     });
     return response.data;
+  },
+
+  async getSnapshots(source: RankingSourceId): Promise<RankingSnapshot[]> {
+    const response = await api.get(`${endpoints.rankings}snapshots`, {
+      params: { source, rank_type: 'preseason' },
+    });
+    return response.data.snapshots || [];
   },
 
   async getSources(): Promise<RankingSourceStatus[]> {

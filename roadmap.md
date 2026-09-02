@@ -43,7 +43,7 @@ NFLDrafter is being revived as a dependable, local-first fantasy draft assistant
 
 - [x] Add a post-draft report from the saved local ledger, comparing each user selection with later-drafted cached-board alternatives
 - Import the completed Yahoo draft ledger and reconstruct each team’s selections
-- Evaluate each of the user’s picks against players still available at that exact pick, using the historical snapshot closest to draft time when available
+- [x] Evaluate each user pick against players selected later using the nearest cached FantasyPros ECR snapshot when available, with a local-board fallback
 - Show alternatives as explainable counterfactuals (source ranks, ADP, roster need, tiers, and uncertainty), never as a claim that a different choice was definitively correct
 - Start with a post-draft report; do not alter the reliable manual draft workflow
 
